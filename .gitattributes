@@ -1,0 +1,48 @@
+# Default: normalize text files to LF in the repository, check out with LF.
+* text=auto eol=lf
+
+# Markdown uses LF everywhere.
+*.md text eol=lf
+
+# Windows scripts keep CRLF on checkout.
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Images.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.avif binary
+*.ico binary
+*.icns binary
+
+# Documents.
+*.pdf binary
+
+# Fonts.
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+
+# Archives.
+*.zip binary
+*.gz binary
+*.7z binary
+
+# Application artifacts.
+*.dmg binary
+*.exe binary
+*.msi binary
+*.appimage binary
+*.AppImage binary
+
+# Databases.
+*.sqlite binary
+*.db binary
+
+# Generated lockfile metadata; still keep diffs reviewable.
+package-lock.json linguist-generated=true
