@@ -2,6 +2,8 @@
 
 Documents available at this revision, grouped by purpose.
 
+- [README.md](../../README.md)
+- [README.zh-CN.md](../../README.zh-CN.md)
 - [CONTRIBUTING.md](../../CONTRIBUTING.md)
 - [CODE_OF_CONDUCT.md](../../CODE_OF_CONDUCT.md)
 - [SECURITY.md](../../SECURITY.md)
