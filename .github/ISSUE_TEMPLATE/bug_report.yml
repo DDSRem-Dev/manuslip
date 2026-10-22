@@ -1,0 +1,114 @@
+name: Bug report
+description: Report a reproducible defect in Manuslip.
+title: "[Bug]: "
+labels:
+  - "bug"
+  - "needs triage"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Please search existing issues first so we can keep discussion in one place.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preflight checks
+      options:
+        - label: I searched existing issues and did not find a duplicate.
+          required: true
+        - label: I reproduced this on the latest commit or prerelease.
+          required: true
+        - label: This is not a security vulnerability (see SECURITY.md for private reporting).
+          required: true
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: One or two sentences describing the bug.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open Manuslip
+        2. Switch to Live Preview
+        3. Paste a table with a merged header
+        4. Scroll to the table
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Rendering mode
+      options:
+        - Source
+        - Live Preview
+        - Translated Preview
+        - Not applicable
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Manuslip version or commit
+      placeholder: e.g. 0.1.0 or 1a2b3c4
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows
+        - macOS
+        - Linux
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: os_version
+    attributes:
+      label: OS version
+      placeholder: e.g. Windows 11 24H2, macOS 15.2, Ubuntu 24.04
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Open DevTools with Ctrl+Shift+I (Cmd+Option+I on macOS); main-process logs are printed in the terminal that launched Manuslip. Paste relevant output here.
+      render: text
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+    validations:
+      required: false
