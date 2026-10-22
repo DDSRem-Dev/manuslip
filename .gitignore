@@ -1,0 +1,10 @@
+
+# Local design tooling and test evidence
+.impeccable/
+.uuid*
+/test/artifacts/
+/test/e2e/results/
+/test/e2e/report/
+/test/benchmark/results/
+/test/packaging/results/
+**/test/artifacts/
