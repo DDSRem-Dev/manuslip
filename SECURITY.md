@@ -49,7 +49,7 @@ The following attack surfaces are in scope. Each line explains why it matters fo
 - Renderer sandbox and IPC: escape from the sandboxed renderer, or abuse of the typed contextBridge API for path traversal, arbitrary file read or write, or shell and OS command execution.
 - File handling: atomic save, file watching, workspace roots, writes to the asset folder, symlink handling, and encoding detection through iconv-lite and jschardet. These paths decide which files the app may touch.
 - Optional Pandoc invocation: argument injection, process spawning, and PATH hijacking when a user has Pandoc installed.
-- Translation providers: API key storage in electron-store or the OS keychain, exfiltration of prompts or document content, malicious provider responses, and SSRF through configurable base URLs.
+- Translation providers: API key storage in Electron `safeStorage` (OS keychain) or `electron-store`, exfiltration of prompts or document content, malicious provider responses, and SSRF through configurable base URLs.
 - Auto-update and packaging: update feed integrity, installer signing, and anything that lets a third party ship code as Manuslip.
 
 Out of scope:

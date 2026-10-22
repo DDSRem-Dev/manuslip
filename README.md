@@ -73,31 +73,39 @@ Translation in Manuslip is **structural, not textual**:
 
 | Layer | Technology | Rationale |
 |---|---|---|
-| Desktop shell | **Electron** | Mature cross-platform framework — consistent Chromium rendering, full Node.js integration, and a deep ecosystem of tooling and libraries |
-| Desktop tooling | **electron-vite + electron-builder** | HMR-based development; packaging, signing, and auto-update for all three platforms |
-| Editor core | **CodeMirror 6** | Decoration-based rendering makes seamless inline preview possible; the modern, modular generation of the editor family this category of apps was built on |
-| Incremental parse | **@lezer/markdown** | Reparses only edited ranges — the foundation of smooth typing on long documents |
-| Document AST | **unified / micromark (mdast)** | Spec-compliant CommonMark + GFM AST; the single source of truth for preview, translation, and export |
-| Markdown extensions | **remark-gfm · remark-frontmatter · js-yaml · emojilib** | Tables and task lists, YAML frontmatter parsing, emoji shortcode data |
-| UI | **React 18 + TypeScript + Vite** | Fast HMR development, large ecosystem, explicit-performance patterns |
-| State | **Zustand** | Minimal, observable stores without boilerplate |
-| Math | **MathJax 4** | TeX → SVG rendering with mhchem support; identical output in preview and export |
-| Diagrams | **Mermaid · js-sequence-diagrams · flowchart.js** | Mermaid blocks plus legacy `sequence` and `flowchart` fenced blocks |
+| Desktop shell | **Electron 45** | Latest supported Electron (Chromium 156, Node 24.22) — consistent cross-platform rendering, native modules, `printToPDF`, and spellcheck |
+| Desktop tooling | **electron-vite 6 + electron-builder 26** | Vite 8 HMR; packaging, signing, and auto-update for all three platforms |
+| Editor core | **CodeMirror 6** | Decoration-based rendering makes seamless inline preview possible; CM6 is the modern, maintained generation of the editor |
+| Incremental parse | **@lezer/markdown 1.8** | Editor-time incremental parse: block boundaries, decorations, folding, and highlighting — not a semantic AST |
+| Document AST | **unified 11 / micromark 4 (mdast)** | Spec-compliant CommonMark + GFM AST; the semantic source of truth for preview, translation, and export |
+| Markdown extensions | **remark-gfm · remark-frontmatter · remark-math · remark-directive · yaml · emojilib** | Tables and task lists, frontmatter, math, custom directives, YAML parsing, emoji shortcode data |
+| UI | **React 19 + TypeScript 7 + Vite 8** | Fast HMR development, large ecosystem, explicit-performance patterns |
+| State | **Zustand 5** | Minimal, observable UI stores; the document itself lives in CodeMirror's `EditorState` |
+| Math | **MathJax 4.1** | TeX → SVG with line breaking and accessibility; identical output in preview and export; enable mhchem explicitly |
+| Diagrams | **Mermaid 12 · js-sequence-diagrams · flowchart.js** | Mermaid blocks plus legacy `sequence` and `flowchart` fenced blocks; pin dagre/classic rendering for stable output |
 | Code highlighting | **@lezer/highlight + @codemirror/legacy-modes** | Editor-native language modes — the same highlighting in source, preview, and export |
-| HTML safety | **DOMPurify + strict CSP** | Defense in depth against untrusted markup |
-| Clipboard conversion | **Turndown** | Turns pasted HTML into clean Markdown |
-| Spellcheck | **Electron spellchecker (Hunspell)** | System-level dictionaries on all three platforms |
-| Encoding | **iconv-lite + jschardet** | Detects and opens non-UTF-8 files correctly |
-| Fuzzy search | **nucleo-matcher** | Instant matching over thousands of files |
-| File watching | **chokidar** | Cross-platform file watching in the main process |
-| Translation cache | **better-sqlite3** | Synchronous, reliable SQLite access from the main process |
-| Settings | **electron-store** | JSON persistence in the user-data directory |
-| UI localization | **i18next** | JSON locale resources — separate from the document-translation pipeline |
-| Export | **printToPDF · capturePage · Pandoc (optional)** | Native HTML/PDF/image; DOCX, EPUB, LaTeX and more via a user-installed Pandoc |
+| HTML safety | **DOMPurify 3.4 + strict CSP** | Sanitize Markdown-derived HTML before MathJax/Mermaid render; strict CSP and a sandboxed renderer |
+| Clipboard conversion | **Turndown 7 + GFM plugin** | Turns pasted HTML into clean Markdown, including tables |
+| Spellcheck | **Electron built-in spellchecker (Hunspell on Windows/Linux)** | System-level dictionaries on all three platforms; self-host the dictionary URL for offline use |
+| Encoding | **iconv-lite 0.6 + jschardet 3.1** | Detects and opens non-UTF-8 files correctly |
+| Fuzzy search | **fuzzysort + @vscode/ripgrep** | Instant file-name matching; ripgrep for full-text search across large workspaces |
+| File watching | **@parcel/watcher** | Native recursive watching for large vaults; debounced reload on external changes |
+| Translation cache | **node:sqlite** | Built-in SQLite in Electron's Node runtime; no native rebuild; keyed by block hash |
+| Settings | **electron-store 12** | Typed JSON persistence in the user-data directory; secrets use Electron `safeStorage` |
+| UI localization | **i18next 26** | JSON locale resources — separate from the document-translation pipeline |
+| Export | **printToPDF · capturePage · Pandoc (optional, external)** | Native HTML/PDF/image; DOCX, EPUB, LaTeX and more via a user-installed Pandoc |
 | IPC | **contextBridge + ipcMain** | Sandboxed renderer behind a typed, minimal API surface |
 | Package management | **npm workspaces** | Ships with Node.js; the default toolchain of the Electron ecosystem, including native-module rebuilds |
-| Testing | **Vitest + Playwright** | Unit and end-to-end coverage, including Electron automation |
-| Lint/format | **Biome** | One fast toolchain for TS/JS |
+| Testing | **Vitest 5 + Playwright 1.64** | Unit and end-to-end coverage, including Electron automation |
+| Lint/format | **Biome 2** | One fast toolchain for TS/JS |
+
+**Stack definitions**
+
+- **Live document** — CodeMirror's `Text`/`EditorState`. It is the only source of truth; every view is derived from it.
+- **Editor-time parse** — the Lezer tree. It owns block boundaries, decorations, folding, and highlighting. It is not a semantic AST.
+- **Semantic parse** — micromark → mdast, run only on dirty blocks. It powers preview, translation, and export.
+- **Block cache** — `hash(source slice) → mdast fragment / sanitized HTML / translated text`. Untouched blocks stay byte-identical.
+- **Live preview** — CM6 decorations and widgets that reveal Markdown markers at the cursor and render everything else. Inline decorations are viewport-scoped; block widgets are state-scoped and cached per block.
 
 ## Architecture
 
@@ -113,7 +121,7 @@ Translation in Manuslip is **structural, not textual**:
 │                CodeMirror 6 editor core                        │
 │        (Lezer incremental parse + decorations)                 │
 │  ┌──────────────────────────────────────────────────────────┐  │
-│  │        Document Core — mdast AST (single truth)          │  │
+│  │        Document Core — mdast semantic AST (derived)      │  │
 │  └───────────────┬───────────────────────┬──────────────────┘  │
 │         ┌────────┴────────┐     ┌─────────┴──────────┐         │
 │         │  Render engine  │     │ Translation        │         │
@@ -130,7 +138,7 @@ Translation in Manuslip is **structural, not textual**:
 
 **Design principles**
 
-- **One AST, three views.** Source, Live Preview, and Translated Preview are projections of a single mdast document model — never three copies of the text drifting apart.
+- **One source, three views.** Source, Live Preview, and Translated Preview are projections of a single Markdown document — never three copies of the text drifting apart.
 - **The editor never blocks.** Parsing, preview rendering, highlighting, and translation run off the critical path (incremental, debounced, or in workers).
 - **Strict process boundaries.** The renderer is sandboxed; all file-system and OS access flows through a typed contextBridge API in the main process.
 - **Everything heavy is lazy and cached.** Mermaid, MathJax, legacy language modes, and translation results load once and memoize by content hash.
@@ -140,7 +148,7 @@ Translation in Manuslip is **structural, not textual**:
 Manuslip uses a **dual-parser scheme** — two parsers with two distinct jobs:
 
 - **Lezer** (`@lezer/markdown`) lives inside the editor core. It reparses incrementally on every keystroke and drives what you feel: decorations, highlighting, folding, live-preview widgets. Its syntax tree also yields top-level block boundaries for free.
-- **micromark** runs per dirty block only, producing spec-faithful mdast for rendering, translation, and export. Fragments splice into a persistent document AST with source offsets.
+- **micromark** runs per dirty block only, producing spec-faithful mdast for rendering, translation, and export. Lezer supplies the block boundaries; the source slice is the unit of identity. Fragments splice into a persistent semantic AST with source offsets.
 
 Between them sits the layer that makes performance a non-issue: **block-level caching keyed by one content hash**.
 
@@ -156,7 +164,7 @@ hash = xxhash64(slice)            ← one hash, three caches
   ├─► render cache       ─► sanitized HTML per block
   └─► translation cache  ─► translated text per block
   ▼
-persistent document AST: [ (hash, fragment, range), ... ]
+persistent semantic AST: [ (hash, fragment, range), ... ]
 unchanged blocks keep identity → render & translation reuse for free
 ```
 
@@ -199,7 +207,7 @@ manuslip/
 ├─ apps/
 │  └─ desktop/          # Electron app — main process, preload, window, menus
 ├─ packages/
-│  ├─ core/             # mdast document model, block hashing, document ops
+│  ├─ core/             # Markdown document model, block hashing, mdast projection
 │  ├─ editor/           # CodeMirror 6 setup, keymaps, live-preview decorations
 │  ├─ renderer/         # mdast → sanitized HTML (MathJax, Mermaid, CM language modes)
 │  ├─ translate/        # provider interface, block cache, glossary, batching
@@ -246,7 +254,7 @@ Manuslip is in early development — the best time to shape it. Bug reports, des
 
 ## Acknowledgements
 
-Manuslip stands on the shoulders of outstanding open-source projects: [Electron](https://www.electronjs.org), [CodeMirror](https://codemirror.net), [Lezer](https://lezer.codemirror.net), [unified](https://unifiedjs.com) / [micromark](https://github.com/micromark/micromark), [MathJax](https://www.mathjax.org), [Mermaid](https://mermaid.js.org), [js-sequence-diagrams](https://bramp.github.io/js-sequence-diagrams/), [flowchart.js](https://flowchart.js.org), [DOMPurify](https://github.com/cure53/DOMPurify), [Turndown](https://github.com/mixmark-io/turndown), [i18next](https://www.i18next.com), [chokidar](https://github.com/paulmillr/chokidar), [better-sqlite3](https://github.com/WiseLibs/better-sqlite3), [electron-store](https://github.com/sindresorhus/electron-store), [electron-vite](https://electron-vite.org), [electron-builder](https://www.electron.build), [nucleo](https://github.com/helix-editor/nucleo), and many more.
+Manuslip stands on the shoulders of outstanding open-source projects: [Electron](https://www.electronjs.org), [CodeMirror](https://codemirror.net), [Lezer](https://lezer.codemirror.net), [unified](https://unifiedjs.com) / [micromark](https://github.com/micromark/micromark), [MathJax](https://www.mathjax.org), [Mermaid](https://mermaid.js.org), [js-sequence-diagrams](https://bramp.github.io/js-sequence-diagrams/), [flowchart.js](https://flowchart.js.org), [DOMPurify](https://github.com/cure53/DOMPurify), [Turndown](https://github.com/mixmark-io/turndown), [i18next](https://www.i18next.com), [fuzzysort](https://github.com/farzher/fuzzysort), [ripgrep](https://github.com/BurntSushi/ripgrep), [@parcel/watcher](https://github.com/parcel-bundler/watcher), [node:sqlite](https://nodejs.org/api/sqlite.html), [electron-store](https://github.com/sindresorhus/electron-store), [electron-vite](https://electron-vite.org), [electron-builder](https://www.electron.build), and many more.
 
 ## License
 

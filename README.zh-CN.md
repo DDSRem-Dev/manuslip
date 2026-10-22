@@ -73,31 +73,39 @@ Manuslip 的翻译是**结构化的，而非纯文本的**：
 
 | 层级 | 技术选型 | 选型理由 |
 |---|---|---|
-| 桌面外壳 | **Electron** | 成熟的跨平台框架——一致的 Chromium 渲染、完整的 Node.js 集成，以及深厚的工具与库生态 |
-| 桌面工具链 | **electron-vite + electron-builder** | 基于 HMR 的开发体验；面向三个平台的打包、签名与自动更新 |
-| 编辑器内核 | **CodeMirror 6** | 基于 Decoration 的渲染让无缝内联预览成为可能；该品类应用所依托的编辑器家族的现代模块化版本 |
-| 增量解析 | **@lezer/markdown** | 只重新解析被编辑的区间——长文档流畅输入的基石 |
-| 文档 AST | **unified / micromark（mdast）** | 符合 CommonMark + GFM 规范的语法树；预览、翻译与导出的单一事实来源 |
-| Markdown 扩展 | **remark-gfm · remark-frontmatter · js-yaml · emojilib** | 表格与任务列表、YAML frontmatter 解析、emoji 短代码数据 |
-| UI | **React 18 + TypeScript + Vite** | HMR 开发体验、庞大生态、可预期的性能模式 |
-| 状态管理 | **Zustand** | 极简、可观察、零样板 |
-| 数学渲染 | **MathJax 4** | TeX → SVG 渲染，支持 mhchem 化学式；预览与导出输出一致 |
-| 图表 | **Mermaid · js-sequence-diagrams · flowchart.js** | Mermaid 代码块，外加传统的 `sequence` 与 `flowchart` 代码块 |
+| 桌面外壳 | **Electron 45** | 当前受支持的最新 Electron（Chromium 156、Node 24.22）——一致的跨平台渲染、原生模块、`printToPDF` 与拼写检查 |
+| 桌面工具链 | **electron-vite 6 + electron-builder 26** | Vite 8 HMR；面向三个平台的打包、签名与自动更新 |
+| 编辑器内核 | **CodeMirror 6** | 基于 Decoration 的渲染让无缝内联预览成为可能；CM6 是该编辑器家族现代且持续维护的一代 |
+| 增量解析 | **@lezer/markdown 1.8** | 编辑器时增量解析：块边界、Decoration、折叠与高亮——不是语义 AST |
+| 文档 AST | **unified 11 / micromark 4（mdast）** | 符合 CommonMark + GFM 规范的语义语法树；预览、翻译与导出的语义事实来源 |
+| Markdown 扩展 | **remark-gfm · remark-frontmatter · remark-math · remark-directive · yaml · emojilib** | 表格与任务列表、frontmatter、数学、自定义指令、YAML 解析、emoji 短代码数据 |
+| UI | **React 19 + TypeScript 7 + Vite 8** | HMR 开发体验、庞大生态、可预期的性能模式 |
+| 状态管理 | **Zustand 5** | 极简、可观察的 UI 状态；文档本身存放在 CodeMirror 的 `EditorState` 中 |
+| 数学渲染 | **MathJax 4.1** | TeX → SVG，支持换行与无障碍；预览与导出输出一致；mhchem 需显式启用 |
+| 图表 | **Mermaid 12 · js-sequence-diagrams · flowchart.js** | Mermaid 代码块，外加传统的 `sequence` 与 `flowchart` 代码块；固定 dagre/classic 渲染以保证输出稳定 |
 | 代码高亮 | **@lezer/highlight + @codemirror/legacy-modes** | 编辑器原生语言模式——源码、预览与导出中的高亮完全一致 |
-| HTML 安全 | **DOMPurify + 严格 CSP** | 针对不可信标记的纵深防御 |
-| 剪贴板转换 | **Turndown** | 将粘贴的 HTML 转换为干净的 Markdown |
-| 拼写检查 | **Electron spellchecker（Hunspell）** | 三个平台统一的系统级词典 |
-| 编码识别 | **iconv-lite + jschardet** | 正确检测并打开非 UTF-8 文件 |
-| 模糊搜索 | **nucleo-matcher** | 数千文件瞬时匹配 |
-| 文件监听 | **chokidar** | 主进程中的跨平台文件监听 |
-| 翻译缓存 | **better-sqlite3** | 主进程中同步、可靠的 SQLite 访问 |
-| 设置存储 | **electron-store** | 用户数据目录中的 JSON 持久化 |
-| 界面本地化 | **i18next** | JSON 语言资源——与文档翻译管线相互独立 |
-| 导出 | **printToPDF · capturePage · Pandoc（可选）** | 原生 HTML/PDF/图片；DOCX、EPUB、LaTeX 等由用户自行安装的 Pandoc 提供 |
+| HTML 安全 | **DOMPurify 3.4 + 严格 CSP** | 在 MathJax/Mermaid 渲染前消毒 Markdown 派生的 HTML；严格 CSP 与沙箱化渲染进程 |
+| 剪贴板转换 | **Turndown 7 + GFM 插件** | 将粘贴的 HTML 转换为干净的 Markdown，包含表格 |
+| 拼写检查 | **Electron 内置拼写检查器（Windows/Linux 为 Hunspell）** | 三个平台统一的系统级词典；离线场景请自托管词典 URL |
+| 编码识别 | **iconv-lite 0.6 + jschardet 3.1** | 正确检测并打开非 UTF-8 文件 |
+| 模糊搜索 | **fuzzysort + @vscode/ripgrep** | 文件名瞬时匹配；ripgrep 负责大工作区的全文搜索 |
+| 文件监听 | **@parcel/watcher** | 面向大型笔记库的原生递归监听；外部变更时防抖重载 |
+| 翻译缓存 | **node:sqlite** | Electron Node 运行时内置的 SQLite；无需原生重编译；按块哈希索引 |
+| 设置存储 | **electron-store 12** | 用户数据目录中的类型化 JSON 持久化；密钥使用 Electron `safeStorage` |
+| 界面本地化 | **i18next 26** | JSON 语言资源——与文档翻译管线相互独立 |
+| 导出 | **printToPDF · capturePage · Pandoc（可选，外部）** | 原生 HTML/PDF/图片；DOCX、EPUB、LaTeX 等由用户自行安装的 Pandoc 提供 |
 | IPC | **contextBridge + ipcMain** | 渲染进程沙箱化，仅暴露类型化、最小化的 API 面 |
 | 包管理 | **npm workspaces** | 随 Node.js 自带；Electron 生态的默认工具链，原生模块重构建开箱即用 |
-| 测试 | **Vitest + Playwright** | 单元与端到端覆盖，含 Electron 自动化 |
-| 代码规范 | **Biome** | TS/JS 一体化工具链 |
+| 测试 | **Vitest 5 + Playwright 1.64** | 单元与端到端覆盖，含 Electron 自动化 |
+| 代码规范 | **Biome 2** | TS/JS 一体化工具链 |
+
+**技术栈定义**
+
+- **实时文档** —— CodeMirror 的 `Text`/`EditorState`。它是唯一事实来源，所有视图都由它派生。
+- **编辑器时解析** —— Lezer 语法树。负责块边界、Decoration、折叠与高亮，不是语义 AST。
+- **语义解析** —— micromark → mdast，仅对脏块运行，服务预览、翻译与导出。
+- **块缓存** —— `hash(源码切片) → mdast 碎片 / 消毒 HTML / 译文`。未改动的块保持字节级不变。
+- **实时预览** —— CM6 的 Decoration 与组件：光标处显示 Markdown 标记，其余位置渲染结果。行内装饰按视口计算；块级组件由 State 计算并按块缓存。
 
 ## 架构
 
@@ -113,7 +121,7 @@ Manuslip 的翻译是**结构化的，而非纯文本的**：
 │                 CodeMirror 6 编辑器内核                        │
 │          （Lezer 增量解析 + Decoration 装饰渲染）              │
 │  ┌──────────────────────────────────────────────────────────┐  │
-│  │          文档核心 —— mdast 语法树（单一事实来源）        │  │
+│  │          文档核心 —— mdast 语义语法树（派生）            │  │
 │  └───────────────┬───────────────────────┬──────────────────┘  │
 │         ┌────────┴────────┐     ┌─────────┴──────────┐         │
 │         │   渲染引擎      │     │   翻译管线（AST）  │         │
@@ -130,7 +138,7 @@ Manuslip 的翻译是**结构化的，而非纯文本的**：
 
 **设计原则**
 
-- **一棵树，三个视图。** 源码、实时预览、翻译预览都是同一份 mdast 文档模型的投影——绝不是三份逐渐漂移的文本副本。
+- **一个源，三个视图。** 源码、实时预览、翻译预览都是同一份 Markdown 文档的投影——绝不是三份逐渐漂移的文本副本。
 - **编辑器永不阻塞。** 解析、预览渲染、高亮与翻译全部运行在关键路径之外（增量、防抖或 Worker）。
 - **严格的进程边界。** 渲染进程沙箱化；所有文件系统与操作系统访问都经过主进程中类型化的 contextBridge API。
 - **一切重资源皆懒加载、皆缓存。** Mermaid、MathJax、传统语言模式与翻译结果只加载一次，按内容哈希记忆化。
@@ -140,7 +148,7 @@ Manuslip 的翻译是**结构化的，而非纯文本的**：
 Manuslip 采用**双解析器方案**——两个解析器各司其职：
 
 - **Lezer**（`@lezer/markdown`）驻留在编辑器内核中。每次击键都增量重解析，驱动你能感知到的一切：Decoration、高亮、折叠、实时预览组件。它的语法树还免费提供顶层块边界。
-- **micromark** 只对脏块运行，产出严格符合规范的 mdast，用于渲染、翻译与导出。块碎片带着源码偏移拼接进持久化文档 AST。
+- **micromark** 只对脏块运行，产出严格符合规范的 mdast，用于渲染、翻译与导出。Lezer 提供块边界；源码切片是身份单位。块碎片带着源码偏移拼接进持久化语义 AST。
 
 两者之间是让性能不再是问题的那一层：**以同一份内容哈希为键的块级缓存**。
 
@@ -156,7 +164,7 @@ hash = xxhash64（切片）       ← 一份哈希，三级缓存
   ├─► 渲染缓存   ─► 逐块消毒 HTML
   └─► 翻译缓存   ─► 逐块译文
   ▼
-持久化文档 AST：[ (hash, fragment, range), ... ]
+持久化语义 AST：[ (hash, fragment, range), ... ]
 未改动块保持对象标识 → 渲染与翻译零成本复用
 ```
 
@@ -199,7 +207,7 @@ manuslip/
 ├─ apps/
 │  └─ desktop/          # Electron 应用 —— 主进程、preload、窗口、菜单
 ├─ packages/
-│  ├─ core/             # mdast 文档模型、块哈希、文档操作
+│  ├─ core/             # Markdown 文档模型、块哈希、mdast 语义投影
 │  ├─ editor/           # CodeMirror 6 配置、快捷键、实时预览 Decoration
 │  ├─ renderer/         # mdast → 消毒 HTML（MathJax、Mermaid、CM 语言模式）
 │  ├─ translate/        # 服务商接口、块缓存、术语表、批量调度
@@ -246,7 +254,7 @@ Manuslip 正处于早期开发阶段——这是塑造它的最佳时机。欢�
 
 ## 致谢
 
-Manuslip 站在众多杰出开源项目的肩膀上：[Electron](https://www.electronjs.org)、[CodeMirror](https://codemirror.net)、[Lezer](https://lezer.codemirror.net)、[unified](https://unifiedjs.com) / [micromark](https://github.com/micromark/micromark)、[MathJax](https://www.mathjax.org)、[Mermaid](https://mermaid.js.org)、[js-sequence-diagrams](https://bramp.github.io/js-sequence-diagrams/)、[flowchart.js](https://flowchart.js.org)、[DOMPurify](https://github.com/cure53/DOMPurify)、[Turndown](https://github.com/mixmark-io/turndown)、[i18next](https://www.i18next.com)、[chokidar](https://github.com/paulmillr/chokidar)、[better-sqlite3](https://github.com/WiseLibs/better-sqlite3)、[electron-store](https://github.com/sindresorhus/electron-store)、[electron-vite](https://electron-vite.org)、[electron-builder](https://www.electron.build)、[nucleo](https://github.com/helix-editor/nucleo)，以及更多项目。
+Manuslip 站在众多杰出开源项目的肩膀上：[Electron](https://www.electronjs.org)、[CodeMirror](https://codemirror.net)、[Lezer](https://lezer.codemirror.net)、[unified](https://unifiedjs.com) / [micromark](https://github.com/micromark/micromark)、[MathJax](https://www.mathjax.org)、[Mermaid](https://mermaid.js.org)、[js-sequence-diagrams](https://bramp.github.io/js-sequence-diagrams/)、[flowchart.js](https://flowchart.js.org)、[DOMPurify](https://github.com/cure53/DOMPurify)、[Turndown](https://github.com/mixmark-io/turndown)、[i18next](https://www.i18next.com)、[fuzzysort](https://github.com/farzher/fuzzysort)、[ripgrep](https://github.com/BurntSushi/ripgrep)、[@parcel/watcher](https://github.com/parcel-bundler/watcher)、[node:sqlite](https://nodejs.org/api/sqlite.html)、[electron-store](https://github.com/sindresorhus/electron-store)、[electron-vite](https://electron-vite.org)、[electron-builder](https://www.electron.build)，以及更多项目。
 
 ## 许可证
 

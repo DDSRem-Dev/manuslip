@@ -1,6 +1,6 @@
 # Contributing to Manuslip
 
-Thanks for taking a look. Manuslip is an early-stage, local-first Markdown editor built on Electron, React, CodeMirror, and a single mdast document model. Early development is the best time to shape direction, so design feedback, provider integrations, UI translations, and bug reports all matter as much as code.
+Thanks for taking a look. Manuslip is an early-stage, local-first Markdown editor built on Electron, React, CodeMirror, and a Markdown source document with an mdast semantic projection. Early development is the best time to shape direction, so design feedback, provider integrations, UI translations, and bug reports all matter as much as code.
 
 Two documents sit next to this one and apply to every contribution: the [Code of Conduct](./CODE_OF_CONDUCT.md) and the [Security Policy](./SECURITY.md). Read both before you open an issue or a pull request.
 
@@ -18,7 +18,7 @@ Large changes should start as an issue. That includes new packages, new IPC chan
 - **npm 11**, which ships with Node 24. npm workspaces is the only supported package manager. Do not add a pnpm or Yarn lockfile. Commit the generated `package-lock.json`; CI installs from it with `npm ci`.
 - **Git**. Commit signing is not required. DCO sign-off is required, and it is covered under [Commit conventions](#commit-conventions).
 
-Native modules need a platform toolchain. `better-sqlite3` is the main one, and it compiles during `npm install`.
+Native modules need a platform toolchain. `@parcel/watcher` ships prebuilt binaries for supported platforms and compiles during `npm install` elsewhere.
 
 | Platform | What you need |
 | --- | --- |
@@ -33,7 +33,7 @@ The repository is an npm workspaces monorepo. The directories below are the inte
 | Path | Responsibility |
 | --- | --- |
 | `apps/desktop` | Electron app: main process, preload bridge, windows, menus, packaging, and auto-update |
-| `packages/core` | mdast document model, block hashing, block splitting, and document operations |
+| `packages/core` | Markdown document model, block hashing, block splitting, document operations, and the mdast semantic projection |
 | `packages/editor` | CodeMirror 6 setup, keymaps, and live-preview decorations |
 | `packages/renderer` | mdast to sanitized HTML, including MathJax, Mermaid, and code highlighting |
 | `packages/translate` | Provider interface, block cache, glossary, and batching |
