@@ -1,0 +1,16 @@
+{
+  "manifest": {
+    "apiVersion": 1,
+    "id": "manuslip.writing-tools",
+    "name": "Writing tools",
+    "version": "1.0.0",
+    "description": "Count words or remove trailing spaces from the captured source. Changes are reviewed before applying.",
+    "commands": [
+      { "id": "word-count", "title": "Count source words", "kind": "inspect" },
+      { "id": "trim-lines", "title": "Trim trailing spaces", "kind": "transform" }
+    ],
+    "permissions": ["document.read", "document.write"],
+    "networkOrigins": []
+  },
+  "code": "manuslipPlugin.register(({ commandId, document }) => { if (!document) throw new Error('Document read access is required'); if (commandId === 'word-count') return String(document.text.trim().split(/\\s+/u).filter(Boolean).length) + ' source words'; if (commandId === 'trim-lines') return document.text.replace(/[ \\t]+$/gm, ''); throw new Error('Unknown command'); });"
+}

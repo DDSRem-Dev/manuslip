@@ -1,0 +1,26 @@
+{
+  "name": "@manuslip/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./text": "./src/text-count.ts"
+  },
+  "dependencies": {
+    "@types/mdast": "4.0.4",
+    "gemoji": "8.1.0",
+    "mdast-util-definition-list": "2.0.1",
+    "mdast-util-from-markdown": "2.1.0",
+    "micromark": "4.0.3",
+    "micromark-extension-definition-list": "2.0.2",
+    "micromark-util-edit-map": "1.0.0",
+    "micromark-util-subtokenize": "2.1.0",
+    "remark-frontmatter": "5.0.0",
+    "remark-gfm": "4.0.1",
+    "remark-math": "6.0.0",
+    "remark-parse": "11.0.0",
+    "unified": "11.0.5",
+    "unist-util-visit-parents": "6.0.2"
+  }
+}

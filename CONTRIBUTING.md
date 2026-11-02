@@ -2,7 +2,7 @@
 
 Thanks for taking a look. Manuslip is an early-stage, local-first Markdown editor built on Electron, React, CodeMirror, and a Markdown source document with an mdast semantic projection. Early development is the best time to shape direction, so design feedback, provider integrations, UI translations, and bug reports all matter as much as code.
 
-Two documents sit next to this one and apply to every contribution: the [Code of Conduct](./CODE_OF_CONDUCT.md) and the [Security Policy](./SECURITY.md). Read both before you open an issue or a pull request.
+Two documents sit next to this one and apply to every contribution: the [Code of Conduct](CODE_OF_CONDUCT.md) and the [Security Policy](SECURITY.md). Read both before you open an issue or a pull request.
 
 Large changes should start as an issue. That includes new packages, new IPC channels, changes to the document model, and anything that touches the translation provider interface.
 
@@ -18,7 +18,13 @@ Large changes should start as an issue. That includes new packages, new IPC chan
 - **npm 11**, which ships with Node 24. npm workspaces is the only supported package manager. Do not add a pnpm or Yarn lockfile. Commit the generated `package-lock.json`; CI installs from it with `npm ci`.
 - **Git**. Commit signing is not required. DCO sign-off is required, and it is covered under [Commit conventions](#commit-conventions).
 
-Native modules need a platform toolchain. `@parcel/watcher` ships prebuilt binaries for supported platforms and compiles during `npm install` elsewhere.
+Native modules need a platform toolchain. `@parcel/watcher` ships prebuilt binaries for supported platforms and compiles during `npm install` elsewhere. The root `postinstall` runs `electron-builder install-app-deps`, so Electron ABI rebuilds are not a manual step.
+
+The root `postinstall` also installs Electron and applies the pinned
+[`micromark-util-edit-map` backport](docs/patches/micromark-edit-map.md) and
+[`unist-util-visit-parents` backport](docs/patches/unist-visit.md). Lint and desktop builds
+verify the patched sources. After an interrupted install, rerun `npm install`; an unknown
+dependency version or modified source requires reviewing the patch instead of skipping its guard.
 
 | Platform | What you need |
 | --- | --- |
@@ -28,7 +34,8 @@ Native modules need a platform toolchain. `@parcel/watcher` ships prebuilt binar
 
 ## Repository layout
 
-The repository is an npm workspaces monorepo. The directories below are the intended layout. They do not all exist yet.
+The repository is an npm workspaces monorepo. Detailed documentation lives in
+`docs/<topic>/` with lowercase kebab-case filenames; start at the [documentation index](docs/overview/index.md).
 
 | Path | Responsibility |
 | --- | --- |
@@ -37,18 +44,22 @@ The repository is an npm workspaces monorepo. The directories below are the inte
 | `packages/editor` | CodeMirror 6 setup, keymaps, and live-preview decorations |
 | `packages/renderer` | mdast to sanitized HTML, including MathJax, Mermaid, and code highlighting |
 | `packages/translate` | Provider interface, block cache, glossary, and batching |
-| `packages/ui` | Shared React components, themes, and design tokens |
+| `docs/<topic>/` | Guides, architecture decisions, reviews, patch provenance and validation history |
+| `apps/desktop/test/`, `packages/*/test/` | Unit tests, native integration tests and fixtures owned by each workspace |
+| `test/e2e/` | Correctness workflows in the Electron app |
+| `test/benchmark/` | Performance gates, profilers and their fixtures |
+| `test/packaging/` | Dependency patch installation, release, launcher and installer checks |
 
 ## Getting started
 
 ```bash
 git clone https://github.com/<your-org>/manuslip.git
 cd manuslip
-npm install
+npm ci
 npm run dev
 ```
 
-**Current state:** the repository is at the scaffolding stage. Workspace manifests are not checked in yet, so today only documentation and configuration checks exist. The commands above describe the intended workflow and will work once the manifests land. If you are reading this after that point, the note is stale and should be removed.
+**Current state:** the desktop app implements the secure shell, localized preferences, source/file lifecycle, recovery, and initial Live Preview with semantic and math workers. Workspace, export, translation, and remaining acceptance gates are in [the implementation plan](./docs/adr/002-implementation-plan.md). Current evidence and platform gaps are recorded in [VALIDATION.md](./docs/validation/implementation-history.md).
 
 ## Root scripts
 
@@ -58,15 +69,40 @@ These scripts are the contract for local development and CI. They live in the wo
 | --- | --- | --- |
 | `npm run dev` | Starts electron-vite in development mode, with renderer HMR and live main/preload reload. | No |
 | `npm run build` | Builds the desktop app and produces installers through electron-builder. | Yes |
+| `npm run icons` | Regenerates platform application icons from the shared SVG. `npm run icons -- --check` verifies their source/version/hash manifest; application builds run this check automatically. See [Application icons](docs/development/application-icons.md). | Check during build |
 | `npm run check` | Runs lint, format check, and typecheck in sequence. This is the pre-push gate. | Yes |
-| `npm run lint` | Runs Biome lint across the workspaces. | No |
+| `npm run lint` | Runs Biome lint, layout/link checks, runtime boundaries and dependency patch guards. | Via `check` |
+| `npm run check:layout` | Checks documentation names and links, test ownership and obsolete output paths. | Via `check` |
 | `npm run format` | Runs Biome format and writes fixes in place. | No |
+| `npm run format:check` | Runs Biome format checks without writing; used by `check`. | No |
 | `npm run typecheck` | Runs the TypeScript compiler in no-emit mode across the workspaces. | No |
-| `npm test` | Runs the Vitest unit suite. | Yes |
-| `npm run test:e2e` | Runs Playwright end-to-end tests against a built Electron app. | No |
+| `npm test` | Runs all Vitest projects: package unit tests, native integration and dependency patch installation. | Yes |
+| `npm run test:unit` | Runs only the five package unit projects. | Via `npm test` |
+| `npm run test:integration` | Runs native child-process and optional local Pandoc checks. | Via `npm test` |
+| `npm run test:packaging` | Runs patch installation, release-plan and platform-gated Linux launcher tests. | Yes |
+| `npm run test:e2e` | Runs Playwright end-to-end tests against an existing Electron build. | Dedicated three-OS E2E job, built and packaged launch |
+| `npm run test:installer` | Installs the built Windows NSIS package, verifies installed editing and exact saved bytes, then uninstalls and checks restored OS registration. Requires a clean account without Manuslip installed or running. | Windows E2E job |
+| `npm run test:performance` | Runs the hardware-dependent packaged corpus, cold-widget, stress and retained-resource gates. | No; manual reference-machine gate |
 | `npm run clean` | Removes build output and local caches. | No |
 
-`npm run test:e2e` is not part of the default CI job. Run it locally when you change IPC, window behavior, or a full editing flow, and say so in your pull request.
+Run `npm run build:app` before `npm run test:e2e`; the tests reuse its output. Run `npm run test:packaged` after `npm run build` for unpacked package testing. `MANUSLIP_PACKAGED_EXECUTABLE` can select a custom executable. Tests use temporary user-data directories and never the writing profile. The verify matrix builds installers once; a dedicated E2E matrix downloads and reuses the archived assets for built and packaged launch checks. Linux uses Xvfb, and macOS covers x64 and arm64 separately. No signing or publishing credentials are needed.
+
+On Windows, `npm run test:installer` reuses the NSIS installer and unpacked files from
+`npm run build`. It uses a fresh directory under ignored `test/packaging/results/`, an isolated writing
+profile, and per-user installation. It checks runtime hashes, shortcuts, Open With
+registration, unchanged file defaults, exact BOM/CRLF/Unicode saving and restart, then
+uninstalls and compares registration state with the baseline. Reports and screenshots
+remain under `/test/packaging/results/windows-installer-*/`; CI uploads them even when verification fails.
+Wizard interaction, elevation, the native Open With chooser and physical IME/accessibility
+checks remain separate platform acceptance work.
+
+Performance runs use the platform's packaged executable produced by `npm run build` (or
+`build:app` followed by `package:dir`). Run them without competing test/build jobs. Reports
+record hardware, runtime and executable/ASAR hashes in distinct ignored `test/benchmark/results/`
+run directories. `npm run test:performance -- --case single-paragraph --grep corpus` isolates
+one corpus shape; `--profile` captures renderer CPU/timeline data for that case. The full corpus
+currently has known failures; see [benchmark methods](docs/testing/benchmarks.md) and the latest
+[validation record](docs/validation/implementation-history.md). Passing correctness E2E does not pass these budgets.
 
 ## Architecture rules you must not break
 
@@ -74,7 +110,7 @@ These are not style preferences. Each one protects a property the product depend
 
 - **One mdast AST, three projections.** Source, Live Preview, and Translated Preview all read from the same document model. Never keep parallel copies of document text, and never let a view own its own parse.
 - **The renderer stays sandboxed.** All filesystem and OS access goes through the typed preload bridge. No `nodeIntegration`, no `enableRemoteModule`, and no direct `ipcRenderer` use inside React components.
-- **Parsing and rendering stay off the critical path.** Per-block work is hashed and cached. If you add work on every keystroke, it needs an incremental path or a worker.
+- **Parsing and rendering stay off the critical path.** Lezer handles incremental editor syntax. Unified/remark parses the whole document in the semantic worker (one running request, one latest pending); never splice independently parsed blocks into the semantic root. Keep global references intact, bound all derived caches, and reject stale generation/revision/configuration results. DOM sinks must sanitize render output.
 - **Sanitize everything you render.** All HTML passes through the sanitizer with the project's DOMPurify configuration. Never call `dangerouslySetInnerHTML` with untrusted markup that skipped that step.
 - **Translation is AST-level.** Never translate code blocks, inline code, math, URLs, frontmatter, or Mermaid source. Only translatable nodes go to a provider.
 
@@ -128,7 +164,7 @@ Branch name prefixes: `feat/`, `fix/`, `docs/`, `refactor/`, `chore/`, `test/`.
 
 ## Testing expectations
 
-- Unit tests use Vitest and sit next to the code as `*.test.ts`.
+- Unit tests use Vitest under the owning workspace's `test/unit/` directory as `*.test.ts`.
 - Parser and renderer changes need CommonMark or GFM fixtures plus cache-invalidation cases. A cache that returns stale HTML is a bug, not a speedup.
 - UI flows and Electron IPC get Playwright coverage under `test/e2e/`.
 - Bug fixes land with a regression test that fails before the fix and passes after it.
@@ -143,8 +179,8 @@ User-facing strings go through i18next resources, not hardcoded literals in comp
 
 Never commit API keys, access tokens, or personal absolute paths. Translation credentials live in the app's settings store at runtime, never in the repository.
 
-Report vulnerabilities privately according to [SECURITY.md](./SECURITY.md). Do not open a public issue for a security problem.
+Report vulnerabilities privately according to [SECURITY.md](SECURITY.md). Do not open a public issue for a security problem.
 
 ## License
 
-Manuslip is released under the [MIT License](./LICENSE). Contributions are accepted under the same license, and by submitting a pull request you agree to license your contribution under it.
+Manuslip is released under the [MIT License](LICENSE). Contributions are accepted under the same license, and by submitting a pull request you agree to license your contribution under it.

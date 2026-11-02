@@ -1,0 +1,37 @@
+{
+  "source": "https://raw.githubusercontent.com/notofonts/noto-cjk/523d033d6cb47f4a80c58a35753646f5c3608a78/Sans/Variable/TTF/NotoSansCJKsc-VF.ttf",
+  "sourceSha256": "990c807e79c25662a5a9ecf7f971baeb2bf2eab9a559e5ecf15cdfdb8561d21f",
+  "codepoints": 44810,
+  "sourceGlyphs": 65535,
+  "weight": [100, 900],
+  "files": [
+    {
+      "name": "noto-sans-cjk-sc.woff2",
+      "bytes": 14036260,
+      "sha256": "d7e9616bc6415994feb44ae893137db49d316e7b981b8a8ad83f4c01164f4011",
+      "codepoints": 44300,
+      "glyphs": 64682
+    },
+    {
+      "name": "noto-sans-cjk-sc-aliases-1.woff2",
+      "bytes": 156336,
+      "sha256": "97b21fc8c2247660f012fe064c5276152b550d66eaf98d3663a02d88988878bc",
+      "codepoints": 493,
+      "glyphs": 776
+    },
+    {
+      "name": "noto-sans-cjk-sc-aliases-2.woff2",
+      "bytes": 8416,
+      "sha256": "3e3c0e0562e50b182c0e874a4fc3a09ed00303a12d817633b14406b46bfd86f0",
+      "codepoints": 16,
+      "glyphs": 32
+    },
+    {
+      "name": "noto-sans-cjk-sc-aliases-3.woff2",
+      "bytes": 2104,
+      "sha256": "27c34ce59a993ff563d1e992192f174909658f94efea67ee54618f1203a767ba",
+      "codepoints": 1,
+      "glyphs": 3
+    }
+  ]
+}

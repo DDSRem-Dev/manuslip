@@ -1,0 +1,62 @@
+import { resolve } from 'node:path'
+import {
+  type ElectronApplication,
+  _electron as electron,
+  expect,
+  type Locator,
+  type Page,
+} from '@playwright/test'
+
+export function launchDesktop(profile: string, paths: string[] = []): Promise<ElectronApplication> {
+  return electron.launch({
+    ...(process.env.MANUSLIP_PACKAGED_EXECUTABLE
+      ? { executablePath: process.env.MANUSLIP_PACKAGED_EXECUTABLE, args: paths }
+      : { args: [resolve('apps/desktop'), ...paths] }),
+    env: { ...process.env, MANUSLIP_TEST_PROFILE: profile },
+  })
+}
+
+async function openDisclosure(page: Page, name: RegExp): Promise<Locator> {
+  const trigger = page.getByRole('button', { name })
+  const panel = page.getByRole('group', { name, includeHidden: true })
+  if (!(await panel.isVisible())) await trigger.click()
+  await expect(panel).toBeVisible()
+  await expect(trigger).toHaveAttribute('aria-expanded', 'true')
+  return panel
+}
+
+export function openDocumentActions(page: Page): Promise<Locator> {
+  return openDisclosure(page, /^(Document actions|文档操作)$/)
+}
+
+export function openReadingOptions(page: Page): Promise<Locator> {
+  return openDisclosure(page, /^(Reading options|阅读选项)$/)
+}
+
+export async function clickDocumentAction(page: Page, name: string): Promise<void> {
+  const panel = await openDocumentActions(page)
+  await panel.getByRole('button', { name, exact: true }).click()
+}
+
+export async function clickReadingAction(page: Page, name: string): Promise<void> {
+  const panel = await openReadingOptions(page)
+  await panel.getByRole('button', { name, exact: true }).click()
+}
+
+export async function selectReadingLayout(page: Page, layout: string): Promise<void> {
+  const panel = await openReadingOptions(page)
+  await panel.getByRole('combobox', { name: /^(Reading layout|阅读布局)$/ }).selectOption(layout)
+  await page.keyboard.press('Escape')
+}
+
+export function contrast(foreground: string, background: string): number {
+  const luminance = (color: string): number => {
+    const channels = (color.match(/[\d.]+/g) || []).slice(0, 3).map((value) => {
+      const channel = Number(value) / 255
+      return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4
+    })
+    return (channels[0] || 0) * 0.2126 + (channels[1] || 0) * 0.7152 + (channels[2] || 0) * 0.0722
+  }
+  const values = [luminance(foreground), luminance(background)].sort((a, b) => a - b)
+  return ((values[1] || 0) + 0.05) / ((values[0] || 0) + 0.05)
+}

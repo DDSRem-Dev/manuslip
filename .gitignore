@@ -145,8 +145,10 @@ vite.config.ts.timestamp-*
 # Agents
 .omo
 .claude
+.impeccable/
 
 # OS metadata
+.uuid*
 .DS_Store
 .DS_Store?
 Thumbs.db
@@ -179,9 +181,7 @@ apps/*/out/
 # Biome and local tool caches
 .biome/
 
-# Local design tooling and test evidence
-.impeccable/
-.uuid*
+# Test evidence and temporary output
 /test/artifacts/
 /test/e2e/results/
 /test/e2e/report/

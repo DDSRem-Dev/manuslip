@@ -1,0 +1,57 @@
+{
+  "sourceSha256": "716566e6995402182842523d2b8626fe71cfffb2bb56e49364f82b0f9bc113b7",
+  "generatorSha256": "28f82b92e246774fc48d33beb78a127cf63aebd63d5db8e6533c206cdec5f69d",
+  "electronBuilderVersion": "26.15.3",
+  "files": [
+    {
+      "path": "icon.ico",
+      "bytes": 52426,
+      "sha256": "5e30a813f3ab425b96bd51313d775164a848f9aa66d3c45ee910d6d6b76df5a8"
+    },
+    {
+      "path": "icon.icns",
+      "bytes": 291174,
+      "sha256": "6c74fd27621d5f03e77801ea47cce65049a5d295ee1667e19ed6823343eef653"
+    },
+    {
+      "path": "icons/128x128.png",
+      "bytes": 11939,
+      "sha256": "96c5bdde6be697e38846203c23bf927908a1168cdc4b6b42ed592fd695d6c210"
+    },
+    {
+      "path": "icons/16x16.png",
+      "bytes": 1109,
+      "sha256": "15303006532815f5dd941939a0edb7fa4f0849dcd2f06ebb2ac64f7ae9461c32"
+    },
+    {
+      "path": "icons/24x24.png",
+      "bytes": 1867,
+      "sha256": "08d39c95aa5285cb4742af59801267badf577820f32418e2a88af65a198e7cde"
+    },
+    {
+      "path": "icons/256x256.png",
+      "bytes": 24464,
+      "sha256": "9e3a3c4419eaaccecf9342052479c85a7a88f36ddd39a4b851f033a776033f3f"
+    },
+    {
+      "path": "icons/32x32.png",
+      "bytes": 2713,
+      "sha256": "a84768a2507e629f2921da90e29b2eeb6b6f2c6e0565824d52d0bebb9f3c5c65"
+    },
+    {
+      "path": "icons/48x48.png",
+      "bytes": 4341,
+      "sha256": "85c8b7775e677239e415a2ebfe8a161489f42ee70bd1d28337d33eb3b5b4fd9e"
+    },
+    {
+      "path": "icons/512x512.png",
+      "bytes": 51513,
+      "sha256": "0285b98988f53ed2da50fab566debf786a1c0f024301ebcef8d0177ad3b8562c"
+    },
+    {
+      "path": "icons/64x64.png",
+      "bytes": 5875,
+      "sha256": "ecf48c5ed66ba5bcb84b7728652b172666597fefe3e1c39ecd8665ea81f50d29"
+    }
+  ]
+}

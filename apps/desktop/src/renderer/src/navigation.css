@@ -1,0 +1,269 @@
+.workspace-switcher [aria-pressed="true"] {
+  color: var(--text);
+  background: var(--selection);
+}
+.editing-commands button {
+  display: flex;
+  gap: 10px;
+}
+.app-shell {
+  position: relative;
+  grid-template-rows: 48px minmax(0, 1fr);
+}
+.app-toolbar {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-inline-size: 0;
+  padding-inline: 10px;
+  border-block-end: 1px solid var(--border);
+  background: var(--surface);
+}
+.toolbar-start,
+.toolbar-files,
+.toolbar-document-tools,
+.app-toolbar .document-toolbar {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+}
+.toolbar-start {
+  padding-inline-end: 8px;
+  border-inline-end: 1px solid var(--border);
+}
+.app-toolbar .icon-button,
+.app-toolbar .preview-toolbar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 32px;
+  block-size: 32px;
+  min-block-size: 32px;
+  min-inline-size: 32px;
+  flex: 0 0 auto;
+  padding: 6px;
+  color: var(--muted);
+}
+.app-toolbar .document-tabs {
+  flex: 1 1 0;
+  min-inline-size: 40px;
+  padding-inline: 0;
+  border: 0;
+  background: transparent;
+  scrollbar-width: none;
+  scroll-padding-inline: 0;
+  container: document-tabs / inline-size;
+}
+.app-toolbar .document-tab {
+  min-block-size: 34px;
+  max-inline-size: min(220px, calc(100cqi - 34px));
+  padding-inline: 10px;
+}
+.app-toolbar .document-tab[role="tab"] {
+  min-inline-size: 24px;
+  scroll-margin-inline-end: 34px;
+}
+.app-toolbar .document-tab.tab-close {
+  min-inline-size: 28px;
+  padding-inline: 4px;
+  margin-inline-end: 6px;
+}
+.app-toolbar .document-tab .tab-label {
+  max-inline-size: 100%;
+}
+.app-toolbar .document-tab .tab-title {
+  min-inline-size: 0;
+}
+.toolbar-brand {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  padding-inline-start: 6px;
+}
+.app-toolbar .document-toolbar {
+  flex-wrap: nowrap;
+  padding: 0;
+  gap: 4px;
+}
+.app-toolbar .preview-toolbar {
+  flex-wrap: nowrap;
+  padding: 0 8px 0 0;
+  border: 0;
+  border-inline-end: 1px solid var(--border);
+  gap: 2px;
+}
+.app-toolbar .preview-toolbar .ui-icon {
+  inline-size: 18px;
+  block-size: 18px;
+}
+.app-toolbar .preview-toolbar [aria-pressed="true"] {
+  color: var(--text);
+  background: var(--paper);
+  border-color: var(--border);
+}
+.app-toolbar .preview-toolbar button:focus-visible {
+  outline-offset: -2px;
+}
+.document-actions {
+  border-block-end: 0;
+}
+.editing-tools {
+  display: flex;
+}
+.editing-commands kbd {
+  margin-inline-start: auto;
+  color: var(--muted);
+  font: 11px var(--font-ui);
+  padding-inline-start: 24px;
+}
+.toolbar-error {
+  position: absolute;
+  z-index: 5;
+  inset-block-start: 48px;
+  inset-inline-start: 12px;
+  max-inline-size: calc(100vw - 24px);
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--paper);
+  color: var(--text);
+}
+.sidebar,
+.main-column {
+  grid-row: 2;
+}
+.sidebar {
+  display: flex;
+  grid-column: 1;
+  max-block-size: none;
+  padding: 10px 10px 16px;
+  overflow: hidden;
+  border-block-end: 0;
+}
+.main-column {
+  grid-column: 2;
+}
+.sidebar-collapsed .main-column {
+  grid-column: 1;
+}
+.workspace-switcher {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+  margin-block-end: 8px;
+  padding-block-end: 10px;
+  border-block-end: 1px solid var(--border);
+}
+.workspace-switcher span {
+  padding-inline-start: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.workspace-navigation {
+  display: block;
+  overflow: auto;
+  min-block-size: 0;
+}
+.workspace-navigation > div {
+  padding-block: 2px;
+}
+.workspace-search > summary {
+  padding-inline: 8px;
+}
+.workspace-search form {
+  margin-block-start: 0;
+}
+.app-shell.writing-focus:has(.editing) {
+  grid-template-rows: minmax(0, 1fr);
+}
+.writing-focus .app-toolbar {
+  display: none;
+}
+.writing-focus .main-column {
+  grid-column: 1;
+  grid-row: 1;
+}
+@media (max-width: 58rem) {
+  .app-toolbar:has(.document-tabs) .toolbar-files {
+    display: none;
+  }
+}
+@media (max-width: 44rem) {
+  .app-shell,
+  .app-shell:has(.editing) {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 48px minmax(0, 1fr);
+  }
+  .app-toolbar {
+    gap: 3px;
+    padding-inline: 6px;
+  }
+  .toolbar-start {
+    gap: 0;
+    padding-inline-end: 3px;
+  }
+  .app-toolbar .icon-button,
+  .app-toolbar .preview-toolbar button {
+    inline-size: 28px;
+    min-inline-size: 28px;
+    padding: 4px;
+  }
+  .app-toolbar .document-toolbar,
+  .app-toolbar .preview-toolbar {
+    gap: 0;
+  }
+  .app-toolbar .preview-toolbar {
+    padding-inline-end: 3px;
+  }
+  .app-toolbar .document-tab {
+    max-inline-size: min(160px, calc(100cqi - 34px));
+    padding-inline: 6px;
+  }
+  .app-toolbar .document-tab.tab-close {
+    margin-inline-end: 2px;
+    padding-inline: 4px;
+  }
+  .app-toolbar .document-tab[role="tab"] {
+    scroll-margin-inline-end: 30px;
+  }
+  .main-column {
+    grid-column: 1;
+  }
+  .app-shell .sidebar {
+    position: absolute;
+    z-index: 4;
+    inset-block: 48px 0;
+    inset-inline-start: 0;
+    inline-size: min(280px, calc(100vw - 40px));
+    max-block-size: none;
+    border-inline-end: 1px solid var(--border);
+    box-shadow: 8px 0 24px rgb(0 0 0 / 0.08);
+  }
+}
+@media (forced-colors: active) {
+  .workspace-switcher [aria-pressed="true"],
+  .preferences-navigation [aria-pressed="true"] {
+    outline: 1px solid Highlight;
+    outline-offset: -3px;
+  }
+  .workspace-switcher button:focus-visible,
+  .preferences-navigation button:focus-visible {
+    outline-width: 2px;
+  }
+}
+.visually-hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}

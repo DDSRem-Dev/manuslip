@@ -1,0 +1,58 @@
+{
+  "name": "manuslip",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local-first Markdown writing and reading across languages",
+  "license": "MIT",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": "24.x",
+    "npm": "11.x"
+  },
+  "scripts": {
+    "dev": "npm run dev --workspace @manuslip/desktop",
+    "build": "npm run build --workspace @manuslip/desktop",
+    "build:app": "npm run build:app --workspace @manuslip/desktop",
+    "package:dir": "npm run package:dir --workspace @manuslip/desktop",
+    "package:release": "node scripts/package-release.mjs",
+    "icons": "node scripts/generate-icons.mjs",
+    "check": "npm run lint && npm run format:check && npm run typecheck",
+    "lint": "biome lint . && npm run check:layout && node scripts/check-boundaries.mjs && node scripts/patch-micromark-edit-map.mjs --check && node scripts/patch-unist-visit.mjs --check && node scripts/patch-parser-lifetimes.mjs --check && node scripts/patch-micromark-replay.mjs --check && node scripts/patch-definition-list.mjs --check",
+    "check:layout": "node scripts/check-layout.mjs",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:unit": "vitest run --project desktop --project core --project editor --project renderer --project translate",
+    "test:integration": "vitest run --project desktop-integration",
+    "test:e2e": "playwright test --config test/e2e/playwright.config.ts",
+    "test:packaging": "vitest run --project packaging && node --test test/packaging/release.test.mjs test/packaging/linux-launcher.test.mjs",
+    "test:packaged": "node test/packaging/run-packaged.mjs",
+    "test:installer": "node test/packaging/run-windows-installer.mjs",
+    "test:linux-launcher": "node --test test/packaging/linux-launcher.test.mjs",
+    "test:release": "node --test test/packaging/release.test.mjs",
+    "test:performance": "node test/benchmark/run.mjs",
+    "clean": "node scripts/clean.mjs",
+    "postinstall": "node scripts/patch-micromark-edit-map.mjs && node scripts/patch-unist-visit.mjs && node scripts/patch-parser-lifetimes.mjs && node scripts/patch-micromark-replay.mjs && node scripts/patch-definition-list.mjs && install-electron && npm run install-app-deps --workspace @manuslip/desktop"
+  },
+  "devDependencies": {
+    "@babel/parser": "8.0.7",
+    "@biomejs/biome": "2.6.2",
+    "@playwright/test": "1.64.1",
+    "@types/node": "24.19.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "axe-core": "4.14.0",
+    "electron": "45.0.0",
+    "electron-builder": "26.15.3",
+    "electron-vite": "6.0.0",
+    "typescript": "7.0.2",
+    "vite": "8.3.5",
+    "vitest": "5.0.5"
+  }
+}

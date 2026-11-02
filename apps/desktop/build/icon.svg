@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <title>Manuslip</title>
+  <desc>A hand-turned manuscript with bowing pages, a flowing spine and a curled paper tip.</desc>
+  <defs>
+    <linearGradient id="ink" x1="192" y1="48" x2="832" y2="976" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#36594c"/>
+      <stop offset="1" stop-color="#1c362e"/>
+    </linearGradient>
+    <linearGradient id="paper" x1="400" y1="280" x2="620" y2="752" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fff9eb"/>
+      <stop offset="1" stop-color="#e8ddc5"/>
+    </linearGradient>
+    <linearGradient id="leaf" x1="650" y1="400" x2="650" y2="748" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#cbd5ba"/>
+      <stop offset="1" stop-color="#91ab96"/>
+    </linearGradient>
+  </defs>
+  <rect x="48" y="48" width="928" height="928" rx="216" fill="url(#ink)"/>
+  <g transform="translate(-20 -20) scale(1.04)">
+    <path
+      d="M542 495C634 435 731 431 806 445
+         C783 520 781 594 808 650
+         C703 641 615 678 531 744
+         C553 648 556 571 542 495Z"
+      fill="url(#leaf)"
+    />
+    <path
+      d="M194 354C305 319 415 359 500 440
+         C487 545 487 638 507 727
+         C416 667 309 645 219 671
+         C240 555 239 452 194 354Z"
+      fill="url(#paper)"
+    />
+    <path
+      d="M535 450C588 338 690 253 836 260
+         C792 299 760 356 762 442
+         C771 568 668 650 535 713
+         C552 613 552 530 535 450Z"
+      fill="url(#paper)"
+    />
+    <path
+      d="M836 260C798 250 764 273 744 312C780 314 812 299 836 260Z"
+      fill="url(#leaf)"
+    />
+    <path
+      d="M242 706C350 681 435 714 503 751L492 770
+         C420 726 335 704 242 718Z
+         M532 745C605 700 692 674 793 677
+         C705 690 622 718 536 769Z"
+      fill="#9db39b"
+    />
+  </g>
+</svg>

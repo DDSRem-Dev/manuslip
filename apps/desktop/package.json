@@ -1,0 +1,141 @@
+{
+  "name": "@manuslip/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Manuslip desktop Markdown editor",
+  "desktopName": "manuslip.desktop",
+  "author": "Manuslip contributors",
+  "license": "MIT",
+  "type": "module",
+  "main": "./out/main/index.mjs",
+  "scripts": {
+    "install-app-deps": "electron-builder install-app-deps",
+    "dev": "electron-vite dev --watch",
+    "build:app": "node ../../scripts/generate-icons.mjs --check && node ../../scripts/patch-micromark-edit-map.mjs --check && node ../../scripts/patch-unist-visit.mjs --check && node ../../scripts/patch-parser-lifetimes.mjs --check && node ../../scripts/patch-micromark-replay.mjs --check && node ../../scripts/patch-definition-list.mjs --check && electron-vite build",
+    "package:dir": "electron-builder --dir --publish never",
+    "build": "npm run build:app && electron-builder --publish never"
+  },
+  "dependencies": {
+    "@manuslip/core": "0.1.0",
+    "@manuslip/editor": "0.1.0",
+    "@manuslip/renderer": "0.1.0",
+    "@manuslip/translate": "0.1.0",
+    "@phosphor-icons/react": "2.1.10",
+    "@vscode/ripgrep": "1.18.0",
+    "electron-store": "12.0.0",
+    "fuzzysort": "4.0.2",
+    "i18next": "26.5.6",
+    "iconv-lite": "0.7.3",
+    "image-size": "2.0.4",
+    "jschardet": "4.0.0",
+    "pdf-lib": "1.17.1",
+    "postcss": "8.5.31",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "turndown": "7.2.4",
+    "turndown-plugin-gfm": "1.0.2",
+    "zustand": "5.0.16"
+  },
+  "build": {
+    "appId": "org.manuslip.desktop",
+    "productName": "Manuslip",
+    "publish": null,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/**",
+      "vendor/**",
+      "package.json",
+      "!**/.uuid*"
+    ],
+    "asar": true,
+    "afterPack": "build/linux-launcher.cjs",
+    "asarUnpack": [
+      "node_modules/@vscode/ripgrep-*/bin/**"
+    ],
+    "electronDist": "../../node_modules/electron/dist",
+    "npmRebuild": false,
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "signExecutable": false
+    },
+    "nsis": {
+      "include": "build/file-associations.nsh",
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "mac": {
+      "icon": "build/icon.icns",
+      "fileAssociations": [
+        {
+          "ext": [
+            "md",
+            "markdown",
+            "mdown"
+          ],
+          "name": "Markdown document",
+          "role": "Editor",
+          "rank": "Alternate"
+        }
+      ],
+      "target": "dmg",
+      "category": "public.app-category.productivity",
+      "identity": null
+    },
+    "linux": {
+      "executableName": "manuslip",
+      "extraResources": [
+        {
+          "from": "build/native-fonts",
+          "to": "native-fonts",
+          "filter": [
+            "**/*",
+            "!**/.uuid*"
+          ]
+        },
+        {
+          "from": "resources/fonts/OFL.txt",
+          "to": "native-fonts/OFL.txt"
+        }
+      ],
+      "syncDesktopName": true,
+      "icon": "build/icons",
+      "fileAssociations": [
+        {
+          "ext": [
+            "md",
+            "markdown",
+            "mdown"
+          ],
+          "name": "Markdown document",
+          "mimeType": "text/markdown"
+        }
+      ],
+      "executableArgs": [
+        "%F"
+      ],
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "category": "Office"
+    }
+  },
+  "devDependencies": {
+    "@types/turndown": "5.0.6",
+    "mermaid": "12.2.0"
+  }
+}

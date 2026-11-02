@@ -1,0 +1,49 @@
+import { type ReactNode, type RefObject, useId, useState } from 'react'
+import { Icon, type IconName } from './Icons'
+
+export function ToolbarDisclosure({
+  label,
+  children,
+  triggerRef,
+  icon,
+  iconOnly = false,
+}: {
+  label: string
+  children: ReactNode
+  triggerRef?: RefObject<HTMLButtonElement | null>
+  icon?: IconName
+  iconOnly?: boolean
+}): React.JSX.Element {
+  const id = useId()
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        className={`toolbar-disclosure${iconOnly ? ' icon-button' : ''}`}
+        type="button"
+        popoverTarget={id}
+        aria-expanded={open}
+        title={iconOnly ? label : undefined}
+      >
+        {icon && <Icon name={icon} size={iconOnly ? 18 : 16} />}
+        <span className={iconOnly ? 'visually-hidden' : undefined}>{label}</span>
+        {!iconOnly && <Icon name="chevron" size={12} />}
+      </button>
+      <fieldset
+        id={id}
+        className="toolbar-popover"
+        popover="auto"
+        inert={!open}
+        aria-label={label}
+        onBeforeToggle={(event) => setOpen(event.newState === 'open')}
+        onClickCapture={(event) => {
+          if (event.target instanceof Element && event.target.closest('button'))
+            event.currentTarget.hidePopover()
+        }}
+      >
+        {children}
+      </fieldset>
+    </>
+  )
+}

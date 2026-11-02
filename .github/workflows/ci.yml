@@ -15,40 +15,24 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # The repository is docs-only until the workspace manifests land. This job keeps
-  # CI green meanwhile and signals whether there is anything for verify to run.
-  detect:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      has_package: ${{ steps.check.outputs.has_package }}
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Detect workspace manifests
-        id: check
-        shell: bash
-        run: |
-          if [ -f package.json ]; then
-            echo "has_package=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "has_package=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::No package.json found - JavaScript checks are skipped until the workspace manifests land."
-          fi
-
   verify:
-    name: Verify (${{ matrix.os }})
-    needs: detect
-    if: needs.detect.outputs.has_package == 'true'
+    name: Verify and package (${{ matrix.os }}, ${{ matrix.arch }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - ubuntu-latest
-          - windows-latest
-          - macos-latest
+        include:
+          - os: ubuntu-22.04
+            arch: x64
+          - os: windows-latest
+            arch: x64
+          - os: macos-15-intel
+            arch: x64
+          - os: macos-15
+            arch: arm64
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
     steps:
       - uses: actions/checkout@v7
 
@@ -57,10 +41,87 @@ jobs:
           node-version-file: ".nvmrc"
           cache: "npm"
 
+      - name: Verify runner architecture
+        run: node -e "if (process.arch !== '${{ matrix.arch }}') process.exit(1)"
+
       - run: npm ci
 
       - run: npm run check
 
-      - run: npm test
+      - run: npm run test:unit
+
+      - run: npm run test:integration
+
+      - run: npm run test:packaging
 
       - run: npm run build
+
+      - name: Archive built application for E2E
+        run: tar -czf desktop-test-artifacts.tar.gz apps/desktop/out apps/desktop/release
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: desktop-${{ matrix.os }}-${{ matrix.arch }}
+          path: desktop-test-artifacts.tar.gz
+          compression-level: 0
+          retention-days: 1
+
+  e2e:
+    name: Electron E2E (${{ matrix.os }}, ${{ matrix.arch }})
+    needs: verify
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            arch: x64
+          - os: windows-latest
+            arch: x64
+          - os: macos-15-intel
+            arch: x64
+          - os: macos-15
+            arch: arm64
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v8
+        with:
+          name: desktop-${{ matrix.os }}-${{ matrix.arch }}
+      - run: tar -xzf desktop-test-artifacts.tar.gz
+
+      - name: Test built app (Linux display)
+        if: runner.os == 'Linux'
+        run: xvfb-run --auto-servernum npm run test:e2e
+
+      - name: Test built app
+        if: runner.os != 'Linux'
+        run: npm run test:e2e
+
+      - name: Test packaged app
+        if: runner.os != 'Linux'
+        run: npm run test:packaged
+
+      - name: Test packaged app (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run --auto-servernum npm run test:packaged
+
+      - name: Test Windows installation, installed app and uninstallation
+        if: runner.os == 'Windows'
+        run: npm run test:installer
+
+      - name: Archive Windows installer evidence
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-installer-${{ matrix.arch }}
+          path: |
+            test/packaging/results/windows-installer-*/report.json
+            test/packaging/results/windows-installer-*/*.png
+          if-no-files-found: ignore
+          retention-days: 7
