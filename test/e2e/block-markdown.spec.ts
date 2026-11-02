@@ -154,6 +154,7 @@ for (const locale of ['en', 'zh-CN'] as const) {
       await audit(page, 'blocks-flow-wide')
       await editor.press(`${modifier}+Home`)
       await page.locator('.cm-live-defList dt').first().click()
+      await editor.press('Shift+ArrowRight')
       await expect(editor).toContainText('Term :smile:')
       await expect(editor).toContainText('**world** and `private-one`')
       await editor.press(`${modifier}+End`)

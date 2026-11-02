@@ -4,6 +4,7 @@ import type { DiagramBridge } from '../../../shared/diagram-contracts'
 import { i18next } from '../i18n'
 import { diagramConsumers } from './diagrams'
 import type { WidgetBorrow } from './widget-borrow'
+import { setWidgetState } from './widget-state'
 
 export function renderDiagramWidget(
   container: HTMLElement,
@@ -40,7 +41,7 @@ export function renderDiagramWidget(
     status.tabIndex = -1
     status.textContent = i18next.t('diagramLoading')
     container.replaceChildren(source, status)
-    container.setAttribute('aria-busy', 'true')
+    setWidgetState(container, 'loading')
     if (restoreFocus) status.focus({ preventScroll: true })
     const bounds = container.getBoundingClientRect()
     const request: DiagramRequest = {
@@ -62,8 +63,8 @@ export function renderDiagramWidget(
       .then((svg) => {
         if (signal.aborted || current !== controller || controller.signal.aborted) return
         const restoreFocus = document.activeElement === status
-        container.removeAttribute('aria-busy')
         if (!install(svg, 'diagram')) return
+        setWidgetState(container, 'ready')
         container.setAttribute('role', 'img')
         container.setAttribute('aria-label', i18next.t('diagramLabel'))
         if (restoreFocus) {
@@ -77,8 +78,8 @@ export function renderDiagramWidget(
       .catch((error: unknown) => {
         if (signal.aborted || current !== controller || controller.signal.aborted) return
         const restoreFocus = document.activeElement === status
-        container.removeAttribute('aria-busy')
         const code = error instanceof Error ? error.message : 'diagram-render'
+        setWidgetState(container, code === 'diagram-limit' ? 'limited' : 'error')
         status.textContent = i18next.exists(code) ? i18next.t(code) : i18next.t('diagram-render')
         const retry = document.createElement('button')
         retry.type = 'button'

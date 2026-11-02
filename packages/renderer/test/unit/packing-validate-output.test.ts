@@ -299,7 +299,7 @@ describe('exact packed renderer equivalence', () => {
     {
       name: 'same-length widget HTML',
       mutate: (v) => {
-        const block = v.projection.blocks[0]
+        const block = v.projection.blocks.find((block) => block.kind === 'code')
         if (!block) throw new Error('Missing widget')
         block.html = block.html.replace('code', 'coda')
       },

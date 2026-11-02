@@ -4,7 +4,7 @@ import type { DiagramSyntax } from './diagram'
 import { projectWithHandlers } from './projection-engine'
 
 export { safeImage, safeLink } from './urls'
-export const rendererVersion = 'mdast-hast13-html9/policy6-composites1'
+export const rendererVersion = 'mdast-hast13-html9/policy6-composites3'
 export interface RenderOptions {
   rawHtml: boolean
   footnotesLabel: string

@@ -73,7 +73,7 @@ typography:
     lineHeight: 1.75
   field:
     fontFamily: '"Segoe UI", -apple-system, BlinkMacSystemFont, "Manuslip CJK", sans-serif'
-    fontSize: "16px"
+    fontSize: "14px"
     fontWeight: 400
     lineHeight: 1.5
 rounded:
@@ -119,7 +119,7 @@ components:
     textColor: "{colors.text}"
     typography: "{typography.field}"
     rounded: "{rounded.control}"
-    padding: "9px 12px"
+    padding: "8px 10px"
   navigation-tab:
     backgroundColor: "transparent"
     textColor: "{colors.text}"
@@ -162,7 +162,8 @@ components:
     typography: "{typography.ui}"
     rounded: "{rounded.panel}"
     padding: "0"
-    width: "min(620px, calc(100vw - 32px))"
+    width: "min(800px, calc(100vw - 32px))"
+    height: "min(680px, calc(100dvh - 32px))"
 ---
 
 # Design System: Manuslip Desktop
@@ -225,13 +226,13 @@ The desktop shell fills the dynamic viewport (100dvh). One toolbar (48px) spans 
 
 The workspace pane starts closed. Opening it reveals a 240px sidebar below the toolbar, with one Files, Search or Outline view at a time. Views retain their state when hidden. Workspace search shortcuts open the search view and focus its field. Windows and Linux hide the native menu bar while retaining menu accelerators; macOS keeps its system menu.
 
-The live editor centers its content box at a maximum width (808px), including inline padding (36px per side), leaving a prose measure of up to 736px. Ordinary live content has top and bottom breathing room (48px and 96px); typewriter mode owns its own vertical positioning. Translated articles use a bounded reading measure (80ch) with fluid inline padding. Side by side translation expands into two equal columns.
+The live editor centers its content box at a maximum width (808px), including inline padding (36px per side), leaving a prose measure of up to 736px. Live content has top and bottom breathing room (48px and 96px). Translated articles use a bounded reading measure (80ch) with fluid inline padding. Side by side translation expands into two equal columns.
 
 Repeated spacing is recorded in the frontmatter. Small gaps join icons and labels; larger steps separate settings groups and secondary tasks. Flat rows and dividers provide grouping without surrounding each setting with a card.
 
-Below 58rem, New and Open move into document actions when a document is open. At 44rem, the toolbar keeps one row with 28px-wide, 32px-high icon controls and narrower tab padding. The workspace pane overlays the document below the toolbar and leaves room to reach the toolbar toggle. Live prose padding reduces (24px per side, 28px top, 64px bottom), Preferences navigation shares the available width and side by side translation stacks. Additional local breakpoints stack sync comparisons (34rem) and appearance fields (26rem). The document container hides its secondary count below 38rem.
+Below 58rem, New and Open move into document actions when a document is open. At 44rem, the toolbar keeps one row with 28px-wide, 32px-high icon controls and narrower tab padding. The workspace pane overlays the document below the toolbar and leaves room to reach the toolbar toggle. Live prose padding reduces (24px per side, 28px top, 64px bottom), Preferences navigation shares the available width and side by side translation stacks. Additional local breakpoints stack sync comparisons (34rem) and appearance fields (26rem). The footer keeps cursor position on the left and a word-count disclosure on the right. Its compact popover pairs word and character statistics, aligns file metadata in rows, and wraps the full path below. Counts appear only for the current semantic revision.
 
-Use logical inline and block properties for spacing and borders. Keep long paths and consequential messages able to wrap. Wide code blocks, tables and workspace trees scroll within their region.
+Use logical inline and block properties for spacing and borders. Keep long paths and consequential messages able to wrap. Wide code blocks, tables and workspace trees scroll within their region. Tables preserve whole words inside a keyboard-accessible scroll region. Images and diagram SVGs keep their aspect ratios in live and translated reading. Wide formulas keep their readable size and scroll horizontally; inline scripts and emoji follow the prose baseline.
 
 ## Elevation & Depth
 
@@ -271,9 +272,15 @@ The Edit icon opens Undo, Redo, Cut, Copy, Paste, Select all, and Find and repla
 
 ### Dialogs and command popovers
 
-Use native dialog and popover behavior. Preferences has a bounded width from `panel-preferences`, a scrollable interior and separate General, Translation and Plugins views. Command popovers use `panel-popover`, grouped action rows, muted group legends and a stronger outer stroke. Both layers fit within viewport margins and contain their own overscroll. Dismissed popovers become inert as their exit begins. Preserve focus restoration, field drafts and keyboard dismissal.
+Use native dialog and popover behavior. Preferences has a bounded size from `panel-preferences`, a fixed header, search and footer, and a scrollable content pane beside General, Editor, Translation and Plugins navigation. Below 44rem the navigation becomes a horizontal row above the content. Preferences is available from welcome and through Ctrl/Cmd+comma; repeating the shortcut focuses search. Search supports both interface languages and provider names. Translation has quick section navigation, a saved-provider readiness summary, persistent drafts with explicit Save/Discard, and feedback beside the relevant action. Source display changes keep selection and undo; source display and the default reading layout persist. Command popovers use `panel-popover`, grouped action rows, muted group legends and a stronger outer stroke. Document actions separates file operations, utility tools, export and preview settings. Plugin commands appear only when an installed plugin is enabled, and list only enabled plugins. Both layers fit within viewport margins and contain their own overscroll. Dismissed popovers become inert as their exit begins. Preserve focus restoration, field drafts and keyboard dismissal.
 
-**The Layer Rule.** Only pointer-opened dialogs and command popovers use spatial transitions: a short vertical offset (4px), panel duration (180ms) and exponential ease out (`cubic-bezier(0.23, 1, 0.32, 1)`). Keyboard commands remain immediate. Reduced motion sets the panel duration to zero and removes the transform. Typing, document content, tab switching and editor mode changes do not animate.
+**The Layer Rule.** Only pointer-opened dialogs and command popovers use spatial transitions: a short vertical offset (4px) with opacity, panel duration (180ms) and exponential ease out (`cubic-bezier(0.23, 1, 0.32, 1)`). Dialog backdrops fade with the panel. Capture the input method at each opening or closing action so typing inside a panel cannot interrupt its entrance. Closing layers become inert immediately, and interrupted transitions can reverse. Keyboard commands remain immediate. Reduced motion sets the panel duration to zero and removes the transform. Typing, document content, tab switching and editor mode changes do not animate.
+
+Source and Live Preview highlight only selected text, following wrapping, tabs and bidirectional text without filling the unused width of lines. Fill the complete line height and join adjacent selected rows, including fragments with different fonts, without gaps or layout changes. Suppress the active-line fill while any text is selected so the final line has the same treatment as the rest. Preserve multiple cursors, selection visibility after blur and system selection colors in high-contrast mode.
+
+Live Preview preserves source newlines in directly editable prose, including emphasis, quotes and list items. Caret movement, selection and selection collapse retain these source rows. Projected prose also preserves its text newlines without doubling hard breaks or adding spacing from HTML serialization. Reading and export keep their Markdown paragraph semantics. Code blocks preserve literal whitespace; semantic multiline code spans normalize their line endings. Complex projected prose aligns with editable prose. Chinese language choices use the script names 简体中文 and 繁體中文 consistently across provider settings and reading controls.
+
+Live preview reveals raw Markdown only for non-empty text selections, using exclusive range endpoints for forward, backward and disjoint selections. Selecting inline prose reveals its Markdown delimiters even when only body text is selected. Collapsing the selection restores formatting while preserving source newlines. Carets, ordinary clicks and navigation keep semantic widgets rendered; their Select source action explicitly selects the original range. Selected entities, tasks and separators stay source-editable. Changing a multiline selection updates affected block decorations together. Async images, math and diagrams expose loading, ready, error and limited states, with readable source or alt text and explicit retries. Remote images without permission remain blocked.
 
 ## Do's and Don'ts
 

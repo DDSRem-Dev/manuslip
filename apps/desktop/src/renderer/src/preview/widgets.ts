@@ -6,8 +6,9 @@ import type { Result } from '../../../shared/contracts'
 import type { DiagramBridge } from '../../../shared/diagram-contracts'
 import { i18next } from '../i18n'
 import { renderDiagramWidget } from './diagram-widget'
-import { mathRenderer } from './math'
+import { renderMathWidget } from './math-widget'
 import type { WidgetBorrow } from './widget-borrow'
+import { setWidgetState } from './widget-state'
 
 let sanitizer: ReturnType<typeof createSanitizer> | null = null
 let widgetBytes = 0
@@ -93,6 +94,8 @@ export function renderWidget(
     borrow?.release()
     return
   }
+  container.dataset.renderKind = block.kind
+  setWidgetState(container, 'ready')
   if (borrow) signal.addEventListener('abort', () => borrow.release(), { once: true })
   let weight = 0
   const install = (html: string, kind?: 'math' | 'diagram'): boolean => {
@@ -100,6 +103,8 @@ export function renderWidget(
     const next = html.length * 4
     if (widgetBytes - weight + next > semanticLimits.widgetBytes) {
       container.textContent = i18next.t('widgetLimit')
+      setWidgetState(container, 'limited')
+      measure()
       return false
     }
     widgetBytes += next - weight
@@ -124,6 +129,13 @@ export function renderWidget(
   )
   sanitizer ??= createSanitizer(window)
   if (!install(block.html)) return
+  for (const table of container.querySelectorAll('table')) {
+    const scroll = document.createElement('div')
+    scroll.className = 'render-table-scroll'
+    scroll.tabIndex = 0
+    table.before(scroll)
+    scroll.append(table)
+  }
   if (!preserveSlots && block.kind !== 'math' && block.kind !== 'inlineMath') {
     // Composite projections own all their descendants, including heavy widgets.
     // Mount through the same bounded, abortable renderers as standalone widgets.
@@ -149,6 +161,8 @@ export function renderWidget(
   if (block.kind === 'diagram' && diagrams) {
     if (mountedDiagrams >= diagramLimits.consumers) {
       container.textContent = `${block.value} (${i18next.t('diagram-limit')})`
+      setWidgetState(container, 'limited')
+      measure()
       return
     }
     mountedDiagrams++
@@ -209,6 +223,8 @@ export function renderWidget(
   if (block.kind === 'math' || block.kind === 'inlineMath') {
     if (mountedMath >= semanticLimits.viewportMath) {
       container.textContent = `${block.value} (${i18next.t('mathLimit')})`
+      setWidgetState(container, 'limited')
+      measure()
       return
     }
     mountedMath++
@@ -219,52 +235,33 @@ export function renderWidget(
       },
       { once: true },
     )
-    const render = (retry = false): void => {
-      if (signal.aborted) return
-      let lease: WidgetBorrow | undefined
-      const pending = async (): Promise<string> => {
-        lease = borrow?.retain()
-        return mathRenderer.render(block.value, block.kind === 'math', signal, retry)
-      }
-      void pending()
-        .then((svg) => {
-          if (signal.aborted) return
-          if (!install(svg, 'math')) return
-          container.setAttribute('role', 'math')
-          container.setAttribute('aria-label', block.value)
-          measure()
-        })
-        .catch((error: unknown) => {
-          if (signal.aborted) return
-          const label = document.createElement('span')
-          label.className = 'cm-live-render-error'
-          label.textContent = i18next.t(
-            error instanceof Error && error.message === 'math-limit' ? 'mathLimit' : 'mathError',
-          )
-          const retry = document.createElement('button')
-          retry.type = 'button'
-          retry.textContent = i18next.t('retry')
-          retry.addEventListener(
-            'click',
-            (event) => {
-              event.stopPropagation()
-              render(true)
-            },
-            { signal },
-          )
-          container.replaceChildren(document.createTextNode(block.value), label, retry)
-          measure()
-        })
-        .finally(() => lease?.release())
-    }
-    render()
+    renderMathWidget(container, block, signal, measure, install, borrow)
+    return
   }
   for (const image of container.querySelectorAll('img')) {
-    image.addEventListener('load', measure, { signal })
-    image.addEventListener('error', measure, { signal })
+    image.addEventListener(
+      'load',
+      () => {
+        setWidgetState(image, 'ready')
+        measure()
+      },
+      { signal },
+    )
+    image.addEventListener(
+      'error',
+      () => {
+        setWidgetState(image, 'error')
+        measure()
+      },
+      { signal },
+    )
     const local = image.getAttribute('data-local-image')
     const url = local || image.getAttribute('data-remote-image')
     const loader = local ? loadLocalImage : loadImage
+    setWidgetState(
+      image,
+      url && !loader ? 'blocked' : image.complete && image.naturalWidth > 0 ? 'ready' : 'loading',
+    )
     if (url && loader) {
       const originalAlt = image.alt
       const retry = document.createElement('button')
@@ -278,6 +275,7 @@ export function renderWidget(
       image.after(errorLabel, retry)
       const failed = (code?: string): void => {
         if (signal.aborted) return
+        setWidgetState(image, 'error')
         retry.hidden = false
         retry.disabled = false
         errorLabel.hidden = false
@@ -295,6 +293,7 @@ export function renderWidget(
       }
       const load = (): void => {
         if (signal.aborted) return
+        setWidgetState(image, 'loading')
         let lease: WidgetBorrow | undefined
         retry.disabled = true
         let work: Promise<Result<string>>

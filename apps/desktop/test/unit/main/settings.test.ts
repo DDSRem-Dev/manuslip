@@ -1,6 +1,7 @@
 import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { defaultEditorPreferences } from '@manuslip/editor/preferences'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { SettingsRepository } from '../../../src/main/settings'
 import { defaultSettings } from '../../../src/shared/contracts'
@@ -79,6 +80,44 @@ describe('versioned local preferences', () => {
       locale: 'zh-CN',
     })
   })
+  it('persists editor and reading domains without exposing mutable repository state', async () => {
+    const repository = new SettingsRepository(path)
+    await repository.load()
+    const saved = await repository.save({
+      ...defaultSettings,
+      editor: { ...defaultEditorPreferences, tabSize: 2 },
+      reading: { layout: 'side-by-side' },
+    })
+    const restored = await new SettingsRepository(path).load()
+    expect(restored).toEqual(saved)
+    if (!saved.editor) throw new Error('Missing editor preferences')
+    saved.editor.tabSize = 8
+    expect(repository.get().editor?.tabSize).toBe(2)
+  })
+
+  it.each([true, false])(
+    'retires saved typewriter=%s without resetting other preferences',
+    async (typewriter) => {
+      const settings = {
+        ...defaultSettings,
+        theme: 'dark',
+        locale: 'zh-CN',
+        spellcheck: true,
+        editor: { lineNumbers: false, wrapLines: false, tabSize: 8 },
+        reading: { layout: 'interlinear' },
+      }
+      await writeFile(
+        path,
+        JSON.stringify({ ...settings, editor: { ...settings.editor, typewriter } }),
+      )
+      const repository = new SettingsRepository(path)
+      expect(await repository.load()).toEqual(settings)
+      expect(repository.recovered).toBe(false)
+      expect(JSON.parse(await readFile(path, 'utf8'))).toEqual(settings)
+      expect(await new SettingsRepository(path).load()).toEqual(settings)
+      expect(await readdir(directory)).toEqual(['preferences.json'])
+    },
+  )
 
   it('does not advance in-memory state after a failed write', async () => {
     const repository = new SettingsRepository(path)

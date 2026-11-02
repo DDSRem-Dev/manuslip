@@ -51,9 +51,15 @@ Reading HTML/PDF export captures the selected language, layout and completed tra
 stale or incomplete copies require an explicit choice. DeepL adds explicit language discovery,
 XML placeholder protection, native formality and existing glossary IDs. Google Cloud and
 LibreTranslate remain optional follow-up adapters.
-Document actions also provides session focus and typewriter modes. Focus keeps Save, status
-and a visible Exit while giving the document the window; Escape returns to the workspace.
-Typewriter centers the primary caret as you write or move it, while allowing manual scrolling.
+Preferences opens from the welcome screen or any document with `Ctrl/Cmd+,`. Search finds
+General, Editor, Translation and Plugins settings in English or Chinese. Editor preferences
+remember source line numbers, line wrapping and tab width; Translation also
+sets the default reading layout. Display changes preserve source text, selection and undo.
+Translation setup offers language suggestions, DeepL Free/Pro endpoint presets, provider draft
+preservation, explicit save/discard, and API-key readiness guidance. Unsubmitted keys clear when
+leaving Translation; saved translations remain accessible through Load cached without a key.
+The footer's word count opens compact document statistics and file details. Document actions
+groups utility tools separately; plugin commands appear only for installed, enabled plugins.
 Choose Edit table beside a Live table, or in Document actions with the caret inside a table.
 The dialog stages cell, row, column and alignment changes, then applies them as one undoable
 source edit. Cancel leaves the document unchanged. See [table editing](./docs/adr/007-visual-tables.md)
@@ -103,7 +109,6 @@ feature list below describes the intended product. See
 - **Auto-save** with atomic writes and live file-watching — external changes reload safely.
 - **Encoding auto-detection** — legacy non-UTF-8 files open correctly.
 - **Themes** — light/dark built-ins, custom CSS, per-document typography settings.
-- **Focus & typewriter modes** for distraction-free long-form writing.
 - **Export** — self-contained HTML, PDF, PNG and JPEG natively; Word (.docx), EPUB and LaTeX source with images via optional Pandoc; bilingual export for translated documents.
 
 ### The headline: three rendering modes
@@ -390,7 +395,7 @@ For implementation order, architecture decisions, and acceptance criteria, see t
 - **M1 — Editor core.** Source mode + Live Preview (CommonMark, GFM, tables, MathJax, code highlighting), file open/save, auto-save.
 - **M2 — Workspace.** Sidebar file tree, tabs, outline, global search, themes, spellcheck, images/asset management, HTML/PDF export.
 - **M3 — Translated Preview.** AST translation pipeline, block cache, provider interface (OpenAI-compatible + DeepL + local), side-by-side and interlinear layouts, bilingual export.
-- **M4 — Extensibility & polish.** Plugin API, custom CSS themes, Pandoc export profiles, focus/typewriter mode, presentation mode, sync adapters.
+- **M4 — Extensibility & polish.** Plugin API, custom CSS themes, Pandoc export profiles, presentation mode, sync adapters.
 
 ## Contributing
 

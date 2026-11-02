@@ -1,5 +1,6 @@
 import type { ProviderDescriptor, ProviderLanguage, TranslationSettings } from '@manuslip/translate'
 import type { Locale } from '../../shared/contracts'
+import { languageName, translationLanguages } from './translation/languages'
 import { translationCopy } from './translation-copy'
 
 export function TranslationLanguageFields({
@@ -39,7 +40,7 @@ export function TranslationLanguageFields({
                 >
                   {source && <option value="auto">{copy.detect}</option>}
                   {!tag && draft[name] !== 'auto' && (
-                    <option value={draft[name]}>{draft[name]}</option>
+                    <option value={draft[name]}>{languageName(draft[name], locale)}</option>
                   )}
                   {languages
                     .filter(
@@ -47,8 +48,7 @@ export function TranslationLanguageFields({
                     )
                     .map((language) => (
                       <option key={language.tag} value={language.tag}>
-                        {new Intl.DisplayNames([locale], { type: 'language' }).of(language.tag) ??
-                          language.tag}
+                        {languageName(language.tag, locale)}
                       </option>
                     ))}
                 </select>
@@ -58,6 +58,7 @@ export function TranslationLanguageFields({
                   name={name}
                   required
                   maxLength={64}
+                  list={`${id}-${name}-suggestions`}
                   value={draft[name]}
                   aria-describedby={`${id}-language-hint`}
                   autoComplete="off"
@@ -69,6 +70,21 @@ export function TranslationLanguageFields({
                     onChange(name, event.target.value)
                   }}
                 />
+              )}
+              {!(draft.provider.adapter === 'deepl' && languages) && (
+                <datalist id={`${id}-${name}-suggestions`}>
+                  {source && <option value="auto">{copy.detect}</option>}
+                  {translationLanguages.map((language) => (
+                    <option key={language} value={language}>
+                      {languageName(language, locale)}
+                    </option>
+                  ))}
+                </datalist>
+              )}
+              {(!languages || draft.provider.adapter !== 'deepl') && (
+                <p className="translation-language-name">
+                  {draft[name] === 'auto' ? copy.detect : languageName(draft[name], locale)}
+                </p>
               )}
             </div>
           )

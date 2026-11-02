@@ -1,6 +1,7 @@
 import {
   Compartment,
   createSourceState,
+  EditorSelection,
   isComposing,
   type LiveBlock,
   type LiveModel,
@@ -201,6 +202,17 @@ const api = {
   liveMode() {
     view.dispatch({ effects: mode.reconfigure(livePreview(options)) })
   },
+  select(ranges: [number, number][]) {
+    view.dispatch({
+      selection: EditorSelection.create(
+        ranges.map(([anchor, head]) => EditorSelection.range(anchor, head)),
+      ),
+    })
+    view.focus()
+  },
+  selections() {
+    return view.state.selection.ranges.map(({ anchor, head }) => [anchor, head])
+  },
   counts() {
     return {
       mounts: contents.length,
@@ -239,10 +251,13 @@ const api = {
     view.destroy()
     const deadline = performance.now() + 10000
     while (owner.stats.holds) {
-      if (performance.now() > deadline) throw new Error('Unsettled widget borrowers')
+      if (performance.now() > deadline)
+        throw new Error(`Unsettled widget borrowers: ${JSON.stringify(api.counts())}`)
       api.settleDiagrams({ ok: false, error: 'Cancelled', code: 'diagram-cancelled' })
       api.settleCancellations()
-      await scheduler.yield()
+      // Teardown must also let worker messages, network tasks and watchdogs run.
+      // Repeated user-visible scheduler tasks can starve those task queues.
+      await new Promise((resolve) => setTimeout(resolve, 0))
     }
     owner.dispose()
   },

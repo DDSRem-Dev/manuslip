@@ -83,7 +83,7 @@ test('Source keeps literal Markdown and uniform typography through mode changes 
   })
 })
 
-test('completed inline syntax stays rendered at the insertion point, inside text and across selections', async () => {
+test('completed inline syntax stays rendered at the insertion point and reveals selected delimiters', async () => {
   await withDocument('', async (page, application) => {
     const editor = page.getByRole('textbox', { name: 'Markdown source' })
     const live = page.getByRole('button', { name: 'Live Preview', exact: true })
@@ -110,12 +110,13 @@ test('completed inline syntax stays rendered at the insertion point, inside text
       await editor.press('ArrowLeft')
       await expect(editor.locator('.cm-line')).toHaveText(rendered)
       await editor.press(`${modifier}+a`)
-      await expect(editor.locator('.cm-line')).toHaveText(rendered)
+      await expect(editor.locator('.cm-line')).toHaveText(raw)
+      await expect(editor.locator(style)).toBeVisible()
       await source.click()
       await expect(editor.locator('.cm-line')).toHaveText(raw)
       await expect(editor.locator('[class*="cm-live-"]')).toHaveCount(0)
       await live.click()
-      await expect(editor.locator('.cm-line')).toHaveText(rendered)
+      await expect(editor.locator('.cm-line')).toHaveText(raw)
     }
     await application.evaluate(async ({ clipboard, ClipboardItem }) => {
       await clipboard.write([
@@ -140,7 +141,7 @@ test('completed inline syntax stays rendered at the insertion point, inside text
   })
 })
 
-test('active headings and quote prefixes stay hidden while literal punctuation and unfinished syntax stay literal', async () => {
+test('active headings, quotes and entities stay rendered while unfinished syntax stays literal', async () => {
   await withDocument('', async (page) => {
     const editor = page.getByRole('textbox', { name: 'Markdown source' })
     await page.getByRole('button', { name: 'Live Preview', exact: true }).click()
@@ -275,8 +276,10 @@ test('Live Preview renders punctuation, entities and resolved links while keepin
     await expect(
       editor.locator('a[href="https://example.invalid/math"] [role="math"] svg'),
     ).toBeVisible()
-    await expect(editor.locator('.cm-line').filter({ hasText: 'Hard break' })).toHaveText(
-      'Hard break',
+    const hardBreak = editor.locator('.cm-line').filter({ hasText: 'Hard break' })
+    await expect(hardBreak).toHaveText('Hard break')
+    await expect(editor.locator('.cm-line').filter({ hasText: 'next line' })).toHaveText(
+      'next line',
     )
     await expect(editor.getByRole('separator')).toHaveCount(1)
     await expect(editor.locator('.cm-live-quote')).toHaveText(['First line', 'Second line'])
@@ -308,7 +311,7 @@ test('Live Preview renders punctuation, entities and resolved links while keepin
   })
 })
 
-test('clicking a rendered reference reveals editable source and follows definition changes', async () => {
+test('references stay rendered at the caret, reveal selected source and follow definition changes', async () => {
   const source = 'Read [**Guide**][manual].\n\n[manual]: https://example.invalid/old\n\nEnd'
   await withDocument(source, async (page, application) => {
     const editor = page.getByRole('textbox', { name: 'Markdown source' })
@@ -330,9 +333,13 @@ test('clicking a rendered reference reveals editable source and follows definiti
       .toEqual(['https://example.invalid/old'])
     await expect(guide).toBeVisible()
     await guide.click()
-    await expect(editor.locator('.cm-line').first()).toHaveText('Read [Guide][manual].')
-    await editor.press('ArrowRight')
-    await expect(editor.locator('.cm-line').first()).toHaveText('Read [Guide][manual].')
+    await expect(guide).toBeVisible()
+    await editor.press(`${modifier}+Home`)
+    for (let index = 0; index < 5; index++) await editor.press('ArrowRight')
+    await editor.press('Shift+ArrowRight')
+    await expect(editor.locator('.cm-line').first()).toHaveText('Read [**Guide**][manual].')
+    await editor.press('ArrowLeft')
+    await expect(guide).toBeVisible()
     await editor.press(`${modifier}+End`)
     await expect(guide).toBeVisible()
     await raw.click()

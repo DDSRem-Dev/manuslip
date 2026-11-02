@@ -1,39 +1,26 @@
 import {
   deepLLanguage,
-  type Formality,
   normalizeEndpoint,
   type TranslationSettings as Settings,
 } from '@manuslip/translate'
 import { type Ref, useCallback, useEffect, useId, useRef, useState } from 'react'
 import type { Locale, Result } from '../../shared/contracts'
 import type { TranslationState } from '../../shared/translation-contracts'
-import { DeepLFields, TranslationLanguageFields } from './TranslationProviderFields'
+import { TranslationConnectionFields } from './TranslationConnectionFields'
+import { TranslationOptions } from './TranslationOptions'
+import { TranslationLanguageFields } from './TranslationProviderFields'
+import { TranslationReadiness } from './TranslationReadiness'
+import { TranslationCache, TranslationCredentials } from './TranslationStorageSettings'
+import {
+  emptyTranslationSettings as empty,
+  translationEndpoints as endpoints,
+} from './translation/settings-draft'
 import {
   type TranslationSettingsHandle,
   useTranslationSettingsNavigation,
 } from './translation/settings-navigation'
 import { translationCopy } from './translation-copy'
 
-const endpoints = {
-  'openai-compatible': 'https://api.openai.com/v1/chat/completions',
-  ollama: 'http://localhost:11434/api/chat',
-  deepl: 'https://api-free.deepl.com/v2/translate',
-}
-const empty: Settings = {
-  provider: {
-    adapter: 'openai-compatible',
-    version: '1',
-    baseUrl: endpoints['openai-compatible'],
-    model: '',
-    profile: null,
-    options: {},
-  },
-  sourceLanguage: 'auto',
-  targetLanguage: 'zh-CN',
-  glossary: [],
-  formality: 'default',
-  promptVersion: 'prose-translation/v1',
-}
 const describe = (code?: string): keyof typeof translationCopy.en =>
   code === 'translation-key-store'
     ? 'keyError'
@@ -53,8 +40,10 @@ const describe = (code?: string): keyof typeof translationCopy.en =>
 export function TranslationSettings({
   locale,
   ref,
+  active = true,
 }: {
   locale: Locale
+  active?: boolean
   ref?: Ref<TranslationSettingsHandle>
 }): React.JSX.Element {
   const copy = translationCopy[locale]
@@ -65,25 +54,25 @@ export function TranslationSettings({
   const [glossary, setGlossary] = useState('')
   const [draftChanged, setDraftChanged] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [confirm, setConfirm] = useState(false)
   const [error, setError] = useState<keyof typeof copy | null>(null)
   const [status, setStatus] = useState<keyof typeof copy | null>(null)
-  const keyInput = useRef<HTMLInputElement>(null)
-  const persistence = useRef<HTMLInputElement>(null)
-  const clearButton = useRef<HTMLButtonElement>(null)
-  const confirmButton = useRef<HTMLButtonElement>(null)
-  const confirmed = useRef(false)
+  const [feedbackArea, setFeedbackArea] = useState<'settings' | 'key' | 'cache'>('settings')
   const mounted = useRef(true)
   const restoreFocus = useRef<HTMLElement | null>(null)
   const dirty = useRef(false)
   const observedRevision = useRef<number | null>(null)
+  const providerDrafts = useRef(new Map<string, { settings: Settings; glossary: string }>())
   const details = useTranslationSettingsNavigation(ref, id, open, Boolean(state) && !busy, setOpen)
   const editDraft = (value: Settings): void => {
     dirty.current = true
+    setStatus(null)
+    setError(null)
     setDraft(value)
   }
   const editGlossary = (value: string): void => {
     dirty.current = true
+    setStatus(null)
+    setError(null)
     setGlossary(value)
   }
   const applyState = useCallback((value: TranslationState, replaceDraft = false): void => {
@@ -114,18 +103,15 @@ export function TranslationSettings({
     if (busy || !restoreFocus.current) return
     const previous = restoreFocus.current
     restoreFocus.current = null
-    if (document.activeElement === document.body || !previous.isConnected)
-      (previous.isConnected ? previous : keyInput.current)?.focus()
-  }, [busy])
-  useEffect(() => {
-    if (confirm) {
-      confirmed.current = true
-      confirmButton.current?.focus()
-    } else if (confirmed.current) {
-      confirmed.current = false
-      clearButton.current?.focus()
-    }
-  }, [confirm])
+    if (
+      document.activeElement === document.body ||
+      document.activeElement === details.current?.closest('dialog')
+    )
+      (previous.isConnected
+        ? previous
+        : details.current?.querySelector<HTMLElement>('[data-translation-key]')
+      )?.focus()
+  }, [busy, details])
   const load = useCallback(async (): Promise<void> => {
     setError(null)
     try {
@@ -155,23 +141,26 @@ export function TranslationSettings({
   async function run(
     operation: () => Promise<Result<TranslationState>>,
     success: keyof typeof copy,
-  ): Promise<void> {
+  ): Promise<boolean> {
     restoreFocus.current =
       document.activeElement instanceof HTMLElement ? document.activeElement : null
     setBusy(true)
+    setFeedbackArea(success === 'keySaved' ? 'key' : success === 'cleared' ? 'cache' : 'settings')
     setError(null)
     setStatus(null)
     try {
       const result = await operation()
-      if (!mounted.current) return
+      if (!mounted.current) return false
       if (!result.ok) {
         setError(describe(result.code))
-        return
+        return false
       }
       applyState(result.value, success === 'saved')
       setStatus(success)
+      return true
     } catch {
       if (mounted.current) setError('generic')
+      return false
     } finally {
       if (mounted.current) setBusy(false)
     }
@@ -191,13 +180,18 @@ export function TranslationSettings({
       }
       return
     }
+    const normalized = { ...draft }
     for (const name of ['sourceLanguage', 'targetLanguage'] as const) {
       const field = form.elements.namedItem(name)
       if (!(field instanceof HTMLInputElement)) continue
       try {
-        if (name === 'targetLanguage' && draft[name] === 'auto') throw new Error('Invalid target')
-        if (!(name === 'sourceLanguage' && draft[name] === 'auto'))
-          Intl.getCanonicalLocales(draft[name])
+        const language = draft[name].trim()
+        if (name === 'sourceLanguage' && language === 'auto') normalized[name] = 'auto'
+        else {
+          const canonical = Intl.getCanonicalLocales(language)[0]
+          if (!canonical || language === 'auto') throw new Error('Invalid language')
+          normalized[name] = canonical
+        }
       } catch {
         field.setCustomValidity(copy.invalidLanguage)
         field.setAttribute('aria-invalid', 'true')
@@ -211,7 +205,12 @@ export function TranslationSettings({
       ? []
       : glossary.split('\n').filter((value) => value.trim())) {
       const at = line.indexOf('=>')
-      if (at < 1 || !line.slice(at + 2).trim() || entries.length >= 1000) {
+      if (
+        at < 1 ||
+        !line.slice(0, at).trim() ||
+        !line.slice(at + 2).trim() ||
+        entries.length >= 1000
+      ) {
         const field = form.elements.namedItem('glossary')
         if (field instanceof HTMLTextAreaElement) {
           field.setCustomValidity(copy.invalidGlossary)
@@ -223,9 +222,20 @@ export function TranslationSettings({
       }
       entries.push({ source: line.slice(0, at).trim(), target: line.slice(at + 2).trim() })
     }
-    await run(() => window.manuslip.configureTranslation({ ...draft, glossary: entries }), 'saved')
+    await run(
+      () => window.manuslip.configureTranslation({ ...normalized, glossary: entries }),
+      'saved',
+    )
   }
   const disabled = busy || state?.configuration === 'read-only'
+  const feedback = (
+    <>
+      <p className="feedback" role="status">
+        {status ? copy[status] : ''}
+      </p>
+      {error && <p role="alert">{copy[error]}</p>}
+    </>
+  )
   const connectionChanged =
     state?.settings &&
     (state.settings.provider.adapter !== draft.provider.adapter ||
@@ -270,6 +280,20 @@ export function TranslationSettings({
       endpoint.setCustomValidity('')
       endpoint.removeAttribute('aria-invalid')
     }
+    providerDrafts.current.set(draft.provider.adapter, {
+      settings: structuredClone(draft),
+      glossary,
+    })
+    const previous = providerDrafts.current.get(value)
+    if (previous) {
+      editDraft({
+        ...previous.settings,
+        sourceLanguage: draft.sourceLanguage,
+        targetLanguage: draft.targetLanguage,
+      })
+      editGlossary(previous.glossary)
+      return
+    }
     editDraft({
       ...draft,
       glossary: [],
@@ -290,13 +314,35 @@ export function TranslationSettings({
       className="translation-settings"
       onToggle={(event) => {
         setOpen(event.currentTarget.open)
-        if (!event.currentTarget.open && keyInput.current) keyInput.current.value = ''
       }}
     >
       <summary>{copy.title}</summary>
       {open && (
         <div className="translation-settings-body">
-          <p className="muted">{copy.intro}</p>
+          <p className="preferences-page-hint">{copy.intro}</p>
+          {state && (
+            <nav className="translation-section-navigation" aria-label={copy.sections}>
+              {(['connection', 'languages', 'key', 'cacheShort'] as const).map((section) => (
+                <button
+                  type="button"
+                  key={section}
+                  onClick={() => {
+                    const selector =
+                      section === 'key'
+                        ? '[data-translation-key]'
+                        : section === 'cacheShort'
+                          ? '[data-translation-cache]'
+                          : `#${CSS.escape(`${id}-${section === 'connection' ? 'provider' : 'targetLanguage'}`)}`
+                    const field = details.current?.querySelector<HTMLElement>(selector)
+                    if (field && !field.matches(':disabled')) field.focus()
+                    field?.scrollIntoView({ block: 'nearest' })
+                  }}
+                >
+                  {copy[section]}
+                </button>
+              ))}
+            </nav>
+          )}
           {!state ? (
             <>
               <p role="status">{error ? copy[error] : copy.load}</p>
@@ -306,312 +352,116 @@ export function TranslationSettings({
             </>
           ) : (
             <>
-              {state.configuration !== 'ready' && (
-                <p role="status">
-                  {copy[state.configuration === 'recovered' ? 'recoveredConfig' : 'readOnly']}
+              {(state.settings || state.configuration === 'read-only') && (
+                <TranslationReadiness
+                  state={state}
+                  locale={locale}
+                  connectionChanged={Boolean(connectionChanged)}
+                  onKey={() =>
+                    details.current?.querySelector<HTMLElement>('[data-translation-key]')?.focus()
+                  }
+                />
+              )}
+              {state.configuration === 'recovered' && <p role="status">{copy.recoveredConfig}</p>}
+              {draftChanged && (
+                <p className="preference-notice" role="status">
+                  {copy.draftChanged}
                 </p>
               )}
-              {draftChanged && <p role="status">{copy.draftChanged}</p>}
-              <form onSubmit={(event) => void save(event)}>
+              <form
+                onSubmit={(event) => void save(event)}
+                onInvalidCapture={(event) => {
+                  if (event.target instanceof HTMLElement) {
+                    const section = event.target.closest('details')
+                    if (section) section.open = true
+                  }
+                }}
+              >
                 <fieldset disabled={disabled}>
                   <legend>{copy.connection}</legend>
-                  <label htmlFor={`${id}-provider`}>{copy.provider}</label>
-                  <select
-                    id={`${id}-provider`}
-                    value={draft.provider.adapter}
-                    onChange={(event) => changedProvider(event.target.value)}
-                  >
-                    <option value="openai-compatible">OpenAI-compatible</option>
-                    <option value="ollama">Ollama</option>
-                    <option value="deepl">DeepL</option>
-                  </select>
-                  <label htmlFor={`${id}-endpoint`}>
-                    {deepl ? copy.translationEndpoint : copy.endpoint}
-                  </label>
-                  <input
-                    id={`${id}-endpoint`}
-                    name="endpoint"
-                    type="url"
-                    required
-                    maxLength={8192}
-                    value={draft.provider.baseUrl}
-                    aria-describedby={`${id}-endpoint-hint`}
-                    autoComplete="off"
-                    spellCheck={false}
-                    dir="ltr"
-                    onChange={(event) => {
-                      event.target.setCustomValidity('')
-                      event.target.removeAttribute('aria-invalid')
-                      editDraft({
-                        ...draft,
-                        provider: { ...draft.provider, baseUrl: event.target.value },
-                      })
-                    }}
-                  />
-                  <p className="muted" id={`${id}-endpoint-hint`}>
-                    {copy.endpointHint}
-                  </p>
-                  {!deepl && (
-                    <>
-                      <label htmlFor={`${id}-model`}>{copy.model}</label>
-                      <input
-                        id={`${id}-model`}
-                        required
-                        maxLength={256}
-                        value={draft.provider.model ?? ''}
-                        autoComplete="off"
-                        spellCheck={false}
-                        onChange={(event) =>
-                          editDraft({
-                            ...draft,
-                            provider: { ...draft.provider, model: event.target.value },
-                          })
-                        }
-                      />
-                    </>
-                  )}
-                  {deepl && (
-                    <>
-                      <p className="muted">{copy.deeplHint}</p>
-                      <button
-                        type="button"
-                        disabled={
-                          Boolean(connectionChanged) ||
-                          !state.settings ||
-                          state.credential === 'none' ||
-                          !window.manuslip.loadTranslationLanguages
-                        }
-                        onClick={() =>
-                          void run(async () => {
-                            const loadLanguages = window.manuslip.loadTranslationLanguages
-                            if (!loadLanguages) throw new Error('Language discovery unavailable')
-                            return loadLanguages()
-                          }, 'languagesLoaded')
-                        }
-                      >
-                        {copy.loadLanguages}
-                      </button>
-                      <p className="muted">
-                        {languages ? copy.languagesLoaded : copy.languagesHint}
-                      </p>
-                    </>
-                  )}
-                  <TranslationLanguageFields
+                  <TranslationConnectionFields
                     id={id}
                     locale={locale}
                     draft={draft}
+                    state={state}
+                    connectionChanged={Boolean(connectionChanged)}
                     languages={languages}
-                    sourceTag={selected(true)?.tag}
-                    targetTag={selected(false)?.tag}
-                    onChange={languageChanged}
+                    onProvider={changedProvider}
+                    onChange={editDraft}
+                    run={run}
                   />
-                  <details className="translation-options">
-                    <summary>{copy.advanced}</summary>
-                    {(!deepl || nativeFormality || draft.formality !== 'default') && (
-                      <>
-                        <label htmlFor={`${id}-formality`}>{copy.formality}</label>
-                        <select
-                          id={`${id}-formality`}
-                          value={draft.formality}
-                          onChange={(event) =>
-                            editDraft({ ...draft, formality: event.target.value as Formality })
-                          }
-                        >
-                          <option value="default">{copy.default}</option>
-                          <option value="formal" disabled={deepl && !nativeFormality}>
-                            {copy.formal}
-                          </option>
-                          <option value="informal" disabled={deepl && !nativeFormality}>
-                            {copy.informal}
-                          </option>
-                        </select>
-                      </>
-                    )}
-                    {deepl && (
-                      <DeepLFields
-                        id={id}
-                        locale={locale}
-                        options={draft.provider.options}
-                        allowGlossary={nativeGlossary}
-                        onChange={(options) =>
-                          editDraft({ ...draft, provider: { ...draft.provider, options } })
-                        }
-                      />
-                    )}
-                    {!deepl && (
-                      <>
-                        <label htmlFor={`${id}-glossary`}>{copy.glossary}</label>
-                        <textarea
-                          id={`${id}-glossary`}
-                          name="glossary"
-                          rows={4}
-                          maxLength={65536}
-                          value={glossary}
-                          aria-describedby={`${id}-glossary-hint`}
-                          onChange={(event) => {
-                            event.target.setCustomValidity('')
-                            event.target.removeAttribute('aria-invalid')
-                            editGlossary(event.target.value)
-                          }}
-                        />
-                        <p className="muted" id={`${id}-glossary-hint`}>
-                          {copy.glossaryHint}
-                        </p>
-                        {(['temperature', 'maxOutputTokens'] as const).map((name) => (
-                          <label key={name}>
-                            {copy[name === 'temperature' ? 'temperature' : 'tokens']}
-                            <input
-                              type="number"
-                              min={name === 'temperature' ? 0 : 1}
-                              max={name === 'temperature' ? 2 : 16384}
-                              step={name === 'temperature' ? 0.1 : 1}
-                              required
-                              value={
-                                (draft.provider.options[name] as number) ??
-                                (name === 'temperature' ? 0 : 8192)
-                              }
-                              onChange={(event) =>
-                                editDraft({
-                                  ...draft,
-                                  provider: {
-                                    ...draft.provider,
-                                    options: {
-                                      ...draft.provider.options,
-                                      [name]: event.target.valueAsNumber,
-                                    },
-                                  },
-                                })
-                              }
-                            />
-                          </label>
-                        ))}
-                      </>
-                    )}
-                  </details>
-                  <button type="submit">{busy ? copy.busy : copy.save}</button>
-                </fieldset>
-              </form>
-              {state.settings && (
-                <form
-                  onSubmit={(event) => {
-                    event.preventDefault()
-                    const field = keyInput.current
-                    if (!field?.value) return
-                    const key = field.value
-                    field.value = ''
-                    void run(
-                      () =>
-                        window.manuslip.setTranslationCredential({
-                          settingsRevision: state.settingsRevision,
-                          key,
-                          persist: Boolean(persistence.current?.checked),
-                        }),
-                      'keySaved',
-                    )
-                  }}
-                >
-                  <fieldset disabled={busy || Boolean(connectionChanged)}>
-                    <legend>{copy.key}</legend>
-                    <p>{copy[state.credential]}</p>
-                    {connectionChanged && <p>{copy.saveFirst}</p>}
-                    <label htmlFor={`${id}-key`}>{copy.key}</label>
-                    <input
-                      id={`${id}-key`}
-                      ref={keyInput}
-                      type="password"
-                      required
-                      maxLength={4096}
-                      autoComplete="new-password"
-                      spellCheck={false}
-                      aria-describedby={`${id}-key-hint`}
+                  <div className="translation-language-section">
+                    <h3>{copy.languages}</h3>
+                    <TranslationLanguageFields
+                      id={id}
+                      locale={locale}
+                      draft={draft}
+                      languages={languages}
+                      sourceTag={selected(true)?.tag}
+                      targetTag={selected(false)?.tag}
+                      onChange={languageChanged}
                     />
-                    <p className="muted" id={`${id}-key-hint`}>
-                      {copy.keyHint}
-                    </p>
-                    <label className="spellcheck-preference">
-                      <input
-                        ref={persistence}
-                        type="checkbox"
-                        aria-describedby={`${id}-persist-hint`}
-                      />
-                      {copy.persist}
-                    </label>
-                    <p className="muted" id={`${id}-persist-hint`}>
-                      {copy.persistHint}
-                    </p>
-                    {error === 'keyError' && <p role="alert">{copy.keyError}</p>}
+                  </div>
+                  <TranslationOptions
+                    id={id}
+                    locale={locale}
+                    draft={draft}
+                    glossary={glossary}
+                    nativeFormality={nativeFormality}
+                    nativeGlossary={nativeGlossary}
+                    onChange={editDraft}
+                    onGlossaryChange={editGlossary}
+                  />
+                  <div className="translation-save-actions">
                     <div className="action-row">
-                      <button type="submit">{copy.setKey}</button>
-                      {state.credential !== 'none' && (
+                      <button type="submit" className="primary">
+                        {busy ? copy.busy : copy.save}
+                      </button>
+                      {dirty.current && (
                         <button
                           type="button"
-                          onClick={() =>
-                            void run(
-                              () =>
-                                window.manuslip.setTranslationCredential({
-                                  settingsRevision: state.settingsRevision,
-                                  key: null,
-                                  persist: false,
-                                }),
-                              'keySaved',
-                            )
-                          }
+                          onClick={() => {
+                            applyState(state, true)
+                            providerDrafts.current.clear()
+                            setError(null)
+                            setStatus(null)
+                            for (const field of details.current?.querySelectorAll<
+                              HTMLInputElement | HTMLTextAreaElement
+                            >('input, textarea') ?? []) {
+                              field.setCustomValidity('')
+                              field.removeAttribute('aria-invalid')
+                            }
+                          }}
                         >
-                          {copy.removeKey}
+                          {copy.discard}
                         </button>
                       )}
                     </div>
-                  </fieldset>
-                </form>
-              )}
-              <section className="translation-cache" aria-labelledby={`${id}-cache-heading`}>
-                <h3 id={`${id}-cache-heading`}>{copy.cache}</h3>
-                <p className="muted">{copy[state.cache]}</p>
-                {confirm ? (
-                  <>
-                    <p>{copy.confirm}</p>
-                    <div className="action-row">
-                      <button
-                        ref={confirmButton}
-                        type="button"
-                        disabled={busy}
-                        onClick={() =>
-                          void run(() => window.manuslip.clearTranslationCache(), 'cleared').then(
-                            () => {
-                              setConfirm(false)
-                            },
-                          )
-                        }
-                      >
-                        {copy.confirmClear}
-                      </button>
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => {
-                          setConfirm(false)
-                        }}
-                      >
-                        {copy.cancel}
-                      </button>
-                    </div>
-                  </>
-                ) : null}
-                <button
-                  ref={clearButton}
-                  type="button"
-                  disabled={busy || confirm || state.cache === 'future'}
-                  onClick={() => setConfirm(true)}
-                >
-                  {copy.clear}
-                </button>
-              </section>
-              <p className="feedback" role="status">
-                {status ? copy[status] : ''}
-              </p>
-              <p role={error === 'keyError' ? undefined : 'alert'}>
-                {error && error !== 'keyError' ? copy[error] : ''}
-              </p>
+                    {dirty.current && (
+                      <span className="preference-hint" role="status">
+                        {copy.unsaved}
+                      </span>
+                    )}
+                  </div>
+                  {feedbackArea === 'settings' && feedback}
+                </fieldset>
+              </form>
+              <TranslationCredentials
+                state={state}
+                locale={locale}
+                busy={busy}
+                connectionChanged={Boolean(connectionChanged)}
+                active={active && open}
+                run={run}
+                feedback={feedbackArea === 'key' ? feedback : null}
+              />
+              <TranslationCache
+                state={state}
+                locale={locale}
+                busy={busy}
+                run={run}
+                feedback={feedbackArea === 'cache' ? feedback : null}
+              />
             </>
           )}
         </div>

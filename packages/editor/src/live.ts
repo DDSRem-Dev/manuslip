@@ -18,6 +18,7 @@ export {
 export { OccurrenceTracker } from './occurrences'
 export function livePreview(options: LiveOptions): Extension[] {
   return [
+    EditorView.lineWrapping,
     syntaxHighlighting(codeHighlightStyle),
     blockDecorations(options),
     inlineDecorations(options),

@@ -1,8 +1,8 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { useId, useLayoutEffect, useRef } from 'react'
 import { useStore } from 'zustand'
-import type { PluginState } from '../../shared/plugin-contracts'
 import type { DocumentController } from './document'
 import { i18next } from './i18n'
+import { pluginCatalog } from './plugin-catalog'
 import { pluginCopy } from './plugin-copy'
 import type { DocumentPlugins } from './plugins'
 
@@ -22,26 +22,9 @@ export function PluginCommands({
     id = useId()
   const status = useStore(controller.store),
     revision = useStore(document.store, (state) => state.revision)
-  const [state, setState] = useState<PluginState | null>(null),
-    [error, setError] = useState<string | null>(null)
+  const state = useStore(pluginCatalog)
   useLayoutEffect(() => {
     dialog.current?.showModal()
-  }, [])
-  useEffect(() => {
-    let mounted = true
-    void window.manuslip
-      .plugins()
-      .then((result) => {
-        if (!mounted) return
-        if (result.ok) setState(result.value)
-        else setError(result.code || 'plugin-failed')
-      })
-      .catch(() => {
-        if (mounted) setError('plugin-failed')
-      })
-    return () => {
-      mounted = false
-    }
   }, [])
   const enabled = state?.plugins.filter((plugin) => plugin.enabled) || []
   const changed = status.result && revision !== status.result.revision
@@ -60,9 +43,6 @@ export function PluginCommands({
         <h2 id={`${id}-title`}>{copy.commands}</h2>
         <p id={`${id}-hint`}>{copy.commandHint}</p>
       </header>
-      {error && <p role="alert">{i18next.t(error)}</p>}
-      {!state && !error && <p role="status">{copy.loading}</p>}
-      {state && !enabled.length && <p>{copy.noCommands}</p>}
       {enabled.map((plugin) => (
         <section className="plugin-command-group" key={plugin.id} aria-label={plugin.name}>
           <h3>{plugin.name}</h3>

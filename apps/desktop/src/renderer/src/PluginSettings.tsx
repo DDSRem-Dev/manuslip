@@ -8,6 +8,7 @@ import type {
 } from '../../shared/plugin-contracts'
 import { i18next } from './i18n'
 import { PluginPermissions } from './PluginPermissions'
+import { publishPluginState } from './plugin-catalog'
 import { pluginCopy } from './plugin-copy'
 
 function PluginInstallation({
@@ -108,6 +109,7 @@ export function PluginSettings({ locale }: { locale: string }): React.JSX.Elemen
       if (!result.ok) setError(result.code || 'plugin-failed')
       else {
         setState(result.value)
+        publishPluginState(result.value)
         setCandidate(null)
       }
     } catch {

@@ -13,12 +13,13 @@ import {
   SourceInputSynchronization,
   StateEffect,
   selectAll,
+  sourceDisplay,
   Text,
   type TransactionSpec,
-  typewriterWriting,
   undo,
   type ViewUpdate,
 } from '@manuslip/editor'
+import { defaultEditorPreferences, type EditorPreferences } from '@manuslip/editor/preferences'
 import { createStore } from 'zustand/vanilla'
 import type { AssetBridge } from '../../shared/asset-contracts'
 import type { DiagramBridge } from '../../shared/diagram-contracts'
@@ -98,9 +99,7 @@ export class DocumentController {
   private readonly readOnly = new Compartment()
   private readonly language = new Compartment()
   private readonly spelling = new Compartment()
-  private readonly writing = new Compartment()
-  private writingRequest = 0
-  private typewriterEnabled = false
+  private readonly display = new Compartment()
 
   constructor(
     snapshot: FileSnapshot,
@@ -205,11 +204,11 @@ export class DocumentController {
         )
       : null
     this.state = createSourceState(snapshot.text, {
+      display: this.display.of(sourceDisplay()),
       extensions: [
         this.readOnly.of([]),
         this.language.of([]),
         this.spelling.of([]),
-        this.writing.of([]),
         this.replacements.extension,
         ...(this.paste ? [this.paste.extension] : []),
       ],
@@ -410,13 +409,9 @@ export class DocumentController {
       ),
     })
   }
-  async setTypewriter(enabled: boolean): Promise<void> {
-    const request = ++this.writingRequest
-    if (this.disposed || this.typewriterEnabled === enabled) return
-    await this.synchronizeInput()
-    if (this.disposed || request !== this.writingRequest) return
-    this.typewriterEnabled = enabled
-    this.dispatch({ effects: this.writing.reconfigure(enabled ? typewriterWriting : []) })
+  setEditorPreferences(preferences: EditorPreferences = defaultEditorPreferences): void {
+    if (this.disposed) return
+    this.dispatch({ effects: this.display.reconfigure(sourceDisplay(preferences)) })
   }
   revealRange(from: number, to = from): boolean {
     if (

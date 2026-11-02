@@ -58,7 +58,10 @@ export const isComposing = StateField.define<boolean>({
 })
 
 export function revealSource(view: EditorView, dom: HTMLElement): void {
-  const anchor = view.posAtDOM(dom)
-  view.dispatch({ selection: { anchor }, scrollIntoView: true })
+  const block = view.state
+    .field(liveModel)
+    ?.blocks.find((block) => block.id === dom.dataset.occurrence)
+  if (!block) return
+  view.dispatch({ selection: { anchor: block.from, head: block.to }, scrollIntoView: true })
   view.focus()
 }

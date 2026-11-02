@@ -20,9 +20,10 @@ import {
   liveModel,
   proseProjection,
 } from './live-model'
+import { selectionTouches } from './live-selection'
 
 const touches = (state: EditorState, from: number, to: number): boolean =>
-  state.selection.ranges.some((selection) => selection.from <= to && selection.to >= from)
+  selectionTouches(state.selection, from, to)
 
 const inlineFormats: Record<string, { class: string; tagName: string; marker: string }> = {
   StrongEmphasis: { class: 'cm-live-strong', tagName: 'strong', marker: 'EmphasisMark' },
@@ -138,7 +139,11 @@ function inline(view: EditorView, options: LiveOptions): InlineState {
   const hidden: { from: number; to: number }[] = []
   const replace = (from: number, to: number): void => {
     // View plugins must never replace a line break.
-    if (from < to && state.doc.lineAt(from).number === state.doc.lineAt(to).number)
+    if (
+      from < to &&
+      state.doc.lineAt(from).number === state.doc.lineAt(to).number &&
+      !selectionTouches(state.selection, from, to)
+    )
       hidden.push({ from, to })
   }
   let math = 0
@@ -251,16 +256,17 @@ function inline(view: EditorView, options: LiveOptions): InlineState {
               Decoration.line({ class: 'cm-live-quote' }).range(state.doc.line(number).from),
             )
         }
-        if (name === 'Escape') replace(node.from, node.from + 1)
+        if (name === 'Escape' && !selectionTouches(state.selection, node.from, node.to))
+          replace(node.from, node.from + 1)
         if (name === 'HardBreak')
           replace(node.from, Math.min(node.to, state.doc.lineAt(node.from).to))
-        if (name === 'Entity')
+        if (name === 'Entity' && !selectionTouches(state.selection, node.from, node.to))
           decorations.push(
             Decoration.replace({
               widget: new TextWidget(decodeString(state.doc.sliceString(node.from, node.to))),
             }).range(node.from, node.to),
           )
-        if (name === 'HorizontalRule')
+        if (name === 'HorizontalRule' && !selectionTouches(state.selection, node.from, node.to))
           decorations.push(
             Decoration.replace({ widget: new RuleWidget() }).range(node.from, node.to),
           )
@@ -272,8 +278,8 @@ function inline(view: EditorView, options: LiveOptions): InlineState {
           if (opening && closing && opening !== closing) {
             let from = opening.to,
               to = closing.from
-            // Keep source delimiters separate from semantic content. Completed
-            // syntax stays rendered while typing, moving the caret or selecting.
+            // Text selections reveal the complete syntax pair, even when only its
+            // body is selected. A collapsed caret keeps the delimiters hidden.
             if (name === 'InlineCode') {
               const value = state.doc.sliceString(from, to)
               if (value.startsWith(' ') && value.endsWith(' ') && /[^ ]/.test(value)) {
@@ -281,8 +287,10 @@ function inline(view: EditorView, options: LiveOptions): InlineState {
                 to--
               }
             }
-            replace(opening.from, from)
-            replace(to, closing.to)
+            if (!selectionTouches(state.selection, node.from, node.to)) {
+              replace(opening.from, from)
+              replace(to, closing.to)
+            }
             if (from < to)
               decorations.push(
                 Decoration.mark({ class: format.class, tagName: format.tagName }).range(from, to),
@@ -291,7 +299,7 @@ function inline(view: EditorView, options: LiveOptions): InlineState {
         }
         if (name === 'HeaderMark') {
           const parent = node.node.parent
-          if (parent) {
+          if (parent && !selectionTouches(state.selection, parent.from, parent.to)) {
             let from = node.from,
               to = node.to
             const line = state.doc.lineAt(from)
@@ -302,12 +310,17 @@ function inline(view: EditorView, options: LiveOptions): InlineState {
           }
         }
         if (name === 'ListMark' || name === 'QuoteMark') {
+          const parent = node.node.parent
+          if (parent && selectionTouches(state.selection, parent.from, parent.to)) return false
           if (name === 'QuoteMark')
             replace(
               node.from,
               node.to + (state.doc.sliceString(node.to, node.to + 1) === ' ' ? 1 : 0),
             )
-          else if (/^[-+*]$/.test(state.doc.sliceString(node.from, node.to))) {
+          else if (
+            /^[-+*]$/.test(state.doc.sliceString(node.from, node.to)) &&
+            !selectionTouches(state.selection, node.from, node.to)
+          ) {
             const task = node.node.parent?.getChild('Task')
             if (task?.getChild('TaskMarker')) replace(node.from, task.from)
             else
@@ -316,7 +329,14 @@ function inline(view: EditorView, options: LiveOptions): InlineState {
               )
           }
         }
-        if (name === 'TaskMarker')
+        if (
+          name === 'TaskMarker' &&
+          !selectionTouches(
+            state.selection,
+            node.node.parent?.from ?? node.from,
+            node.node.parent?.to ?? node.to,
+          )
+        )
           decorations.push(
             Decoration.replace({
               widget: new TaskWidget(
@@ -337,12 +357,12 @@ function inline(view: EditorView, options: LiveOptions): InlineState {
     if (previous && range.from <= previous.to) previous.to = Math.max(previous.to, range.to)
     else merged.push({ ...range })
   }
+  const replacements = merged.map((range) => Decoration.replace({}).range(range.from, range.to))
   const atomic = Decoration.set(
-    merged.map((range) => Decoration.replace({}).range(range.from, range.to)),
+    [...replacements, ...decorations.filter((range) => range.value.spec.widget)],
     true,
   )
-  for (let cursor = atomic.iter(); cursor.value; cursor.next())
-    decorations.push(cursor.value.range(cursor.from, cursor.to))
+  decorations.push(...replacements)
   return { decorations: Decoration.set(decorations, true), atomic }
 }
 

@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./preferences": "./src/preferences.ts",
     "./replace": "./src/replace.ts"
   },
   "dependencies": {

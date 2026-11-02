@@ -1,3 +1,4 @@
+import { defaultEditorPreferences } from '@manuslip/editor/preferences'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useStore } from 'zustand'
 import appIcon from '../../../build/icon.svg?url'
@@ -12,7 +13,9 @@ import { Icon } from './Icons'
 import { IncomingNotices } from './IncomingNotices'
 import { i18next } from './i18n'
 import { IncomingController } from './incoming'
+import { trackLayerMotion } from './layer-motion'
 import { type PreferencesPage, PreferencesPanel } from './PreferencesPanel'
+import { loadPluginCatalog } from './plugin-catalog'
 import { RecoveryPanel } from './RecoveryPanel'
 import { RecoveryController } from './recovery'
 import { SearchController } from './search'
@@ -56,64 +59,10 @@ export function App(): React.JSX.Element {
     setSidebarCollapsed(false)
     setWorkspacePage('search')
   }, [searchFocusRequest])
-  const [focusWriting, setFocusWriting] = useState(false)
-  const [typewriterWriting, setTypewriterWriting] = useState(false)
-  const restoreWritingFocus = useRef(false)
+  useEffect(() => trackLayerMotion(window), [])
   useEffect(() => {
-    const method = (value: string): void => {
-      const root = window.document.documentElement
-      if (root.dataset.inputMethod !== value) root.dataset.inputMethod = value
-    }
-    const pointer = (): void => {
-      method('pointer')
-    }
-    const keyboard = (): void => {
-      method('keyboard')
-    }
-    window.addEventListener('pointerdown', pointer, true)
-    window.addEventListener('keydown', keyboard, true)
-    return () => {
-      window.removeEventListener('pointerdown', pointer, true)
-      window.removeEventListener('keydown', keyboard, true)
-    }
+    void loadPluginCatalog(window.manuslip)
   }, [])
-  const changeFocusWriting = (value: boolean): void => {
-    restoreWritingFocus.current = true
-    setFocusWriting(value)
-  }
-  useLayoutEffect(() => {
-    if (!restoreWritingFocus.current || !activeDocument) return
-    restoreWritingFocus.current = false
-    if (activeDocument.reading?.store.getState().visible)
-      window.document
-        .querySelector<HTMLButtonElement>(
-          focusWriting ? '.focus-writing-exit' : '.preview-toolbar [aria-pressed="true"]',
-        )
-        ?.focus()
-    else activeDocument.focus()
-  }, [focusWriting, activeDocument])
-  useEffect(() => {
-    if (!activeDocument) setFocusWriting(false)
-  }, [activeDocument])
-  useEffect(() => {
-    if (!focusWriting) return
-    const exitFocus = (event: KeyboardEvent): void => {
-      if (
-        event.key !== 'Escape' ||
-        event.defaultPrevented ||
-        event.isComposing ||
-        activeDocument?.store.getState().composing ||
-        window.document.querySelector('dialog[open], [popover]:popover-open, .cm-search')
-      )
-        return
-      event.preventDefault()
-      event.stopPropagation()
-      restoreWritingFocus.current = true
-      setFocusWriting(false)
-    }
-    window.addEventListener('keydown', exitFocus)
-    return () => window.removeEventListener('keydown', exitFocus)
-  }, [focusWriting, activeDocument])
   useEffect(() => {
     search.setRoot(folder.value?.root?.id || null)
   }, [search, folder.value?.root?.id])
@@ -129,12 +78,10 @@ export function App(): React.JSX.Element {
       }
       setFileCommandFocus(focused instanceof HTMLButtonElement ? focused : null)
       if (value === 'open-folder') {
-        setFocusWriting(false)
         setSidebarCollapsed(false)
         setWorkspacePage('files')
         await workspace.choose()
       } else if (value === 'find-file' || value === 'search-workspace') {
-        setFocusWriting(false)
         setPreferencesOpen(false)
         setSidebarCollapsed(false)
         setWorkspacePage('search')
@@ -171,6 +118,27 @@ export function App(): React.JSX.Element {
   const translationSettingsClosed = useRef<(() => void) | null>(null)
   const t = i18next.t.bind(i18next)
 
+  useEffect(() => {
+    const shortcut = (event: KeyboardEvent): void => {
+      if (
+        event.key !== ',' ||
+        !(event.ctrlKey || event.metaKey) ||
+        event.altKey ||
+        event.defaultPrevented ||
+        event.isComposing ||
+        documents.active?.store.getState().composing
+      )
+        return
+      const dialog = preferencesDialog.current
+      if (!dialog || (window.document.querySelector('dialog[open]') && !dialog.open)) return
+      event.preventDefault()
+      if (dialog.open) window.document.getElementById('preferences-search')?.focus()
+      else setPreferencesOpen(true)
+    }
+    window.addEventListener('keydown', shortcut)
+    return () => window.removeEventListener('keydown', shortcut)
+  }, [documents])
+
   const load = useCallback(async (): Promise<void> => {
     setError('')
     try {
@@ -193,9 +161,6 @@ export function App(): React.JSX.Element {
     document.documentElement.lang = bootstrap?.settings.locale || 'en'
     document.documentElement.dataset.theme = bootstrap?.settings.theme || 'system'
   }, [bootstrap?.settings])
-  useEffect(() => {
-    if (!activeDocument) setPreferencesOpen(false)
-  }, [activeDocument])
   useEffect(() => {
     if (preferencesOpen) {
       preferencesDialog.current?.showModal()
@@ -289,6 +254,7 @@ export function App(): React.JSX.Element {
   const preferences = (
     <PreferencesPanel
       bootstrap={bootstrap}
+      open={preferencesOpen}
       pendingSettings={pendingSettings}
       failedSettings={failedSettings}
       busy={busy}
@@ -317,9 +283,7 @@ export function App(): React.JSX.Element {
   )
 
   return (
-    <div
-      className={`app-shell${focusWriting && activeDocument ? ' writing-focus' : ''}${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}
-    >
+    <div className={`app-shell${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
       <a className="skip-link" href="#content">
         {t('skip')}
       </a>
@@ -357,6 +321,7 @@ export function App(): React.JSX.Element {
           className="icon-button preferences-trigger"
           type="button"
           aria-label={t('settings')}
+          aria-keyshortcuts="Control+, Meta+,"
           title={t('settings')}
           onClick={() => setPreferencesOpen(true)}
         >
@@ -418,6 +383,20 @@ export function App(): React.JSX.Element {
         </div>
       </aside>
       <div className="main-column">
+        {failedSettings && !preferencesOpen && (
+          <div className="document-notice">
+            <p role="alert">{t('saveError')}</p>
+            <button
+              type="button"
+              onClick={() => {
+                setPreferencePage('editor')
+                setPreferencesOpen(true)
+              }}
+            >
+              {t('settings')}
+            </button>
+          </div>
+        )}
         {(error || tabs.error) && (
           <p className="document-notice" role="alert">
             {t(error || tabs.error || '')}
@@ -432,16 +411,12 @@ export function App(): React.JSX.Element {
               key={tabs.activeId}
               locale={bootstrap.settings.locale}
               spellcheck={Boolean(bootstrap.settings.spellcheck) && bootstrap.spellcheckAvailable}
+              editorPreferences={bootstrap.settings.editor ?? defaultEditorPreferences}
+              readingLayout={bootstrap.settings.reading?.layout ?? 'replace'}
               document={activeDocument}
               command={(value) => void command(value)}
               busy={fileBusy}
               toolbarHost={toolbarHost}
-              writing={{
-                focus: focusWriting,
-                typewriter: typewriterWriting,
-                onFocus: changeFocusWriting,
-                onTypewriter: setTypewriterWriting,
-              }}
               configureTranslation={(target = 'provider', afterClose) => {
                 translationSettingsTarget.current = target
                 translationSettingsClosed.current = afterClose ?? null

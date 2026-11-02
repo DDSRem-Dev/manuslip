@@ -15,6 +15,7 @@ export {
 export { withSynchronousInlineResolution } from '../../../scripts/parser-inline-resolve-steps.mjs'
 export { withSynchronousLabelResolution } from '../../../scripts/parser-label-resolve-steps.mjs'
 export { withCopiedListlessSpans } from '../../../scripts/parser-list-preparation.mjs'
+export { withPendingFinalCarriageReturn } from '../../../scripts/parser-preprocessing.mjs'
 export { withSynchronousTextResolution } from '../../../scripts/parser-text-resolve-steps.mjs'
 
 // Independent original-source fixtures: every reconstruction must match the

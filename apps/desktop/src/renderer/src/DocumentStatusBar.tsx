@@ -27,16 +27,29 @@ export function DocumentStatusBar({
       : null
   return (
     <div className="editor-status">
-      <div className="editor-status-summary">
-        <span>{t('cursorPosition', { line: status.line, column: status.column })}</span>
-        {words && <span className="editor-status-count">{words}</span>}
-        {characters && <span className="editor-status-count">{characters}</span>}
-      </div>
-      <ToolbarDisclosure label={t('documentDetails')} icon="document">
+      <span>{t('cursorPosition', { line: status.line, column: status.column })}</span>
+      <ToolbarDisclosure label={t('documentDetails')} summary={words ?? characters ?? undefined}>
         <div className="document-details">
-          <dl>
-            <dt>{t('documentLocation')}</dt>
-            <dd dir="auto">{status.info.displayPath || t('untitled')}</dd>
+          {(words || characters) && (
+            <dl className="document-statistics">
+              {words && (
+                <div>
+                  <dt>{t('documentWords')}</dt>
+                  <dd>{status.wordCount?.toLocaleString(i18next.language)}</dd>
+                </div>
+              )}
+              {characters && (
+                <div>
+                  <dt>{t('documentCharacters')}</dt>
+                  <dd>{status.characterCount?.toLocaleString(i18next.language)}</dd>
+                </div>
+              )}
+            </dl>
+          )}
+          {!words && !characters && (
+            <p className="document-counts-unavailable">{t('documentCountsUnavailable')}</p>
+          )}
+          <dl className="document-file-details">
             <dt>{t('fileEncoding')}</dt>
             <dd>
               {status.info.encoding.toUpperCase()}
@@ -45,30 +58,13 @@ export function DocumentStatusBar({
             <dt>{t('documentLineEndings')}</dt>
             <dd>{status.info.newline.toUpperCase()}</dd>
             <dt>{t('documentSize')}</dt>
-            <dd>
-              {t('documentBytes', { bytes: status.bytes.toLocaleString(i18next.language) })}
-              <small className="document-size-basis">{t('documentSizeBasis')}</small>
-            </dd>
-            {words && (
-              <>
-                <dt>{t('documentWords')}</dt>
-                <dd>{status.wordCount?.toLocaleString(i18next.language)}</dd>
-              </>
-            )}
-            {characters && (
-              <>
-                <dt>{t('documentCharacters')}</dt>
-                <dd>{status.characterCount?.toLocaleString(i18next.language)}</dd>
-              </>
-            )}
-            {!words && !characters && (
-              <>
-                <dt>{t('documentStatistics')}</dt>
-                <dd>{t('documentCountsUnavailable')}</dd>
-              </>
-            )}
+            <dd>{t('documentBytes', { bytes: status.bytes.toLocaleString(i18next.language) })}</dd>
           </dl>
-          <p>{t('local')}</p>
+          <p className="document-size-basis">{t('documentSizeBasis')}</p>
+          <dl className="document-location">
+            <dt>{t('documentLocation')}</dt>
+            <dd dir="auto">{status.info.displayPath || t('untitled')}</dd>
+          </dl>
         </div>
       </ToolbarDisclosure>
     </div>

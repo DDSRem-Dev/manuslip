@@ -31,7 +31,10 @@ export function useTranslationSettingsNavigation(
       return
     }
     const name = target === 'languages' ? 'targetLanguage' : target
-    const field = root.querySelector<HTMLElement>(`#${CSS.escape(`${id}-${name}`)}`)
+    const field =
+      target === 'key'
+        ? root.querySelector<HTMLElement>('[data-translation-key]')
+        : root.querySelector<HTMLElement>(`#${CSS.escape(`${id}-${name}`)}`)
     if (field && !field.matches(':disabled')) {
       requested.current = null
       field.focus()

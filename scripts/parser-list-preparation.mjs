@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { finalCarriageReturn } from './parser-preprocessing.mjs'
 
 // Serialization already visits every private event. Record whether list-item
 // synthesis is needed there; listless spans can consume that same owned array.
@@ -60,6 +61,8 @@ export function listlessSpanPreparation(source, variant) {
 // Exact predecessor reconstruction still checks independently recorded upstream
 // hashes. Also used by the real installer upgrade tests for both export variants.
 export function withCopiedListlessSpans(source, dev) {
+  if (source.includes('// Manuslip final carriage-return flush.'))
+    source = finalCarriageReturn(source, dev, true)
   return source.includes('// Manuslip listless span ownership.')
     ? update(source, dev, true)
     : source

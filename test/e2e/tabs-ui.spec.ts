@@ -108,38 +108,17 @@ for (const theme of ['light', 'dark'])
           exact: true,
         })
         for (const name of chinese
-          ? ['新建文档', '打开文件…', '打开文件夹…', '另存为…', '保存副本…', '专注模式']
-          : [
-              'New document',
-              'Open file…',
-              'Open folder…',
-              'Save As…',
-              'Save a copy…',
-              'Focus mode',
-            ]) {
+          ? ['新建文档', '打开文件…', '打开文件夹…', '另存为…', '保存副本…']
+          : ['New document', 'Open file…', 'Open folder…', 'Save As…', 'Save a copy…']) {
           await page.keyboard.press('Tab')
           const action = commands.getByRole('button', { name, exact: true })
           await expect(action).toBeFocused()
           await expect(action).toBeInViewport({ ratio: 1 })
         }
         await page.keyboard.press('Tab')
-        const typewriter = commands.getByRole('checkbox', {
-          name: chinese ? '打字机' : 'Typewriter',
-          exact: true,
-        })
-        await expect(typewriter).toBeFocused()
-        await expect(typewriter).toBeInViewport({ ratio: 1 })
-        await page.keyboard.press('Tab')
         const sync = commands.getByRole('button', { name: chinese ? '同步' : 'Sync', exact: true })
         await expect(sync).toBeFocused()
         await expect(sync).toBeInViewport({ ratio: 1 })
-        await page.keyboard.press('Tab')
-        const plugins = commands.getByRole('button', {
-          name: chinese ? '插件命令' : 'Plugin commands',
-          exact: true,
-        })
-        await expect(plugins).toBeFocused()
-        await expect(plugins).toBeInViewport({ ratio: 1 })
         await page.keyboard.press('Tab')
         const appearance = commands.getByRole('button', {
           name: chinese ? '文档外观' : 'Document appearance',
@@ -299,6 +278,8 @@ test('tab controls remain readable and keyboard reachable in both themes, Chines
     // A native close command can arrive while the HTML preferences dialog is modal.
     await close()
     await expect(page.getByRole('tab')).toHaveCount(0)
+    await expect(page.getByRole('dialog', { name: '偏好设置', exact: true })).toBeVisible()
+    await page.getByRole('button', { name: '关闭偏好设置' }).click()
     await page.getByRole('button', { name: '新建文档', exact: true }).first().click()
     await page.getByRole('button', { name: '偏好设置', exact: true }).click()
     await expect(page.getByRole('dialog')).toBeVisible()

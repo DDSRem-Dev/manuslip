@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { join, resolve, sep } from 'node:path'
 import { expect, test } from '@playwright/test'
-import { clickDocumentAction, launchDesktop } from './helpers'
+import { clickDocumentAction, launchDesktop, openDocumentActions } from './helpers'
 import { auditPluginInterface } from './plugin-accessibility'
 
 for (const locale of ['en', 'zh-CN'] as const) {
@@ -24,6 +24,34 @@ for (const locale of ['en', 'zh-CN'] as const) {
       info = test.info()
     try {
       const page = await application.firstWindow()
+      const pluginAction = chinese ? '插件命令' : 'Plugin commands'
+      const openPreferences = async () => {
+        await page
+          .getByRole('button', { name: chinese ? '偏好设置' : 'Preferences', exact: true })
+          .click()
+      }
+      const closePreferences = async () => {
+        await page
+          .getByRole('button', {
+            name: chinese ? '关闭偏好设置' : 'Close preferences',
+            exact: true,
+          })
+          .click()
+      }
+      const expectPluginAction = async (available: boolean) => {
+        const actions = await openDocumentActions(page)
+        await expect(actions.getByRole('button', { name: pluginAction, exact: true })).toHaveCount(
+          available ? 1 : 0,
+        )
+        await expect(actions.getByRole('button', { name: /^(Focus mode|专注模式)$/ })).toHaveCount(
+          0,
+        )
+        await expect(actions.getByRole('checkbox', { name: /^(Typewriter|打字机)$/ })).toHaveCount(
+          0,
+        )
+        await page.keyboard.press('Escape')
+      }
+      await expectPluginAction(false)
       await application.evaluate(({ dialog }, path) => {
         dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] })
       }, resolve('examples/plugins/writing-tools.manuslip-plugin.json'))
@@ -110,12 +138,23 @@ for (const locale of ['en', 'zh-CN'] as const) {
       await expect(
         installed.getByText(chinese ? '已停用' : 'Disabled', { exact: true }),
       ).toBeVisible()
+      await closePreferences()
+      await expectPluginAction(false)
+      await openPreferences()
       await installed
         .getByRole('button', { name: chinese ? '启用' : 'Enable', exact: true })
         .click()
       await expect(
         installed.getByText(chinese ? '已启用' : 'Enabled', { exact: true }),
       ).toBeVisible()
+      await closePreferences()
+      await expectPluginAction(true)
+      await clickDocumentAction(page, pluginAction)
+      await expect(
+        modal.getByRole('button', { name: 'Count source words', exact: true }),
+      ).toBeVisible()
+      await modal.getByRole('button', { name: chinese ? '关闭' : 'Close', exact: true }).click()
+      await openPreferences()
       await installed
         .getByRole('button', { name: chinese ? '移除' : 'Remove', exact: true })
         .click()
@@ -129,6 +168,8 @@ for (const locale of ['en', 'zh-CN'] as const) {
         ok: true,
         value: { plugins: [] },
       })
+      await closePreferences()
+      await expectPluginAction(false)
       expect(await readFile(path, 'utf8')).toBe(original)
     } finally {
       await application

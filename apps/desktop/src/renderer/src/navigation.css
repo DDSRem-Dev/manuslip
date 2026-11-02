@@ -178,16 +178,6 @@
 .workspace-search form {
   margin-block-start: 0;
 }
-.app-shell.writing-focus:has(.editing) {
-  grid-template-rows: minmax(0, 1fr);
-}
-.writing-focus .app-toolbar {
-  display: none;
-}
-.writing-focus .main-column {
-  grid-column: 1;
-  grid-row: 1;
-}
 @media (max-width: 58rem) {
   .app-toolbar:has(.document-tabs) .toolbar-files {
     display: none;

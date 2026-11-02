@@ -98,6 +98,7 @@ export class DocumentReading {
   private progressTimer: ReturnType<typeof setTimeout> | null = null
   private enabled = false
   private network = false
+  private layoutCustomized = false
   private allowed: Set<string> | null = null
   private disposed = false
   private active = true
@@ -518,8 +519,18 @@ export class DocumentReading {
   }
   setLayout(layout: ReadingLayout): void {
     if (!['replace', 'side-by-side', 'interlinear'].includes(layout)) return
+    this.layoutCustomized = true
     this.store.setState({ layout })
     this.scheduleRender(true)
+  }
+  setDefaultLayout(layout: ReadingLayout): void {
+    if (
+      this.layoutCustomized ||
+      this.source ||
+      !['replace', 'side-by-side', 'interlinear'].includes(layout)
+    )
+      return
+    this.store.setState({ layout })
   }
   captureExport(): { source: string; revision: number; reading: ReadingExport; missing: number } {
     const status = this.store.getState()

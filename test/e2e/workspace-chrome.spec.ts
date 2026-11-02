@@ -46,7 +46,7 @@ for (const theme of ['light', 'dark'])
         await page.getByRole('button', { name: chinese ? '源码' : 'Source', exact: true }).click()
         await expect(tab).toHaveAttribute('title', path)
         const details = page.getByRole('button', {
-          name: chinese ? '文档详情' : 'Document details',
+          name: chinese ? /文档详情$/ : /Document details$/,
           exact: true,
         })
         for (const control of [
@@ -82,6 +82,7 @@ for (const theme of ['light', 'dark'])
           exact: true,
         })
         await expect(panel).toBeVisible()
+        await expect(details).toHaveText(chinese ? '9 个词' : '9 words')
         await expect(details).toHaveAttribute('aria-expanded', 'true')
         await expect(panel.getByText(path, { exact: true })).toBeVisible()
         await expect(panel.getByText('UTF8 · BOM', { exact: true })).toBeVisible()

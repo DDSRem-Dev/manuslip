@@ -13,10 +13,17 @@ const cases: { name: string; value: Value; encoding?: Encoding }[] = [
   { name: 'empty', value: '' },
   { name: 'only BOM', value: '\ufeff' },
   { name: 'trailing CR', value: 'one\r\ntwo\rthree\r' },
+  { name: 'CR before final literal', value: 'one\rtwo' },
+  { name: 'CR blank line before final literal', value: 'one\r\rtwo' },
+  { name: 'CR before final BOM and Unicode', value: 'one\r\r\ufeff中文😀' },
   { name: 'long literal', value: 'x'.repeat(20000) },
   { name: 'dense markers', value: '\t\0\r\n\r\t'.repeat(4000) },
   { name: 'mixed Unicode and line endings', value: '🙂\ud800\udfff\t中\r\n\0é\r'.repeat(2000) },
   ...boundaryCases,
+  ...[4095, 4096, 4097].map((offset) => ({
+    name: `CR before final literal across the ${offset} unit boundary`,
+    value: `one\r${'x'.repeat(offset)}\r\rfinal`,
+  })),
   { name: 'UTF-8 bytes', value: new TextEncoder().encode('\ufeff中🙂\t\0\r\n'.repeat(1200)) },
   {
     name: 'UTF-16 bytes',

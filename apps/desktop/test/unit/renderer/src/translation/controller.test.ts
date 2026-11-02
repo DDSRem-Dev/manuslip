@@ -581,3 +581,22 @@ it('an unhealthy derived worker can be explicitly recreated while validated comp
   expect(f.reading.store.getState()).toMatchObject({ phase: 'ready', completed: 2, error: null })
   expect(f.reading.store.getState().projection?.html).toContain('段落')
 })
+
+it('uses the saved layout for a new copy and retains a layout chosen for the current document', () => {
+  const { reading } = setup()
+  reading.setDefaultLayout('side-by-side')
+  expect(reading.store.getState().layout).toBe('side-by-side')
+  reading.setDefaultLayout('interlinear')
+  expect(reading.store.getState().layout).toBe('interlinear')
+  reading.setLayout('replace')
+  reading.setDefaultLayout('side-by-side')
+  expect(reading.store.getState().layout).toBe('replace')
+})
+
+it('keeps a captured reading layout when application defaults change', async () => {
+  const { reading } = setup()
+  reading.setDefaultLayout('interlinear')
+  await reading.start(false)
+  reading.setDefaultLayout('replace')
+  expect(reading.store.getState().layout).toBe('interlinear')
+})

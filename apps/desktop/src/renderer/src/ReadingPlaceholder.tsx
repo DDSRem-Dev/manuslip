@@ -1,4 +1,5 @@
 import { Icon } from './Icons'
+import { requiresTranslationKey } from './translation/availability'
 import type { ReadingStatus } from './translation/controller'
 import { readingCopy } from './translation/copy'
 import type { TranslationSettingsTarget } from './translation/settings-navigation'
@@ -53,10 +54,16 @@ export function ReadingPlaceholder({
   }
   if (status.phase === 'preparing' || status.phase === 'translating') return null
   const needsKey =
-    configuration.settings.provider.adapter === 'deepl' && configuration.credential === 'none'
+    requiresTranslationKey(configuration.settings) && configuration.credential === 'none'
   return (
     <div className="reading-placeholder">
-      <h2>{needsKey ? copy.keyTitle : copy.readingTitle}</h2>
+      <h2>
+        {needsKey
+          ? configuration.settings.provider.adapter === 'deepl'
+            ? copy.deepLKeyTitle
+            : copy.keyTitle
+          : copy.readingTitle}
+      </h2>
       <p>{needsKey ? copy.keyOffline : copy.empty}</p>
       <div className="action-row">
         {needsKey && (

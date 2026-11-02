@@ -4,6 +4,22 @@ import { basename, dirname } from 'node:path'
 import Store from 'electron-store'
 import { defaultSettings, parseSettings, type Settings } from '../shared/contracts'
 
+function migrateSavedSettings(value: unknown): unknown {
+  if (
+    typeof value !== 'object' ||
+    value === null ||
+    !('editor' in value) ||
+    typeof value.editor !== 'object' ||
+    value.editor === null ||
+    !('typewriter' in value.editor) ||
+    typeof value.editor.typewriter !== 'boolean'
+  )
+    return value
+  const editor = { ...value.editor }
+  delete (editor as { typewriter?: boolean }).typewriter
+  return { ...value, editor }
+}
+
 export class SettingsRepository {
   private current: Settings = { ...defaultSettings }
   private queue: Promise<void> = Promise.resolve()
@@ -15,6 +31,7 @@ export class SettingsRepository {
 
   async load(): Promise<Settings> {
     let source: string | undefined
+    let migrated = false
     try {
       source = await readFile(this.path, 'utf8')
     } catch (error) {
@@ -41,7 +58,9 @@ export class SettingsRepository {
         return this.get()
       }
       try {
-        this.current = parseSettings(parsed)
+        const normalized = migrateSavedSettings(parsed)
+        this.current = parseSettings(normalized)
+        migrated = normalized !== parsed
       } catch {
         await rename(this.path, backup)
         this.recovered = true
@@ -53,19 +72,39 @@ export class SettingsRepository {
       projectVersion: '0.1.0',
       defaults: defaultSettings,
       accessPropertiesByDotNotation: false,
+      deserialize: (text) => parseSettings(migrateSavedSettings(JSON.parse(text))),
       schema: {
         schemaVersion: { type: 'number', const: 1 },
         theme: { type: 'string', enum: ['system', 'light', 'dark'] },
         locale: { type: 'string', enum: ['en', 'zh-CN'] },
         spellcheck: { type: 'boolean' },
+        editor: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['lineNumbers', 'wrapLines', 'tabSize'],
+          properties: {
+            lineNumbers: { type: 'boolean' },
+            wrapLines: { type: 'boolean' },
+            tabSize: { type: 'number', enum: [2, 4, 8] },
+          },
+        },
+        reading: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['layout'],
+          properties: {
+            layout: { type: 'string', enum: ['replace', 'side-by-side', 'interlinear'] },
+          },
+        },
       },
     })
     this.current = parseSettings(this.store.store)
+    if (migrated) this.store.store = this.current
     return this.get()
   }
 
   get(): Settings {
-    return { ...this.current }
+    return structuredClone(this.current)
   }
 
   async save(input: Settings): Promise<Settings> {

@@ -513,3 +513,21 @@ survivors. Focused tests cover exact native listener traces, the 16-event dispat
 bound, cancellation cleanup for listless and nested-list spans, and actual CLI
 upgrades from the preceding image. The complete application objective and original
 ADR002 gates remain open.
+
+## Final carriage-return preprocessing
+
+The cooperative whole-value preprocessor now flushes a pending lone CR before its final
+literal chunk, matching micromark's EOF order. Previously `one\r\rtwo` could move the final
+CR after `two`, merging the last two paragraphs and shifting their source positions. LF,
+CRLF and trailing-CR inputs retain their native meaning. Scanning quotas and original
+source bytes remain unchanged. Parser identity is bumped to invalidate derived caches.
+
+| Compiler | Recognized predecessor SHA-256 | Current SHA-256 |
+| --- | --- | --- |
+| lib/index.js | a476f2e7cc4ee0bb6f896072d5c42573a261f24f521840cabaf4d37b050e90f0 | f398a7b4c45dd304c2b09b2f7c7ac8c8d87186b55c11b98acfb1b490e4204ae1 |
+| dev/lib/index.js | 7db264970c4e8edeeed801ac3563cf7814c0a7891bf3f68fad09016703260978 | d7c200c319d9d71356330a6c1927779e9df9ffff064f8901575fc55494f53933 |
+
+The installer upgrades both pinned exports and every recognized historical image.
+Independent upstream-source reconstruction still verifies the original hashes. Regression
+coverage compares exact preprocessing chunks across scan boundaries and full parser trees,
+source ranges and shared render output for LF, CRLF and lone-CR documents.

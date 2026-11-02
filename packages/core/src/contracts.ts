@@ -24,7 +24,7 @@ export const semanticLimits = {
   restarts: 3,
   restartWindow: 60000,
 } as const
-export const parserVersion = 'remark11-gfm4-frontmatter5-math6-inline1-deflist2/v5'
+export const parserVersion = 'remark11-gfm4-frontmatter5-math6-inline1-deflist2/v6'
 export interface SourceRange {
   from: number
   to: number

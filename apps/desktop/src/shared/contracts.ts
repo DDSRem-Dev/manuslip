@@ -1,3 +1,4 @@
+import type { EditorPreferences } from '@manuslip/editor/preferences'
 import type { AssetBridge } from './asset-contracts'
 import type { DiagramBridge } from './diagram-contracts'
 import type { ExportBridge } from './export-contracts'
@@ -32,6 +33,8 @@ export interface Settings {
   theme: Theme
   locale: Locale
   spellcheck?: boolean
+  editor?: EditorPreferences
+  reading?: { layout: 'replace' | 'side-by-side' | 'interlinear' }
 }
 export interface RuntimeInfo {
   app: string
@@ -90,7 +93,8 @@ export function parseSettings(value: unknown): Settings {
   if (
     !isRecord(value) ||
     Object.keys(value).some(
-      (key) => !['schemaVersion', 'theme', 'locale', 'spellcheck'].includes(key),
+      (key) =>
+        !['schemaVersion', 'theme', 'locale', 'spellcheck', 'editor', 'reading'].includes(key),
     ) ||
     (value.spellcheck !== undefined && typeof value.spellcheck !== 'boolean') ||
     value.schemaVersion !== 1 ||
@@ -101,11 +105,37 @@ export function parseSettings(value: unknown): Settings {
   ) {
     throw new Error('Invalid settings')
   }
+  const editor = value.editor
+  if (
+    editor !== undefined &&
+    (!isRecord(editor) ||
+      Object.keys(editor).some((key) => !['lineNumbers', 'wrapLines', 'tabSize'].includes(key)) ||
+      typeof editor.lineNumbers !== 'boolean' ||
+      typeof editor.wrapLines !== 'boolean' ||
+      ![2, 4, 8].includes(editor.tabSize as number))
+  )
+    throw new Error('Invalid settings')
+  const reading = value.reading
+  if (
+    reading !== undefined &&
+    (!isRecord(reading) ||
+      Object.keys(reading).some((key) => key !== 'layout') ||
+      !['replace', 'side-by-side', 'interlinear'].includes(reading.layout as string))
+  )
+    throw new Error('Invalid settings')
   return {
     schemaVersion: 1,
     theme: value.theme as Theme,
     locale: value.locale as Locale,
     ...(value.spellcheck === undefined ? {} : { spellcheck: value.spellcheck as boolean }),
+    ...(editor === undefined ? {} : { editor: { ...(editor as unknown as EditorPreferences) } }),
+    ...(reading === undefined
+      ? {}
+      : {
+          reading: {
+            layout: (reading as { layout: NonNullable<Settings['reading']>['layout'] }).layout,
+          },
+        }),
   }
 }
 

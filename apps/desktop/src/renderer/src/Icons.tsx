@@ -1,8 +1,6 @@
 import { ArrowClockwiseIcon } from '@phosphor-icons/react/dist/csr/ArrowClockwise'
 import { ArrowCounterClockwiseIcon } from '@phosphor-icons/react/dist/csr/ArrowCounterClockwise'
 import { ArrowsClockwiseIcon } from '@phosphor-icons/react/dist/csr/ArrowsClockwise'
-import { ArrowsInIcon } from '@phosphor-icons/react/dist/csr/ArrowsIn'
-import { ArrowsOutIcon } from '@phosphor-icons/react/dist/csr/ArrowsOut'
 import { CaretDownIcon } from '@phosphor-icons/react/dist/csr/CaretDown'
 import { CaretRightIcon } from '@phosphor-icons/react/dist/csr/CaretRight'
 import { CheckIcon } from '@phosphor-icons/react/dist/csr/Check'
@@ -51,7 +49,6 @@ const icons = {
   feather: FeatherIcon,
   fileCode: FileCodeIcon,
   filePdf: FilePdfIcon,
-  focus: ArrowsInIcon,
   folder: FolderIcon,
   image: ImageIcon,
   live: EyeIcon,
@@ -75,7 +72,6 @@ const icons = {
   sync: ArrowsClockwiseIcon,
   table: TableIcon,
   translate: TranslateIcon,
-  unfocus: ArrowsOutIcon,
 } as const
 
 export type IconName = keyof typeof icons

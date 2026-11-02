@@ -51,6 +51,7 @@ it.each([
   ['mdast-util-from-markdown', 'withRetainedCompletedTokenizer'],
   ['mdast-util-from-markdown', 'withSynchronousBlockCompilation'],
   ['mdast-util-from-markdown', 'withCopiedListlessSpans'],
+  ['mdast-util-from-markdown', 'withPendingFinalCarriageReturn'],
   ['mdast-util-from-markdown', 'withSynchronousBlockPostprocessing'],
   ['micromark', 'withRetainedCancelledTokenizer'],
   ['micromark', 'withSynchronousTextResolution'],
@@ -98,6 +99,7 @@ async function fixture(
         'parser-inline-resolve-steps.mjs',
         'parser-label-resolve-steps.mjs',
         'parser-list-preparation.mjs',
+        'parser-preprocessing.mjs',
       ])
         await copyFile(join(root, 'scripts', helper), join(directory, 'scripts', helper))
     for (const source of sources) {

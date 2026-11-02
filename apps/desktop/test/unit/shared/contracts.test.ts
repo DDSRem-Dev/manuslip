@@ -1,3 +1,4 @@
+import { defaultEditorPreferences } from '@manuslip/editor/preferences'
 import { describe, expect, it } from 'vitest'
 import {
   defaultSettings,
@@ -60,5 +61,28 @@ describe('bridge boundary validation', () => {
     expect(() =>
       parseBootstrap({ settings: defaultSettings, settingsRecovered: false, runtime: { app: 1 } }),
     ).toThrow()
+  })
+  it('accepts optional preference domains and copies them across the bridge', () => {
+    const input = {
+      ...defaultSettings,
+      editor: { ...defaultEditorPreferences },
+      reading: { layout: 'interlinear' as const },
+    }
+    const parsed = parseSettings(input)
+    expect(parsed).toEqual(input)
+    input.editor.tabSize = 8
+    expect(parsed.editor?.tabSize).toBe(4)
+  })
+  it.each([
+    { editor: null },
+    { editor: { ...defaultEditorPreferences, wrapLines: 'yes' } },
+    { editor: { ...defaultEditorPreferences, tabSize: 3 } },
+    { editor: { ...defaultEditorPreferences, tabSize: '4' } },
+    { editor: { ...defaultEditorPreferences, extension: 'unknown' } },
+    { editor: { ...defaultEditorPreferences, typewriter: true } },
+    { reading: { layout: 'unknown' } },
+    { reading: { layout: 'replace', network: true } },
+  ])('rejects malformed preference domains: %j', (domain) => {
+    expect(() => parseSettings({ ...defaultSettings, ...domain })).toThrow('Invalid settings')
   })
 })

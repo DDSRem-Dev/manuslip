@@ -24,6 +24,8 @@ import { utf8Bytes } from '@manuslip/core/text'
 import { frontmatterEnd } from './frontmatter'
 import { sourceHighlightStyle } from './highlight'
 import { changedByteLength, documentBytes, limitRejected, maxDocumentBytes } from './limits'
+import { defaultEditorPreferences, type EditorPreferences } from './preferences'
+import { textSelection } from './selection'
 import { editorSyntax } from './syntax'
 
 export { isolateHistory, redo, selectAll, undo } from '@codemirror/commands'
@@ -57,9 +59,9 @@ export { highlightCode } from './code-widget'
 export { SourceInputSynchronization } from './input-synchronization'
 export { documentBytes, limitRejected, maxDocumentBytes } from './limits'
 export * from './live'
-export { typewriterWriting } from './typewriter'
 export interface SourceEditorOptions {
   extensions?: Extension[]
+  display?: Extension
   label?: string
   onSave?: () => void
   onSaveAs?: () => void
@@ -68,13 +70,25 @@ export interface SourceEditorOptions {
   onMode?: (mode: 'source' | 'live') => void
 }
 
+/** Display changes reconfigure a compartment without replacing the document or its history. */
+export function sourceDisplay(
+  preferences: EditorPreferences = defaultEditorPreferences,
+): Extension {
+  return [
+    preferences.lineNumbers ? lineNumbers() : [],
+    preferences.wrapLines ? EditorView.lineWrapping : [],
+    EditorState.tabSize.of(preferences.tabSize),
+  ]
+}
+
 function sourceExtensions(options: SourceEditorOptions): Extension[] {
   return [
     ...(options.extensions || []),
-    lineNumbers(),
+    options.display ?? sourceDisplay(),
     highlightSpecialChars(),
     history(),
     drawSelection(),
+    textSelection(),
     dropCursor(),
     EditorState.allowMultipleSelections.of(true),
     syntaxHighlighting(sourceHighlightStyle, { fallback: true }),
@@ -143,7 +157,6 @@ function sourceExtensions(options: SourceEditorOptions): Extension[] {
         return false
       },
     }),
-    EditorView.lineWrapping,
     EditorView.contentAttributes.of({
       'aria-label': options.label || 'Markdown source',
       tabindex: '0',
@@ -170,9 +183,6 @@ function sourceExtensions(options: SourceEditorOptions): Extension[] {
       '.cm-activeLine': { backgroundColor: 'var(--surface)' },
       '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--text)' },
       '&.cm-focused': { outline: '2px solid var(--accent)', outlineOffset: '-2px' },
-      '&.cm-focused .cm-selectionBackground, .cm-selectionBackground': {
-        backgroundColor: 'var(--selection)',
-      },
       '.cm-panels': { backgroundColor: 'var(--surface)', color: 'var(--text)' },
       '.cm-textfield': {
         backgroundColor: 'var(--paper)',

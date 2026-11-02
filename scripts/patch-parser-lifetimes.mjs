@@ -9,6 +9,7 @@ import {
 import { inlineResolverSteps } from './parser-inline-resolve-steps.mjs'
 import { labelResolverSteps } from './parser-label-resolve-steps.mjs'
 import { listlessSpanPreparation } from './parser-list-preparation.mjs'
+import { finalCarriageReturn } from './parser-preprocessing.mjs'
 import { textResolverSteps } from './parser-text-resolve-steps.mjs'
 
 // Pinned parser lifetime patch. Only mdast's private events are compacted/consumed;
@@ -52,7 +53,8 @@ const variants = [
     kind: 'compiler',
     dev: false,
     original: 'dd0cd20672558ab4ca548b4f7e442e850863228915fff8eafd6d987d29fb107b',
-    patched: 'a476f2e7cc4ee0bb6f896072d5c42573a261f24f521840cabaf4d37b050e90f0',
+    patched: 'f398a7b4c45dd304c2b09b2f7c7ac8c8d87186b55c11b98acfb1b490e4204ae1',
+    previousPreprocessing: 'a476f2e7cc4ee0bb6f896072d5c42573a261f24f521840cabaf4d37b050e90f0',
     previousListCopies: '5ebb94bb7e65fb123b31c44c191df8638e805c9a66f56afde1420d03ed9d1c2f',
     previousResolution: 'd207acb6c3afdbfeda4ebe2289906a7b0801fd5843317f41b955cd29d8c2abc0',
     previousPostprocess: '9aa3209790118d6692f6529f78c534be000384fec5f9c6c69b38b1c9f586f37f',
@@ -72,7 +74,8 @@ const variants = [
     kind: 'compiler',
     dev: true,
     original: 'c05ff75bbc99fbae60f4bcf53bc29edc7ab20f3750c7f3bc3ed6381e2f7627dd',
-    patched: '7db264970c4e8edeeed801ac3563cf7814c0a7891bf3f68fad09016703260978',
+    patched: 'd7c200c319d9d71356330a6c1927779e9df9ffff064f8901575fc55494f53933',
+    previousPreprocessing: '7db264970c4e8edeeed801ac3563cf7814c0a7891bf3f68fad09016703260978',
     previousListCopies: 'd906fc3062c2fcbdc89e58e3e11f5050bb2112f588104bffc94fc8d66413a96c',
     previousResolution: 'c579b2a91162f0c9ca6a69693e1ee214cf3b9a688669f59c5e4f6ed9fba0ae20',
     previousPostprocess: '85b2ca628df57243e2dccf2e8392fc5e7b3c2c43a6a3eaebcf198d6f555a6430',
@@ -705,29 +708,33 @@ const plans = await Promise.all(
       hash(source) !== variant.previousResolution &&
       hash(source) !== variant.previousText &&
       hash(source) !== variant.previousInline &&
-      hash(source) !== variant.previousListCopies
+      hash(source) !== variant.previousListCopies &&
+      hash(source) !== variant.previousPreprocessing
     )
       throw new Error(`Unrecognized parser lifetime source: ${variant.package}/${variant.file}`)
     if (process.argv.includes('--check'))
       throw new Error('Parser lifetime patch is missing; run npm install before checking/building')
+    const finish = (result) => {
+      if (variant.kind === 'compiler') result = finalCarriageReturn(result, variant.dev)
+      if (hash(result) !== variant.patched)
+        throw new Error(`Invalid parser lifetime patch: ${variant.package}/${variant.file}`)
+      return { path, result }
+    }
+    if (hash(source) === variant.previousPreprocessing) return finish(source)
     if (hash(source) === variant.previousListCopies) {
       const result = listlessSpanPreparation(source, variant)
-      if (hash(result) !== variant.patched)
-        throw new Error('Invalid listless span preparation patch')
-      return { path, result }
+      return finish(result)
     }
     if (hash(source) === variant.previousInline) {
       const result = listlessSpanPreparation(labelResolverSteps(source, variant), variant)
-      if (hash(result) !== variant.patched) throw new Error('Invalid label resolver patch')
-      return { path, result }
+      return finish(result)
     }
     if (hash(source) === variant.previousText) {
       const result = listlessSpanPreparation(
         labelResolverSteps(inlineResolverSteps(source, variant), variant),
         variant,
       )
-      if (hash(result) !== variant.patched) throw new Error('Invalid inline resolver patch')
-      return { path, result }
+      return finish(result)
     }
     if (variant.kind === 'text-resolver' || hash(source) === variant.previousResolution) {
       const result = listlessSpanPreparation(
@@ -737,9 +744,7 @@ const plans = await Promise.all(
         ),
         variant,
       )
-      if (hash(result) !== variant.patched)
-        throw new Error(`Invalid parser lifetime patch: ${variant.package}/${variant.file}`)
-      return { path, result }
+      return finish(result)
     }
     const previous =
       hash(source) === variant.previousCancellation ||
@@ -790,9 +795,7 @@ const plans = await Promise.all(
       ),
       variant,
     )
-    if (hash(result) !== variant.patched)
-      throw new Error(`Invalid parser lifetime patch: ${variant.package}/${variant.file}`)
-    return { path, result }
+    return finish(result)
   }),
 )
 for (const plan of plans) if (plan) await writeFile(plan.path, plan.result)

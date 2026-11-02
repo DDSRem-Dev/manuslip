@@ -1,3 +1,5 @@
+import type { EditorPreferences } from '@manuslip/editor/preferences'
+import type { ReadingLayout } from '@manuslip/renderer/reading'
 import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useStore } from 'zustand'
@@ -13,6 +15,7 @@ import { editorPhrases } from './editor-phrases'
 import { Icon } from './Icons'
 import { i18next } from './i18n'
 import { PluginCommands } from './PluginCommands'
+import { pluginCatalog } from './plugin-catalog'
 import { pluginCopy } from './plugin-copy'
 import { ReadingPreview } from './ReadingPreview'
 import { SyncDialog } from './SyncDialog'
@@ -22,7 +25,6 @@ import { ToolbarDisclosure } from './ToolbarDisclosure'
 import { readingCopy } from './translation/copy'
 import type { ConfigureTranslation } from './translation/settings-navigation'
 import { useDocumentStatus } from './use-document-status'
-import { FocusWritingBar, type WritingModes, WritingOptions } from './WritingControls'
 
 const noReading = createStore(() => ({ visible: false }))
 
@@ -32,8 +34,9 @@ export function DocumentWorkspace({
   busy,
   locale,
   spellcheck,
+  editorPreferences,
+  readingLayout,
   configureTranslation,
-  writing,
   toolbarHost,
 }: {
   document: DocumentController
@@ -41,17 +44,23 @@ export function DocumentWorkspace({
   busy: boolean
   locale: string
   spellcheck: boolean
+  editorPreferences: EditorPreferences
+  readingLayout: ReadingLayout
   configureTranslation: ConfigureTranslation
-  writing: WritingModes
   toolbarHost: HTMLElement | null
 }): React.JSX.Element {
   const host = useRef<HTMLDivElement>(null)
   const translatedMode = useRef<HTMLButtonElement>(null)
   const status = useDocumentStatus(document)
   const reading = useStore(document.reading?.store ?? noReading)
+  const plugins = useStore(pluginCatalog)
+  const hasPluginCommands = Boolean(plugins?.plugins.some((plugin) => plugin.enabled))
   const readingLabels = readingCopy[locale === 'zh-CN' ? 'zh-CN' : 'en']
   const [encoding, setEncoding] = useState(status.info.encoding)
   const [pluginOpen, setPluginOpen] = useState(false)
+  useEffect(() => {
+    if (!hasPluginCommands) setPluginOpen(false)
+  }, [hasPluginCommands])
   const [syncOpen, setSyncOpen] = useState(false)
   const hadSync = useRef(false)
   useLayoutEffect(() => {
@@ -64,8 +73,7 @@ export function DocumentWorkspace({
     }
     hadSync.current = syncOpen
   }, [syncOpen, document])
-  const pluginTrigger = useRef<HTMLButtonElement>(null),
-    hadPlugin = useRef(false)
+  const hadPlugin = useRef(false)
   useLayoutEffect(() => {
     if (!pluginOpen && hadPlugin.current) {
       const trigger = window.document.querySelector<HTMLButtonElement>(
@@ -87,9 +95,14 @@ export function DocumentWorkspace({
           : 'blankDocument',
   )
   useLayoutEffect(() => document.setSpellcheck(spellcheck), [document, spellcheck])
-  useLayoutEffect(() => {
-    void document.setTypewriter(writing.typewriter)
-  }, [document, writing.typewriter])
+  useLayoutEffect(
+    () => document.setEditorPreferences(editorPreferences),
+    [document, editorPreferences],
+  )
+  useLayoutEffect(
+    () => document.reading?.setDefaultLayout(readingLayout),
+    [document, readingLayout],
+  )
   useLayoutEffect(() => {
     document.localize(i18next.t('sourceLabel'), locale === 'zh-CN' ? editorPhrases : {})
   }, [document, locale])
@@ -161,16 +174,19 @@ export function DocumentWorkspace({
         <Icon name="copy" />
         {t('saveCopy')}
       </button>
-      <WritingOptions writing={writing} />
+    </div>
+  )
+  const utilityTools = (
+    <fieldset className="toolbar-command-group">
+      <legend>{t('utilityTools')}</legend>
       {document.sync && (
         <button type="button" disabled={busy || status.composing} onClick={() => setSyncOpen(true)}>
           <Icon name="sync" />
           {syncCopy[locale === 'zh-CN' ? 'zh-CN' : 'en'].title}
         </button>
       )}
-      {document.plugins && (
+      {document.plugins && hasPluginCommands && (
         <button
-          ref={pluginTrigger}
           type="button"
           disabled={busy || status.composing}
           onClick={() => setPluginOpen(true)}
@@ -199,7 +215,7 @@ export function DocumentWorkspace({
         <Icon name="table" />
         {t('editTable')}
       </button>
-    </div>
+    </fieldset>
   )
   const previewOptions = (
     <fieldset className="toolbar-command-group">
@@ -339,7 +355,7 @@ export function DocumentWorkspace({
           onClose={() => setSyncOpen(false)}
         />
       )}
-      {pluginOpen && document.plugins && (
+      {pluginOpen && document.plugins && hasPluginCommands && (
         <PluginCommands
           controller={document.plugins}
           document={document}
@@ -357,16 +373,6 @@ export function DocumentWorkspace({
           <AppearanceDialog controller={document.appearance} document={document} locale={locale} />
         </>
       )}
-      {writing.focus && (
-        <FocusWritingBar
-          writing={writing}
-          title={status.info.displayPath ? status.info.name : t('untitled')}
-          path={status.info.displayPath}
-          stateLabel={stateLabel}
-          busy={busy || status.saving}
-          save={() => command('save')}
-        />
-      )}
       <fieldset className="document-actions" aria-label={t('fileActions')}>
         {document.exporter ? (
           <ExportControls
@@ -379,11 +385,13 @@ export function DocumentWorkspace({
             toolbar={toolbar}
           >
             {fileActions}
+            {utilityTools}
           </ExportControls>
         ) : (
           toolbar(
             <ToolbarDisclosure label={t('documentCommands')}>
               {fileActions}
+              {utilityTools}
               {previewOptions}
             </ToolbarDisclosure>,
           )

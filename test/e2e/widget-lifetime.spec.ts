@@ -83,6 +83,296 @@ async function setup() {
   }
 }
 
+test('live selections reveal selected syntax across characters, lines and multiple cursors', async () => {
+  const fixture = await setup()
+  try {
+    const { page } = fixture
+    const text = '**中文😀 first** and *second*.\nEscaped \\*literal\\* &amp;.\n- [ ] Task\n\nEnd'
+    await page.evaluate((text) => window.previewLifetime.setSource(text), text)
+    await page.evaluate(() => window.previewLifetime.select([[2, 12]]))
+    await expect(page.locator('.cm-live-strong')).toHaveText('中文😀 first')
+    await expect(page.locator('.cm-line').first()).toContainText('**中文😀 first**')
+
+    for (const position of [0, 1, 2, 8, 12, 14]) {
+      await page.evaluate(
+        (position) => window.previewLifetime.select([[position, position]]),
+        position,
+      )
+      await expect(page.locator('.cm-line').first()).toHaveText('中文😀 first and second.')
+    }
+    // Selecting only body characters reveals their markers in either direction;
+    // a caret elsewhere does not turn its neighboring syntax back into raw text.
+    await page.evaluate(() =>
+      window.previewLifetime.select([
+        [3, 2],
+        [22, 22],
+      ]),
+    )
+    await expect(page.locator('.cm-line').first()).toHaveText('**中文😀 first** and second.')
+
+    const entity = text.indexOf('&amp;')
+    await page.evaluate(
+      (entity) => window.previewLifetime.select([[entity + 2, entity + 2]]),
+      entity,
+    )
+    await expect(page.locator('.cm-content')).not.toContainText('&amp;')
+    await page.evaluate(
+      (entity) =>
+        window.previewLifetime.select([
+          [0, 2],
+          [entity, entity + 5],
+        ]),
+      entity,
+    )
+    await expect(page.locator('.cm-line').first()).toContainText('**中文😀 first**')
+    await expect(page.locator('.cm-content')).toContainText('&amp;')
+    expect(await page.evaluate(() => window.previewLifetime.selections())).toEqual([
+      [0, 2],
+      [entity, entity + 5],
+    ])
+
+    for (const [anchor, head] of [
+      [0, text.length],
+      [text.length, 0],
+    ] as const) {
+      await page.evaluate(({ anchor, head }) => window.previewLifetime.select([[anchor, head]]), {
+        anchor,
+        head,
+      })
+      await expect
+        .poll(() =>
+          page
+            .locator('.cm-line')
+            .allTextContents()
+            .then((lines) => lines.join('\n')),
+        )
+        .toBe(text)
+      await expect(page.locator('.cm-live-task')).toHaveCount(0)
+      expect(await page.evaluate(() => window.previewLifetime.selections())).toEqual([
+        [anchor, head],
+      ])
+    }
+    await page.evaluate((end) => window.previewLifetime.select([[end, end]]), text.length)
+    await expect(page.locator('.cm-live-task')).toHaveCount(1)
+    await expect(page.locator('.cm-line').first()).not.toContainText('**')
+    expect(await page.evaluate(() => window.previewLifetime.snapshot().text)).toBe(text)
+    expect(fixture.errors).toEqual([])
+  } finally {
+    await fixture.close()
+  }
+})
+
+test('inline source reveal follows text selection instead of the insertion caret', async () => {
+  const fixture = await setup()
+  try {
+    const { page } = fixture
+    const first = page.locator('.cm-line').first()
+    for (const [raw, rendered, from, to] of [
+      ['**title**', 'title', 2, 5],
+      ['*title*', 'title', 1, 4],
+      ['~~title~~', 'title', 2, 5],
+      ['`title`', 'title', 1, 4],
+      ['# title', 'title', 2, 5],
+      ['> title', 'title', 2, 5],
+      ['- title', '• title', 2, 5],
+      ['- [ ] title', 'title', 6, 9],
+      ['&amp;', '&', 1, 3],
+      ['---', '', 0, 2],
+    ] as const) {
+      await page.evaluate((raw) => window.previewLifetime.setSource(`${raw}\n\nEnd`), raw)
+      for (const position of [0, from, from + 1, raw.length]) {
+        await page.evaluate(
+          (position) => window.previewLifetime.select([[position, position]]),
+          position,
+        )
+        await expect(first).toHaveText(rendered)
+      }
+      for (const [anchor, head] of [
+        [from, to],
+        [to, from],
+      ]) {
+        await page.evaluate(([anchor, head]) => window.previewLifetime.select([[anchor, head]]), [
+          anchor,
+          head,
+        ] as [number, number])
+        await expect(first).toHaveText(raw)
+      }
+      await page.evaluate((from) => window.previewLifetime.select([[from, from]]), from)
+      await expect(first).toHaveText(rendered)
+      expect(await page.evaluate(() => window.previewLifetime.snapshot().text)).toBe(
+        `${raw}\n\nEnd`,
+      )
+    }
+    expect(fixture.errors).toEqual([])
+  } finally {
+    await fixture.close()
+  }
+})
+
+test('projected quotes and lists preserve prose newlines without adding serialized block breaks', async () => {
+  const fixture = await setup()
+  try {
+    const { page } = fixture
+    const text = [
+      '> Quote first',
+      '> second.',
+      '>',
+      '> ```text',
+      '> literal first',
+      '> literal second',
+      '> ```',
+      '>',
+      '> Last quote paragraph.',
+      '',
+      '- List first',
+      '  second.  ',
+      '  Hard line.',
+      '',
+      '  ```text',
+      '  literal list',
+      '  ```',
+      '',
+      '- Last item.',
+      '',
+      'End',
+    ].join('\n')
+    await page.evaluate((text) => window.previewLifetime.setSource(text), text)
+    await page.evaluate(() => window.previewLifetime.owned())
+    const quote = page.locator('.cm-live-blockquote'),
+      list = page.locator('.cm-live-list')
+    await expect(quote.locator('p')).toHaveCount(2)
+    await expect(quote.locator('p').first()).toHaveText('Quote firstsecond.')
+    await expect(quote.locator('p br')).toHaveCount(1)
+    await expect(quote.locator('pre code')).toHaveText('literal first\nliteral second\n')
+    await expect(quote.locator('blockquote > br')).toHaveCount(0)
+    await expect(list.locator('p').first()).toHaveText('List firstsecond.Hard line.')
+    await expect(list.locator('p').first().locator('br')).toHaveCount(2)
+    await expect(list.locator('li > br')).toHaveCount(0)
+    await expect(list.locator('pre code')).toHaveText('literal list\n')
+    expect(await page.evaluate(() => window.previewLifetime.snapshot().text)).toBe(text)
+    expect(fixture.errors).toEqual([])
+  } finally {
+    await fixture.close()
+  }
+})
+
+test('revealing a rendered block handles its click once and restores source focus', async () => {
+  const fixture = await setup()
+  try {
+    const { page } = fixture
+    const text = '# Heading\n\n~~~js\nconst x = 1\n~~~\n\nEnd'
+    await page.evaluate((text) => window.previewLifetime.setSource(text), text)
+    await page.evaluate(() => window.previewLifetime.owned())
+    const source = page.locator('.cm-live-code').getByRole('button', { name: 'Reveal source' })
+    await expect(source).toBeVisible()
+    await source.click()
+    await expect(page.locator('.cm-live-block')).toHaveCount(0)
+    await expect(page.getByRole('textbox', { name: 'Markdown source' })).toBeFocused()
+    expect(await page.evaluate(() => window.previewLifetime.snapshot().selection)).toBe(
+      text.indexOf('~~~js'),
+    )
+    expect(await page.evaluate(() => window.previewLifetime.selections())).toEqual([
+      [text.indexOf('~~~js'), text.lastIndexOf('~~~') + 3],
+    ])
+    await page.getByRole('textbox', { name: 'Markdown source' }).press('ArrowRight')
+    await expect(page.locator('.cm-live-code pre')).toHaveText('const x = 1\n')
+    await page.getByRole('textbox', { name: 'Markdown source' }).press('ArrowLeft')
+    await expect(page.locator('.cm-live-code pre')).toHaveText('const x = 1\n')
+    expect(fixture.errors).toEqual([])
+  } finally {
+    await fixture.close()
+  }
+})
+
+test('inline widgets and projected multiline prose use exclusive endpoints for every selection', async () => {
+  const fixture = await setup()
+  try {
+    const { page } = fixture
+    const text = 'Before [one](https://example.invalid) after.\n\nMath $a+\nb$ after.\n\nEnd'
+    const link = text.indexOf('[one]'),
+      math = text.indexOf('$'),
+      mathEnd = text.lastIndexOf('$') + 1
+    await page.evaluate((text) => window.previewLifetime.setSource(text), text)
+    await page.evaluate((end) => window.previewLifetime.select([[end, end]]), text.length)
+    await page.evaluate(() => window.previewLifetime.owned())
+    const renderedLink = page.locator('[data-kind="link"]')
+    const renderedMath = page.locator('.cm-content [role="math"]')
+    await expect(renderedLink).toHaveCount(1)
+    await expect(renderedMath).toHaveCount(1)
+    for (const position of [link, link + 1, link + 8, math, math + 1, mathEnd]) {
+      await page.evaluate(
+        (position) => window.previewLifetime.select([[position, position]]),
+        position,
+      )
+      await expect(renderedLink).toHaveCount(1)
+      await expect(renderedMath).toHaveCount(1)
+    }
+    await page.evaluate((link) => window.previewLifetime.select([[0, link]]), link)
+    await expect(renderedLink).toHaveCount(1)
+    await page.evaluate((link) => window.previewLifetime.select([[link + 4, link + 1]]), link)
+    await expect(renderedLink).toHaveCount(0)
+    await expect(renderedMath).toHaveCount(1)
+    await page.evaluate(
+      ({ link, math, mathEnd }) =>
+        window.previewLifetime.select([
+          [link + 1, link + 3],
+          [mathEnd - 1, math + 1],
+        ]),
+      { link, math, mathEnd },
+    )
+    await expect(renderedLink).toHaveCount(0)
+    await expect(renderedMath).toHaveCount(0)
+    await page.evaluate((end) => window.previewLifetime.select([[end, end]]), text.length)
+    await expect(renderedLink).toHaveCount(1)
+    await expect(renderedMath).toHaveCount(1)
+    expect(await page.evaluate(() => window.previewLifetime.snapshot().text)).toBe(text)
+    expect(fixture.errors).toEqual([])
+  } finally {
+    await fixture.close()
+  }
+})
+
+test('image loading, failure and retry states remain readable and release their pending work', async () => {
+  const fixture = await setup()
+  try {
+    const { page } = fixture
+    const text = '# Heading\n\n![Picture](https://example.invalid/image.png)\n\nEnd'
+    await page.evaluate((text) => window.previewLifetime.setSource(text), text)
+    await page.evaluate(() => window.previewLifetime.deferImages())
+    await page.evaluate(() => window.previewLifetime.owned())
+    const image = page.locator('.cm-live-inline-widget img')
+    await expect(image).toHaveAttribute('data-render-state', 'loading')
+    await expect(image).toHaveAttribute('aria-busy', 'true')
+    await page.evaluate(() =>
+      window.previewLifetime.settleImages({ ok: false, error: 'Unavailable', code: 'image-load' }),
+    )
+    await expect(image).toHaveAttribute('data-render-state', 'error')
+    await expect(image).not.toHaveAttribute('aria-busy')
+    const retry = page.locator('.cm-live-image-retry')
+    await expect(retry).toBeEnabled()
+    await retry.click()
+    await expect(retry).toBeDisabled()
+    await expect(image).toHaveAttribute('data-render-state', 'loading')
+    expect(await page.evaluate(() => window.previewLifetime.counts().images)).toBe(1)
+    await page.evaluate(() =>
+      window.previewLifetime.settleImages({
+        ok: true,
+        value:
+          'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aZ2cAAAAASUVORK5CYII=',
+      }),
+    )
+    await expect(image).toHaveAttribute('data-render-state', 'ready')
+    await expect(image).not.toHaveAttribute('aria-busy')
+    await expect(retry).toBeHidden()
+    await expect(page.locator('.cm-live-image-error')).toBeHidden()
+    expect(await page.evaluate(() => window.previewLifetime.counts().images)).toBe(0)
+    expect(await page.evaluate(() => window.previewLifetime.snapshot().text)).toBe(text)
+    expect(fixture.errors).toEqual([])
+  } finally {
+    await fixture.close()
+  }
+})
+
 test('equivalent widget DOM reuse retains one renderer lifetime and final removal aborts it', async () => {
   const fixture = await setup()
   try {

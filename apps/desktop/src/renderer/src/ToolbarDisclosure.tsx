@@ -7,12 +7,14 @@ export function ToolbarDisclosure({
   triggerRef,
   icon,
   iconOnly = false,
+  summary,
 }: {
   label: string
   children: ReactNode
   triggerRef?: RefObject<HTMLButtonElement | null>
   icon?: IconName
   iconOnly?: boolean
+  summary?: string
 }): React.JSX.Element {
   const id = useId()
   const [open, setOpen] = useState(false)
@@ -24,10 +26,11 @@ export function ToolbarDisclosure({
         type="button"
         popoverTarget={id}
         aria-expanded={open}
-        title={iconOnly ? label : undefined}
+        aria-label={summary ? `${summary} · ${label}` : undefined}
+        title={iconOnly || summary ? label : undefined}
       >
         {icon && <Icon name={icon} size={iconOnly ? 18 : 16} />}
-        <span className={iconOnly ? 'visually-hidden' : undefined}>{label}</span>
+        <span className={iconOnly ? 'visually-hidden' : undefined}>{summary ?? label}</span>
         {!iconOnly && <Icon name="chevron" size={12} />}
       </button>
       <fieldset

@@ -4,8 +4,10 @@ import type { DocumentController } from './document'
 import { Icon } from './Icons'
 import { ReadingPlaceholder } from './ReadingPlaceholder'
 import { ToolbarDisclosure } from './ToolbarDisclosure'
+import { requiresTranslationKey } from './translation/availability'
 import type { DocumentReading } from './translation/controller'
 import { readingCopy } from './translation/copy'
+import { languageName, translationLanguages } from './translation/languages'
 import type { ConfigureTranslation } from './translation/settings-navigation'
 import { mountReading } from './translation/surface'
 import { ReadingViewport } from './translation/viewport'
@@ -163,15 +165,14 @@ export function ReadingPreview({
       ? (status.configuration.languages ?? [])
           .filter((language) => language.target && language.tags)
           .map((language) => language.tag)
-      : ['en', 'zh-CN', 'zh-TW', 'ja', 'ko', 'fr', 'de', 'es', 'pt', 'ar']
+      : [...translationLanguages]
   const remaining = Math.max(0, status.total - status.completed - status.failed - status.limited)
   const configured = Boolean(status.configuration?.settings)
   const settingsBusy = status.configurationLoading || Boolean(status.configurationError)
   const needsKey =
-    status.configuration?.settings?.provider.adapter === 'deepl' &&
+    status.configuration?.settings &&
+    requiresTranslationKey(status.configuration.settings) &&
     status.configuration.credential === 'none'
-  const languageName = (language: string) =>
-    new Intl.DisplayNames([locale], { type: 'language' }).of(language) ?? language
   return (
     <section
       className="reading-pane"
@@ -206,11 +207,11 @@ export function ReadingPreview({
                   onChange={(event) => void reading.target(event.target.value)}
                 >
                   {!languages.includes(status.target) && (
-                    <option value={status.target}>{languageName(status.target)}</option>
+                    <option value={status.target}>{languageName(status.target, locale)}</option>
                   )}
                   {languages.map((language) => (
                     <option key={language} value={language}>
-                      {languageName(language)}
+                      {languageName(language, locale)}
                     </option>
                   ))}
                 </select>

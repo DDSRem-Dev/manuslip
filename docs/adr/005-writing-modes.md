@@ -1,6 +1,8 @@
 # ADR 005: Focus and typewriter writing modes
 
-Status: accepted on the tested Windows baseline, 2026-10-31.
+Status: retired, 2026-11-02. Focus and typewriter modes have been removed at the user's request.
+Saved typewriter preferences are discarded while preserving other editor and reading settings.
+The original decision and validation below are historical.
 
 Delivery follows the 2026-10-31 goal update: complete useful features and refine the interface; exact historical latency targets remain improvement goals.
 

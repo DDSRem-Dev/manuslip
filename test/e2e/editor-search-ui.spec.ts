@@ -233,7 +233,7 @@ for (const state of [
       await page.keyboard.press('Escape')
       await page.keyboard.press('Tab')
       await expect(
-        page.getByRole('button', { name: /^(Document details|文档详情)$/, exact: true }),
+        page.getByRole('button', { name: /(Document details|文档详情)$/, exact: true }),
       ).toBeFocused()
       await expect.poll(currentSource).toBe(source)
       await writeFile(
