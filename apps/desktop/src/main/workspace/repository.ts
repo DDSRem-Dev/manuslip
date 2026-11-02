@@ -5,6 +5,7 @@ import {
   type RememberDocuments,
   type RestoreFile,
   type WorkspaceBootstrap,
+  type WorkspaceChange,
   type WorkspacePage,
   workspaceLimits,
 } from '../../shared/workspace-contracts'
@@ -34,6 +35,7 @@ export class WorkspaceRepository {
     private readonly state: WorkspaceStateRepository,
     private readonly files: FileSessions,
     private readonly changed: (owner: number) => void = () => {},
+    private readonly directoryChanged: (owner: number, change: WorkspaceChange) => void = () => {},
   ) {
     this.resetRestores()
   }
@@ -61,13 +63,24 @@ export class WorkspaceRepository {
         try {
           const grant = await grantRoot(path)
           if (grant.path !== path) throw new FileOperationError('workspace-changed')
-          this.catalogs.set(owner, new WorkspaceCatalog(grant))
+          this.setCatalog(owner, grant)
         } catch {
           this.missingRoot = true
         }
       }
     }
     return this.describe(owner)
+  }
+  private setCatalog(owner: number, grant: RootGrant): void {
+    this.catalogs.get(owner)?.dispose()
+    const catalog = new WorkspaceCatalog(grant, (directoryId) => {
+      if (this.catalogs.get(owner) === catalog)
+        this.directoryChanged(owner, { rootId: catalog.root.id, directoryId })
+    })
+    this.catalogs.set(owner, catalog)
+  }
+  checkExternal(owner: number): void {
+    this.catalogs.get(owner)?.invalidate()
   }
   describe(owner: number): WorkspaceBootstrap {
     return {
@@ -92,7 +105,7 @@ export class WorkspaceRepository {
   async choose(owner: number, path: string): Promise<WorkspaceBootstrap> {
     const grant = await grantRoot(path)
     this.changed(owner)
-    this.catalogs.set(owner, new WorkspaceCatalog(grant))
+    this.setCatalog(owner, grant)
     this.started.add(owner)
     this.missingRoot = false
     const recents = [
@@ -108,12 +121,21 @@ export class WorkspaceRepository {
     if (!path) throw new FileOperationError('workspace-session')
     return this.choose(owner, path)
   }
+  async close(owner: number): Promise<WorkspaceBootstrap> {
+    this.changed(owner)
+    this.catalogs.get(owner)?.dispose()
+    this.catalogs.delete(owner)
+    this.started.add(owner)
+    this.missingRoot = false
+    await this.state.save({ root: null }).catch(() => {})
+    return this.describe(owner)
+  }
   async refresh(owner: number): Promise<WorkspaceBootstrap> {
     const catalog = this.catalogs.get(owner)
     if (!catalog) return this.bootstrap(owner)
     await catalog.path(catalog.root.id, true)
     this.changed(owner)
-    this.catalogs.set(owner, new WorkspaceCatalog(catalog.grant))
+    this.setCatalog(owner, catalog.grant)
     return this.describe(owner)
   }
   async list(owner: number, id: string, offset: number): Promise<WorkspacePage> {
@@ -200,6 +222,7 @@ export class WorkspaceRepository {
   }
   closeOwner(owner: number): void {
     this.changed(owner)
+    this.catalogs.get(owner)?.dispose()
     this.catalogs.delete(owner)
     this.started.delete(owner)
     if (!this.started.size) this.resetRestores()

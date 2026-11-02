@@ -1,6 +1,33 @@
+import { useEffect, useState } from 'react'
 import type { DocumentStatus } from './document'
 import { i18next } from './i18n'
 import { ToolbarDisclosure } from './ToolbarDisclosure'
+
+function LocalTime(): React.JSX.Element {
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>
+    const update = (): void => {
+      setNow(new Date())
+      clearTimeout(timer)
+      timer = setTimeout(update, 60_000 - (Date.now() % 60_000))
+    }
+    update()
+    window.addEventListener('focus', update)
+    document.addEventListener('visibilitychange', update)
+    return () => {
+      clearTimeout(timer)
+      window.removeEventListener('focus', update)
+      document.removeEventListener('visibilitychange', update)
+    }
+  }, [])
+  const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+  return (
+    <time className="local-time" dateTime={time} dir="ltr" title={i18next.t('localTime')}>
+      {time}
+    </time>
+  )
+}
 
 export function DocumentStatusBar({
   status,
@@ -27,46 +54,52 @@ export function DocumentStatusBar({
       : null
   return (
     <div className="editor-status">
-      <span>{t('cursorPosition', { line: status.line, column: status.column })}</span>
-      <ToolbarDisclosure label={t('documentDetails')} summary={words ?? characters ?? undefined}>
-        <div className="document-details">
-          {(words || characters) && (
-            <dl className="document-statistics">
-              {words && (
-                <div>
-                  <dt>{t('documentWords')}</dt>
-                  <dd>{status.wordCount?.toLocaleString(i18next.language)}</dd>
-                </div>
-              )}
-              {characters && (
-                <div>
-                  <dt>{t('documentCharacters')}</dt>
-                  <dd>{status.characterCount?.toLocaleString(i18next.language)}</dd>
-                </div>
-              )}
+      <span className="editor-cursor-position">
+        {t('cursorPosition', { line: status.line, column: status.column })}
+      </span>
+      <div className="document-status-summary">
+        <ToolbarDisclosure label={t('documentDetails')} summary={words ?? characters ?? undefined}>
+          <div className="document-details">
+            {(words || characters) && (
+              <dl className="document-statistics">
+                {words && (
+                  <div>
+                    <dt>{t('documentWords')}</dt>
+                    <dd>{status.wordCount?.toLocaleString(i18next.language)}</dd>
+                  </div>
+                )}
+                {characters && (
+                  <div>
+                    <dt>{t('documentCharacters')}</dt>
+                    <dd>{status.characterCount?.toLocaleString(i18next.language)}</dd>
+                  </div>
+                )}
+              </dl>
+            )}
+            {!words && !characters && (
+              <p className="document-counts-unavailable">{t('documentCountsUnavailable')}</p>
+            )}
+            <dl className="document-file-details">
+              <dt>{t('fileEncoding')}</dt>
+              <dd>
+                {status.info.encoding.toUpperCase()}
+                {status.info.bom ? ' · BOM' : ''}
+              </dd>
+              <dt>{t('documentLineEndings')}</dt>
+              <dd>{status.info.newline.toUpperCase()}</dd>
+              <dt>{t('documentSize')}</dt>
+              <dd>
+                {t('documentBytes', { bytes: status.bytes.toLocaleString(i18next.language) })}
+              </dd>
             </dl>
-          )}
-          {!words && !characters && (
-            <p className="document-counts-unavailable">{t('documentCountsUnavailable')}</p>
-          )}
-          <dl className="document-file-details">
-            <dt>{t('fileEncoding')}</dt>
-            <dd>
-              {status.info.encoding.toUpperCase()}
-              {status.info.bom ? ' · BOM' : ''}
-            </dd>
-            <dt>{t('documentLineEndings')}</dt>
-            <dd>{status.info.newline.toUpperCase()}</dd>
-            <dt>{t('documentSize')}</dt>
-            <dd>{t('documentBytes', { bytes: status.bytes.toLocaleString(i18next.language) })}</dd>
-          </dl>
-          <p className="document-size-basis">{t('documentSizeBasis')}</p>
-          <dl className="document-location">
-            <dt>{t('documentLocation')}</dt>
-            <dd dir="auto">{status.info.displayPath || t('untitled')}</dd>
-          </dl>
-        </div>
-      </ToolbarDisclosure>
+            <dl className="document-location">
+              <dt>{t('documentLocation')}</dt>
+              <dd dir="auto">{status.info.displayPath || t('untitled')}</dd>
+            </dl>
+          </div>
+        </ToolbarDisclosure>
+        <LocalTime />
+      </div>
     </div>
   )
 }

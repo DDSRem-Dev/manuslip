@@ -149,7 +149,10 @@ for (const theme of ['light', 'dark'])
         BrowserWindow.getAllWindows()[0]?.setContentSize(1160, 800)
       })
       await page.getByRole('button', { name: '展开写作空间', exact: true }).click()
-      const outline = page.getByRole('button', { name: '大纲', exact: true })
+      const outline = page
+        .getByRole('navigation', { name: '文档标题', exact: true })
+        .getByRole('button')
+        .first()
       await outline.focus()
       await application.evaluate(({ BrowserWindow }) => {
         BrowserWindow.getAllWindows()[0]?.setContentSize(360, 800)

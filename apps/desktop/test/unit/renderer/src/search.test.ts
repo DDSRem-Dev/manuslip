@@ -54,6 +54,35 @@ function setup() {
 }
 afterEach(() => vi.useRealTimers())
 
+it('opens and reopens search in filename mode after explicitly searching content', async () => {
+  const { bridge, controller } = setup()
+  controller.show()
+  controller.query('notes')
+  await vi.advanceTimersByTimeAsync(200)
+  expect(bridge.startSearch).toHaveBeenLastCalledWith(
+    expect.objectContaining({ mode: 'filename', query: 'notes' }),
+  )
+
+  controller.mode('text')
+  await vi.advanceTimersByTimeAsync(200)
+  expect(bridge.startSearch).toHaveBeenLastCalledWith(
+    expect.objectContaining({ mode: 'text', query: 'notes' }),
+  )
+  controller.expand(false)
+  controller.show()
+  await vi.advanceTimersByTimeAsync(200)
+  expect(controller.store.getState()).toMatchObject({
+    expanded: true,
+    mode: 'filename',
+    query: 'notes',
+    focusRequest: 2,
+  })
+  expect(bridge.startSearch).toHaveBeenLastCalledWith(
+    expect.objectContaining({ mode: 'filename', query: 'notes' }),
+  )
+  controller.setRoot(null)
+})
+
 it('debounces typing, rejects late poll results and cancels only the obsolete request', async () => {
   const { bridge, controller } = setup()
   const old = deferred<Result<SearchPage>>()

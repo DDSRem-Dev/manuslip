@@ -79,6 +79,7 @@ import {
 import {
   parseRememberDocuments,
   parseWorkspace,
+  parseWorkspaceChange,
   parseWorkspaceList,
   parseWorkspacePage,
   workspaceChannels,
@@ -300,8 +301,17 @@ const bridge: DesktopBridge = {
     ),
   recentWorkspace: async (id) =>
     parseResult(await ipcRenderer.invoke(workspaceChannels.recent, parseId(id)), parseWorkspace),
+  closeWorkspace: async () =>
+    parseResult(await ipcRenderer.invoke(workspaceChannels.close, null), parseWorkspace),
   refreshWorkspace: async () =>
     parseResult(await ipcRenderer.invoke(workspaceChannels.refresh, null), parseWorkspace),
+  onWorkspaceChanged: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, value: unknown): void => {
+      listener(parseWorkspaceChange(value))
+    }
+    ipcRenderer.on(workspaceChannels.changed, handler)
+    return () => ipcRenderer.removeListener(workspaceChannels.changed, handler)
+  },
   listWorkspace: async (id, offset = 0) =>
     parseResult(
       await ipcRenderer.invoke(workspaceChannels.list, parseWorkspaceList({ id, offset })),

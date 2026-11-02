@@ -8,17 +8,19 @@ import type { SearchController } from './search'
 export function WorkspaceSearch({
   controller,
   busy,
+  chooseFolder,
   panel = false,
 }: {
   controller: SearchController
   busy: boolean
+  chooseFolder: () => void
   panel?: boolean
 }): React.JSX.Element {
   const state = useStore(controller.store),
     t = i18next.t.bind(i18next)
   const [visible, setVisible] = useState(50)
   const input = useRef<HTMLInputElement>(null)
-  const summary = useRef<HTMLElement>(null)
+  const folderButton = useRef<HTMLButtonElement>(null)
   const focusedRequest = useRef(0)
   const results = useRef<HTMLOListElement>(null)
   const pendingResult = useRef<SearchEntry | null>(null)
@@ -35,12 +37,11 @@ export function WorkspaceSearch({
   }, [state.entries, state.expanded, visible])
   useEffect(() => {
     if (!state.focusRequest) return
-    if (focusedRequest.current === state.focusRequest && document.activeElement !== summary.current)
-      return
+    if (focusedRequest.current === state.focusRequest) return
     let observer: IntersectionObserver | null = null
     const timer = setTimeout(() => {
-      focusedRequest.current = state.focusRequest
-      const target = state.rootId ? input.current : summary.current
+      if (state.rootId) focusedRequest.current = state.focusRequest
+      const target = state.rootId ? input.current : folderButton.current
       target?.focus()
       target?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
       input.current?.select()
@@ -69,13 +70,19 @@ export function WorkspaceSearch({
       open={panel || state.expanded}
       onToggle={(event) => controller.expand(event.currentTarget.open)}
     >
-      <summary ref={summary} hidden={panel && Boolean(state.rootId)}>
+      <summary hidden={panel}>
         <Icon name="search" size={16} />
         {t('workspaceSearch')}
         <Icon name="chevron" size={12} />
       </summary>
       {!state.rootId ? (
-        <p>{t('chooseFolder')}</p>
+        <div className="workspace-search-empty">
+          <p>{t('chooseFolder')}</p>
+          <button ref={folderButton} type="button" disabled={busy} onClick={chooseFolder}>
+            <Icon name="open" size={16} />
+            {t('openFolder')}
+          </button>
+        </div>
       ) : (
         <>
           <form
@@ -103,6 +110,7 @@ export function WorkspaceSearch({
               ref={input}
               id="workspace-query"
               type="search"
+              placeholder={state.mode === 'filename' ? t('filenamePlaceholder') : undefined}
               maxLength={256}
               value={state.query}
               onChange={(event) => {
@@ -120,12 +128,8 @@ export function WorkspaceSearch({
                 {t('matchCase')}
               </label>
             )}
-            <div className="action-row">
-              <button type="submit" disabled={!state.query.length}>
-                <Icon name="search" size={16} />
-                {t('searchNow')}
-              </button>
-              {state.state === 'running' && (
+            {state.state === 'running' && (
+              <div className="action-row">
                 <button
                   type="button"
                   onClick={() => {
@@ -135,10 +139,12 @@ export function WorkspaceSearch({
                 >
                   {t('cancelSearch')}
                 </button>
-              )}
-            </div>
+              </div>
+            )}
           </form>
-          <p className="search-hint">{t('searchPolicy')}</p>
+          <p className="search-hint">
+            {t(state.mode === 'filename' ? 'filenameSearchHint' : 'searchPolicy')}
+          </p>
           <p role="status">
             {state.state === 'running'
               ? t('searchRunning')

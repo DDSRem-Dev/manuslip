@@ -69,3 +69,86 @@ test('workspace search restores a hidden sidebar and preferences preserve writin
     await application.close()
   }
 })
+
+test('file search chooses a folder and live listings preserve pagination through workspace switches', async () => {
+  const directory = await mkdtemp(resolve('test/artifacts/logs/workspace-live-'))
+  const first = join(directory, 'First folder'),
+    second = join(directory, 'Second folder')
+  const chapters = join(first, 'chapters')
+  await mkdir(chapters, { recursive: true })
+  await mkdir(second)
+  await Promise.all(
+    Array.from({ length: 205 }, (_, index) =>
+      writeFile(join(chapters, `Chapter ${index + 1}.md`), '# A chapter'),
+    ),
+  )
+  await writeFile(join(second, 'other.md'), '# Other folder')
+  const application = await launchDesktop(join(directory, 'profile'))
+  try {
+    const page = await application.firstWindow()
+    await page.getByRole('button', { name: 'New document', exact: true }).first().click()
+    const editor = page.getByRole('textbox', { name: 'Markdown source', exact: true })
+    await editor.fill('# Draft\n\nKeep this unsaved writing.')
+    await page.getByRole('button', { name: 'Show workspace', exact: true }).click()
+    await expect(page.locator('.workspace-file-search')).toBeHidden()
+    await application.evaluate(({ Menu }) => {
+      const command = Menu.getApplicationMenu()
+        ?.items.flatMap((item) => item.submenu?.items ?? [])
+        .find((item) => item.accelerator === 'CmdOrCtrl+P')
+      if (!command) throw new Error('Missing file search command')
+      command.click()
+    })
+    const choose = page
+      .locator('.workspace-search')
+      .getByRole('button', { name: 'Open folder…', exact: true })
+    await expect(choose).toBeFocused()
+    await application.evaluate(({ dialog }, folder) => {
+      dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [folder] })
+    }, first)
+    await choose.click()
+    await expect(page.locator('#workspace-query')).toBeFocused()
+    await page.locator('#workspace-query').fill('Chapter 205')
+    await expect(page.locator('.search-results')).toContainText('Chapter 205.md')
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('button', { name: 'Find a file', exact: true })).toBeFocused()
+    const files = page.getByRole('navigation', { name: 'Workspace files', exact: true })
+    const chapterFolder = files
+      .locator('.file-directory')
+      .filter({ has: page.locator('summary > bdi', { hasText: /^chapters$/ }) })
+      .last()
+    await chapterFolder.locator('summary').click()
+    await expect(chapterFolder.locator('.file-entry')).toHaveCount(200)
+    await chapterFolder.getByRole('button', { name: 'Show more files', exact: true }).click()
+    await expect(chapterFolder.locator('.file-entry')).toHaveCount(205)
+    await writeFile(join(chapters, '000-added.md'), '# Added externally')
+    await expect(chapterFolder.locator('.file-entry')).toHaveCount(206)
+    await expect(
+      chapterFolder.getByRole('button', { name: 'Chapter 205.md', exact: true }),
+    ).toBeVisible()
+    await page.getByRole('button', { name: 'Hide workspace', exact: true }).click()
+    await page.getByRole('button', { name: 'Show workspace', exact: true }).click()
+    await expect(chapterFolder.locator('.file-entry')).toHaveCount(206)
+    await application.evaluate(({ dialog }, folder) => {
+      dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [folder] })
+    }, second)
+    await page.getByRole('button', { name: 'Open folder…', exact: true }).click()
+    await expect(files.getByRole('button', { name: 'other.md', exact: true })).toBeVisible()
+    await writeFile(join(first, 'old-workspace.md'), '# Changed after switching')
+    await expect(files).not.toContainText('old-workspace.md')
+    await expect(files).not.toContainText('chapters')
+    await expect(page.locator('.workspace-notices [role=alert]')).toHaveCount(0)
+    await expect(editor).toContainText('Keep this unsaved writing.')
+    await expect(
+      page
+        .getByRole('navigation', { name: 'Document headings' })
+        .getByRole('button', { name: 'Draft', exact: true }),
+    ).toBeVisible()
+  } finally {
+    await application
+      .evaluate(({ BrowserWindow }) => {
+        for (const window of BrowserWindow.getAllWindows()) window.destroy()
+      })
+      .catch(() => {})
+    await application.close()
+  }
+})

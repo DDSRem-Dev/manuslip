@@ -3,12 +3,20 @@ import { describe, expect, it } from 'vitest'
 import {
   parseRememberDocuments,
   parseWorkspace,
+  parseWorkspaceChange,
   parseWorkspaceList,
   parseWorkspacePage,
   workspaceLimits,
 } from '../../../src/shared/workspace-contracts'
 
 describe('workspace boundary schemas', () => {
+  it('only accepts opaque workspace and directory IDs in change notifications', () => {
+    const rootId = randomUUID(),
+      directoryId = randomUUID()
+    expect(parseWorkspaceChange({ rootId, directoryId })).toEqual({ rootId, directoryId })
+    expect(() => parseWorkspaceChange({ rootId, directoryId: '../private' })).toThrow()
+    expect(() => parseWorkspaceChange({ rootId: '/private', directoryId })).toThrow()
+  })
   it('accepts session IDs and active membership without accepting path fields', () => {
     const id = randomUUID()
     expect(parseRememberDocuments({ ids: [id], activeId: id })).toEqual({ ids: [id], activeId: id })

@@ -54,6 +54,8 @@ test('secure shell launches, stays offline, and restores preferences', async () 
         'onIncomingFiles',
         'workspace',
         'chooseWorkspace',
+        'closeWorkspace',
+        'onWorkspaceChanged',
         'recentWorkspace',
         'refreshWorkspace',
         'listWorkspace',

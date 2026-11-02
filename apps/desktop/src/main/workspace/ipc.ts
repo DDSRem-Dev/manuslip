@@ -58,6 +58,10 @@ export function registerWorkspaceHandlers(
     const id = parseId(input)
     return owned((window) => workspaces.recent(window.webContents.id, id))
   })
+  register(workspaceChannels.close, (input) => {
+    empty(input)
+    return owned((window) => workspaces.close(window.webContents.id))
+  })
   register(workspaceChannels.refresh, (input) => {
     empty(input)
     return owned((window) => workspaces.refresh(window.webContents.id))

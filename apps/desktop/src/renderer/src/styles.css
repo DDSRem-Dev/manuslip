@@ -166,7 +166,7 @@ a {
 }
 .app-shell {
   display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
+  grid-template-columns: 240px minmax(0, 1fr) 240px;
   height: 100dvh;
   min-height: 0;
   overflow: hidden;
@@ -174,7 +174,8 @@ a {
 .app-shell.sidebar-collapsed {
   grid-template-columns: minmax(0, 1fr);
 }
-.sidebar {
+.sidebar,
+.outline-sidebar {
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
@@ -183,6 +184,10 @@ a {
   display: flex;
   flex-direction: column;
   border-inline-end: 1px solid var(--border);
+}
+.outline-sidebar {
+  border-inline-end: 0;
+  border-inline-start: 1px solid var(--border);
 }
 .workspace-navigation {
   display: flex;
@@ -705,7 +710,7 @@ footer {
   gap: 16px;
 }
 .workspace-browser {
-  margin-block-start: 8px;
+  margin: 0;
   font-size: 13px;
 }
 .workspace-search,
@@ -750,7 +755,7 @@ footer {
   min-height: 40px;
 }
 .search-results,
-.document-outline ol {
+.outline-list {
   list-style: none;
   padding: 0;
   margin: 0;
@@ -784,6 +789,44 @@ footer {
   border: 0;
   background: transparent;
   padding-block: 6px;
+}
+.outline-list :where(.outline-list) {
+  margin-inline-start: 16px;
+  border-inline-start: 1px solid var(--border);
+}
+.outline-list > :where(li + li) {
+  margin-block-start: 2px;
+}
+.outline-list :where(button) {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-block-size: 32px;
+  padding: 6px 8px;
+  line-height: 1.5;
+}
+.outline-list :where(button[data-depth="1"]) {
+  font-weight: 600;
+}
+.outline-list bdi {
+  min-inline-size: 0;
+}
+.outline-marker {
+  flex: 0 0 4px;
+  inline-size: 4px;
+  block-size: 4px;
+  align-self: flex-start;
+  margin-block-start: 8px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  color: var(--muted);
+  background: currentColor;
+}
+.outline-list .outline-list .outline-marker {
+  background: transparent;
+}
+.outline-list .outline-list .outline-list .outline-marker {
+  border-radius: 0;
 }
 .document-outline li button:focus-visible {
   outline-offset: -2px;
@@ -824,12 +867,6 @@ footer {
 .workspace-browser .file-entry:focus-visible {
   outline-offset: -2px;
 }
-.workspace-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-block: 8px 16px;
-}
 .workspace-path,
 .workspace-hint,
 .directory-content p,
@@ -839,7 +876,7 @@ footer {
   font-size: 12px;
 }
 .directory-content {
-  padding-inline-start: 12px;
+  padding-inline-start: 16px;
   border-inline-start: 1px solid var(--border);
 }
 .workspace-browser-content {
@@ -1310,6 +1347,25 @@ main.editing {
   color: var(--muted);
   font-size: 12px;
 }
+.editor-cursor-position {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.document-status-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  margin-inline-start: auto;
+}
+.local-time {
+  flex: 0 0 auto;
+  padding-inline-start: 12px;
+  border-inline-start: 1px solid var(--border);
+  line-height: 1;
+}
 .editor-status .toolbar-disclosure {
   min-block-size: 28px;
   padding-block: 2px;
@@ -1358,11 +1414,6 @@ main.editing {
 }
 .document-file-details dd {
   text-align: end;
-}
-.document-size-basis {
-  margin-block: 8px 0;
-  color: var(--muted);
-  font-size: 12px;
 }
 .document-details .document-location {
   margin-block-start: 16px;
@@ -2309,7 +2360,7 @@ dialog::backdrop {
   > .ui-icon:last-child {
   transform: rotate(0);
 }
-.sidebar :is(.workspace-hint, .document-outline p, .workspace-search > p) {
+:is(.sidebar, .outline-sidebar) :is(.workspace-hint, .document-outline p, .workspace-search > p) {
   padding-inline: 8px;
   color: var(--muted);
   font-size: 12px;
@@ -2320,10 +2371,6 @@ dialog::backdrop {
 }
 .sidebar summary::-webkit-details-marker {
   display: none;
-}
-.workspace-actions button {
-  border-color: transparent;
-  background: transparent;
 }
 .workspace-path {
   padding-inline: 8px;

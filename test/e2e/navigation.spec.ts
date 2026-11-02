@@ -67,6 +67,7 @@ test('workspace search finds unexpanded paths, opens Unicode matches and preserv
   await writeFile(join(root, 'notes.md'), '# Intro\n😀 中文 NEEDLE rest\n')
   await writeFile(join(root, 'chapters', 'notes.md'), '# Other\nneedle here\n')
   await writeFile(join(root, 'chapters', 'Writing-notes.md'), '# Writing\nNested document\n')
+  await writeFile(join(root, 'Content-only.md'), 'notes notes\nnotes notes\n')
   await writeFile(join(root, 'many.md'), 'overflow-only\n'.repeat(510))
   const application = await launchDesktop(join(directory, 'profile'))
   try {
@@ -87,6 +88,22 @@ test('workspace search finds unexpanded paths, opens Unicode matches and preserv
     const results = page.locator('.search-results button')
     await expect(results).toHaveCount(1)
     await expect(results.first()).toHaveText('chapters/Writing-notes.md')
+    await expect(page.locator('#workspace-search-mode')).toHaveValue('filename')
+    await query.fill('notes')
+    await expect(results).toHaveCount(3)
+    expect((await results.allTextContents()).sort()).toEqual([
+      'chapters/Writing-notes.md',
+      'chapters/notes.md',
+      'notes.md',
+    ])
+    for (const path of [
+      'chapters/Writing-notes.md',
+      ...(process.platform === 'win32' ? ['chapters\\Writing-notes.md'] : []),
+    ]) {
+      await query.fill(path)
+      await expect(results).toHaveCount(1)
+      await expect(results.first()).toHaveText('chapters/Writing-notes.md')
+    }
     await query.fill('not-present-anywhere')
     await expect(page.locator('.workspace-search [role=status]')).toContainText(
       'Try a shorter query',
@@ -98,7 +115,15 @@ test('workspace search finds unexpanded paths, opens Unicode matches and preserv
     await page.getByRole('tab', { name: 'Untitled 1', exact: false }).click()
     await expect(editor).toHaveText('draft retained while searching')
     await menu(application, 'Search workspace…', 'CmdOrCtrl+Shift+F')
+    query = page.getByRole('searchbox', { name: 'Find a file', exact: true })
+    await expect(query).toBeFocused()
+    await expect(page.locator('#workspace-search-mode')).toHaveValue('filename')
+    await query.fill('NEEDLE')
+    await expect(results).toHaveCount(0)
+    await expect(page.locator('.workspace-search [role=status]')).toContainText('No matches')
+    await page.locator('#workspace-search-mode').selectOption('text')
     query = page.getByRole('searchbox', { name: 'Find text in files', exact: true })
+    await query.focus()
     await expect(query).toBeFocused()
     await query.fill('NEEDLE')
     await expect(results).toHaveCount(2)
@@ -118,10 +143,7 @@ test('workspace search finds unexpanded paths, opens Unicode matches and preserv
     )
     await expect(editor).toContainText('unsaved line instead')
     await expect(page.getByRole('tab')).toHaveCount(3)
-    await page
-      .locator('.workspace-switcher')
-      .getByRole('button', { name: 'Outline', exact: true })
-      .click()
+    await page.getByRole('button', { name: 'Close search', exact: true }).click()
     await expect(
       page
         .getByRole('navigation', { name: 'Document headings' })
@@ -132,6 +154,7 @@ test('workspace search finds unexpanded paths, opens Unicode matches and preserv
     await page.getByRole('button', { name: 'Preferences', exact: true }).click()
     await page.getByLabel('Appearance', { exact: true }).selectOption('dark')
     await menu(application, 'Search workspace…', 'CmdOrCtrl+Shift+F')
+    query = page.getByRole('searchbox', { name: 'Find a file', exact: true })
     await expect(query).toBeFocused()
     await expect(page.getByRole('dialog')).toHaveCount(0)
     await checkContrast(page)
@@ -143,15 +166,16 @@ test('workspace search finds unexpanded paths, opens Unicode matches and preserv
       BrowserWindow.getAllWindows()[0]?.webContents.setZoomFactor(2),
     )
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
-    await expect(
-      page.getByRole('searchbox', { name: '在文件中查找文本', exact: true }),
-    ).toBeVisible()
+    await expect(page.getByRole('searchbox', { name: '查找文件', exact: true })).toBeVisible()
     await application.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows()[0]?.webContents.setZoomFactor(1),
     )
     await page.setViewportSize({ width: 320, height: 950 })
     await menu(application, '搜索工作区…', 'CmdOrCtrl+Shift+F')
+    await expect(page.locator('#workspace-search-mode')).toHaveValue('filename')
+    await page.locator('#workspace-search-mode').selectOption('text')
     const input = page.getByRole('searchbox', { name: '在文件中查找文本', exact: true })
+    await input.focus()
     await expect(input).toBeFocused()
     await expect
       .poll(async () => {
@@ -191,11 +215,6 @@ test('Source outline pages whole-document headings and jumps without losing undo
     await expect(page.getByRole('tab', { name: 'outline.md', exact: true })).toBeVisible()
     await page.getByRole('button', { name: 'Source', exact: true }).click()
     await page.getByRole('button', { name: 'Show workspace', exact: true }).click()
-    const disclosure = page
-      .locator('.workspace-switcher')
-      .getByRole('button', { name: 'Outline', exact: true })
-    await disclosure.focus()
-    await page.keyboard.press('Enter')
     const outline = page.getByRole('navigation', { name: 'Document headings' })
     await expect(outline.locator('li button')).toHaveCount(200)
     await outline.getByRole('button', { name: 'Show more headings', exact: true }).click()
@@ -211,7 +230,7 @@ test('Source outline pages whole-document headings and jumps without losing undo
     await expect(
       outline.getByRole('button', { name: 'Added in Source', exact: true }),
     ).toBeEnabled()
-    await expect(page.locator('.editor-status')).toContainText('characters')
+    await expect(page.locator('.editor-status')).toContainText('Characters')
     await outline.getByRole('button', { name: 'Added in Source', exact: true }).click()
     await page.keyboard.press(`${modifier}+z`)
     await expect(outline.getByRole('button', { name: 'Added in Source', exact: true })).toHaveCount(

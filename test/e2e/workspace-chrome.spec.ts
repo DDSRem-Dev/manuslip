@@ -51,6 +51,7 @@ for (const theme of ['light', 'dark'])
         })
         for (const control of [
           details,
+          page.locator('.local-time'),
           page.getByRole('button', { name: chinese ? '保存' : 'Save', exact: true }),
           page.getByRole('button', { name: chinese ? '偏好设置' : 'Preferences', exact: true }),
         ])
@@ -82,6 +83,10 @@ for (const theme of ['light', 'dark'])
           exact: true,
         })
         await expect(panel).toBeVisible()
+        await expect(page.locator('.local-time')).toHaveText(/^\d{2}:\d{2}$/)
+        await expect(panel).not.toContainText(
+          chinese ? '按 UTF-8 和 LF 换行符计算' : 'UTF-8 with LF line endings',
+        )
         await expect(details).toHaveText(chinese ? '9 个词' : '9 words')
         await expect(details).toHaveAttribute('aria-expanded', 'true')
         await expect(panel.getByText(path, { exact: true })).toBeVisible()

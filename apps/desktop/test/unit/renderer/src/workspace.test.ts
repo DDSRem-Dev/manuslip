@@ -7,6 +7,7 @@ import type { FileBridge, FileSnapshot } from '../../../../src/shared/file-contr
 import type {
   WorkspaceBootstrap,
   WorkspaceBridge,
+  WorkspaceChange,
 } from '../../../../src/shared/workspace-contracts'
 
 function snapshot(id = randomUUID(), named = true): FileSnapshot {
@@ -65,8 +66,10 @@ function setup() {
     onFileChanged: () => () => {},
     workspace: vi.fn(async () => ({ ok: true as const, value })),
     chooseWorkspace: async () => ({ ok: true, value }),
+    closeWorkspace: vi.fn(async () => ({ ok: true as const, value: { ...value, root: null } })),
     recentWorkspace: async () => ({ ok: true, value }),
     refreshWorkspace: async () => ({ ok: true, value }),
+    onWorkspaceChanged: () => () => {},
     listWorkspace: async () => ({
       ok: true,
       value: { nodes: [], next: null, truncated: false, skippedLinks: false },
@@ -86,6 +89,86 @@ function setup() {
 afterEach(() => vi.useRealTimers())
 
 describe('renderer session restoration', () => {
+  it('keeps open documents and unsaved edits when the workspace folder is closed', async () => {
+    vi.useFakeTimers()
+    const { value, documents, bridge, workspace } = setup()
+    value.root = { id: randomUUID(), name: 'Notes', displayPath: '/Notes', kind: 'directory' }
+    await workspace.start()
+    const active = documents.active
+    active?.dispatch({ changes: { from: 0, insert: 'Keep these unsaved edits. ' } })
+
+    await workspace.close()
+    expect(bridge.closeWorkspace).toHaveBeenCalledOnce()
+    expect(workspace.store.getState().value?.root).toBeNull()
+    expect(documents.active).toBe(active)
+    expect(active?.state.doc.toString()).toBe('Keep these unsaved edits. body')
+    expect(bridge.closeDocument).not.toHaveBeenCalled()
+    await documents.command('close-window')
+  })
+
+  it('keeps the folder available when closing fails', async () => {
+    vi.useFakeTimers()
+    const { value, documents, bridge, workspace } = setup()
+    value.root = { id: randomUUID(), name: 'Notes', displayPath: '/Notes', kind: 'directory' }
+    await workspace.start()
+    vi.mocked(bridge.closeWorkspace).mockResolvedValueOnce({
+      ok: false,
+      error: 'Folder unavailable',
+      code: 'workspace-session',
+    })
+
+    await workspace.close()
+    expect(workspace.store.getState()).toMatchObject({
+      value: { root: value.root },
+      error: 'workspace-session',
+      busy: false,
+    })
+    await documents.command('close-window')
+  })
+  it('routes directory notifications only to the current workspace and unsubscribes cleanly', async () => {
+    vi.useFakeTimers()
+    const { value, bridge, workspace, documents } = setup()
+    const rootId = randomUUID(),
+      directoryId = randomUUID()
+    value.root = { id: rootId, kind: 'directory', name: 'writing', displayPath: '/writing' }
+    let notify: (change: WorkspaceChange) => void = () => {}
+    const unsubscribe = vi.fn()
+    bridge.onWorkspaceChanged = (listener) => {
+      notify = listener
+      return unsubscribe
+    }
+    const stop = workspace.watch()
+    await workspace.start()
+    const changed = vi.fn(),
+      other = vi.fn()
+    const stopDirectory = workspace.onDirectoryChanged(directoryId, changed)
+    workspace.onDirectoryChanged(randomUUID(), other)
+    notify({ rootId: randomUUID(), directoryId })
+    expect(changed).not.toHaveBeenCalled()
+    notify({ rootId, directoryId })
+    expect(changed).toHaveBeenCalledOnce()
+    expect(other).not.toHaveBeenCalled()
+    stopDirectory()
+    notify({ rootId, directoryId })
+    expect(changed).toHaveBeenCalledOnce()
+    stop()
+    expect(unsubscribe).toHaveBeenCalledOnce()
+    await documents.command('close-window')
+  })
+  it('serializes folder requests and continues after a failed listing', async () => {
+    const { bridge, workspace } = setup()
+    const first = deferred<Awaited<ReturnType<WorkspaceBridge['listWorkspace']>>>()
+    const list = vi.fn(bridge.listWorkspace).mockImplementationOnce(() => first.promise)
+    bridge.listWorkspace = list
+    const a = workspace.list(randomUUID()),
+      b = workspace.list(randomUUID())
+    await Promise.resolve()
+    expect(list).toHaveBeenCalledOnce()
+    first.resolve({ ok: false, code: 'file-missing', error: 'Missing folder' })
+    expect((await a).ok).toBe(false)
+    expect((await b).ok).toBe(true)
+    expect(list).toHaveBeenCalledTimes(2)
+  })
   it('never publishes a partial restored session and preserves an existing dirty draft', async () => {
     vi.useFakeTimers()
     const { a, b, bridge, documents, workspace } = setup()

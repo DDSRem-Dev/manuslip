@@ -61,7 +61,6 @@ test('one toolbar keeps tabs and native editing aligned across window sizes', as
     await expect(
       page.getByRole('navigation', { name: 'Workspace files', exact: true }),
     ).toContainText('First.md')
-    await page.getByRole('button', { name: 'Outline', exact: true }).click()
     await expect(
       page.getByRole('navigation', { name: 'Document headings', exact: true }),
     ).toBeVisible()

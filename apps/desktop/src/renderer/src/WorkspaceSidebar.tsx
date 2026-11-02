@@ -1,185 +1,203 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { useStore } from 'zustand'
-import type {
-  WorkspaceBridge,
-  WorkspaceNode,
-  WorkspacePage,
-} from '../../shared/workspace-contracts'
+import type { WorkspaceNode, WorkspacePage } from '../../shared/workspace-contracts'
 import { Icon } from './Icons'
 import { i18next } from './i18n'
 import type { WorkspaceController } from './workspace'
 
 function Directory({
   node,
-  bridge,
   controller,
   busy,
-  initial = false,
+  path,
+  activePath,
+  root = false,
+  closeFolder,
 }: {
   node: WorkspaceNode
-  bridge: WorkspaceBridge
   controller: WorkspaceController
   busy: boolean
-  initial?: boolean
+  path: string
+  activePath: string | null
+  root?: boolean
+  closeFolder?: () => void
 }): React.JSX.Element {
-  const [expanded, setExpanded] = useState(initial)
+  const contentId = useId()
+  const [expanded, setExpanded] = useState(root)
   const [page, setPage] = useState<WorkspacePage | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const alive = useRef(true)
-  const inFlight = useRef(false)
+  const [revision, setRevision] = useState(0)
+  const [pages, setPages] = useState(1)
   useEffect(
-    () => () => {
-      alive.current = false
-    },
-    [],
+    () => controller.onDirectoryChanged(node.id, () => setRevision((value) => value + 1)),
+    [controller, node.id],
   )
-  const load = useCallback(
-    async (offset = 0): Promise<void> => {
-      if (inFlight.current) return
-      inFlight.current = true
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Filesystem notifications and retries explicitly invalidate this listing.
+  useEffect(() => {
+    if (!expanded) return
+    let cancelled = false
+    const load = async (): Promise<void> => {
       setLoading(true)
       setError('')
       try {
-        const result = await bridge.listWorkspace(node.id, offset)
-        if (!alive.current) return
-        if (!result.ok) {
-          setError(result.code || 'workspace-session')
-          return
+        const nodes: WorkspaceNode[] = []
+        let offset = 0
+        let loaded = 0
+        while (!cancelled) {
+          const result = await controller.list(node.id, offset)
+          if (cancelled) return
+          if (!result.ok) throw new Error(result.code || 'workspace-session')
+          nodes.push(...result.value.nodes)
+          if (result.value.next === null || ++loaded >= pages) {
+            setPage({ ...result.value, nodes })
+            break
+          }
+          offset = result.value.next
         }
-        setPage((previous) => ({
-          ...result.value,
-          nodes: offset ? [...(previous?.nodes || []), ...result.value.nodes] : result.value.nodes,
-        }))
-      } catch {
-        if (alive.current) setError('workspace-session')
+      } catch (error) {
+        if (!cancelled) setError(error instanceof Error ? error.message : 'workspace-session')
       } finally {
-        inFlight.current = false
-        if (alive.current) setLoading(false)
+        if (!cancelled) setLoading(false)
       }
-    },
-    [bridge, node.id],
-  )
-  useEffect(() => {
-    if (expanded && !page && !loading && !error) void load()
-  }, [expanded, page, loading, error, load])
+    }
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [expanded, node.id, controller, revision, pages])
   const t = i18next.t.bind(i18next)
-  return (
-    <details
-      open={expanded}
-      onToggle={(event) => setExpanded(event.currentTarget.open)}
-      className="file-directory"
-    >
-      <summary>
-        <Icon name="folder" size={16} />
-        <bdi>{node.name}</bdi>
-      </summary>
-      {expanded && (
-        <div className="directory-content">
-          {loading && <p role="status">{t('loadingFiles')}</p>}
-          {error && (
-            <p role="alert">
-              {t(error)}{' '}
-              <button type="button" onClick={() => void load(page?.nodes.length || 0)}>
-                {t('retry')}
-              </button>
-            </p>
-          )}
-          {page && !page.nodes.length && !loading && <p>{t('emptyFolder')}</p>}
-          <ul>
-            {page?.nodes.map((child) => (
-              <li key={child.id}>
-                {child.kind === 'directory' ? (
-                  <Directory node={child} bridge={bridge} controller={controller} busy={busy} />
-                ) : (
-                  <button
-                    className="file-entry"
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void controller.open(child.id)}
-                  >
-                    <Icon name="document" size={16} />
-                    <bdi>{child.name}</bdi>
-                  </button>
-                )}
-              </li>
-            ))}
-          </ul>
-          {page?.next !== null && page?.next !== undefined && (
-            <button type="button" disabled={loading} onClick={() => void load(page.next || 0)}>
-              {t('moreFiles')}
-            </button>
-          )}
-          {page?.truncated && <p>{t('folderTruncated')}</p>}
-          {page?.skippedLinks && <p>{t('folderLinks')}</p>}
-        </div>
-      )}
-    </details>
+  const label = (
+    <>
+      <Icon name={expanded ? 'chevron' : 'chevronRight'} size={12} />
+      <Icon name={expanded ? 'open' : 'folder'} size={16} />
+      <bdi>{node.name}</bdi>
+    </>
   )
+  const content = expanded && (
+    <div id={contentId} className="directory-content" aria-busy={loading}>
+      {root && (
+        <p className="workspace-path" title={path} dir="auto">
+          {path}
+        </p>
+      )}
+      {loading && !page && <p role="status">{t('loadingFiles')}</p>}
+      {error && (
+        <p role="alert">
+          {t(error)}{' '}
+          <button type="button" onClick={() => setRevision((value) => value + 1)}>
+            {t('retry')}
+          </button>
+        </p>
+      )}
+      {page && !page.nodes.length && !loading && <p>{t('emptyFolder')}</p>}
+      <ul>
+        {page?.nodes.map((child) => (
+          <li key={child.id}>
+            {child.kind === 'directory' ? (
+              <Directory
+                node={child}
+                controller={controller}
+                busy={busy}
+                path={childPath(path, child.name)}
+                activePath={activePath}
+              />
+            ) : (
+              <button
+                className="file-entry"
+                type="button"
+                disabled={busy}
+                title={childPath(path, child.name)}
+                aria-current={activePath === childPath(path, child.name) ? 'page' : undefined}
+                onClick={() => void controller.open(child.id)}
+              >
+                <Icon name="document" size={16} />
+                <bdi>{child.name}</bdi>
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+      {page?.next !== null && page?.next !== undefined && (
+        <button type="button" disabled={loading} onClick={() => setPages((value) => value + 1)}>
+          {t('moreFiles')}
+        </button>
+      )}
+      {page?.truncated && <p>{t('folderTruncated')}</p>}
+      {page?.skippedLinks && <p>{t('folderLinks')}</p>}
+    </div>
+  )
+  if (!root)
+    return (
+      <details
+        open={expanded}
+        onToggle={(event) => setExpanded(event.currentTarget.open)}
+        className="file-directory"
+      >
+        <summary title={path}>{label}</summary>
+        {content}
+      </details>
+    )
+  return (
+    <div className="file-directory workspace-root">
+      <div className="workspace-folder-heading">
+        <button
+          className="workspace-folder-toggle"
+          type="button"
+          title={node.name}
+          aria-expanded={expanded}
+          aria-controls={expanded ? contentId : undefined}
+          onClick={() => setExpanded((value) => !value)}
+        >
+          {label}
+        </button>
+        <button
+          className="icon-button workspace-folder-close"
+          type="button"
+          disabled={busy}
+          aria-label={t('closeFolder')}
+          title={t('closeFolder')}
+          onClick={closeFolder}
+        >
+          <Icon name="close" size={14} />
+        </button>
+      </div>
+      {content}
+    </div>
+  )
+}
+
+function childPath(parent: string, name: string): string {
+  return `${parent.replace(/[\\/]$/, '')}${parent.includes('\\') ? '\\' : '/'}${name}`
 }
 
 export function WorkspaceSidebar({
   controller,
-  bridge,
   busy,
-  panel = false,
+  activePath,
+  closeFolder,
 }: {
   controller: WorkspaceController
-  bridge: WorkspaceBridge
   busy: boolean
-  panel?: boolean
+  activePath: string | null
+  closeFolder: () => void
 }): React.JSX.Element {
   const state = useStore(controller.store)
-  const [expanded, setExpanded] = useState(() => !window.matchMedia('(max-width: 44rem)').matches)
-  useEffect(() => {
-    const query = window.matchMedia('(max-width: 44rem)')
-    const changed = (): void => setExpanded(!query.matches)
-    query.addEventListener('change', changed)
-    return () => query.removeEventListener('change', changed)
-  }, [])
   const t = i18next.t.bind(i18next)
   return (
-    <details
-      className="workspace-browser"
-      open={panel || expanded}
-      onToggle={(event) => setExpanded(event.currentTarget.open)}
-    >
-      <summary hidden={panel}>
-        <Icon name="folder" size={16} />
-        {t('files')}
-        <Icon name="chevron" size={12} />
-      </summary>
+    <section className="workspace-browser" aria-label={t('files')}>
       <div className="workspace-browser-content">
-        <div className="workspace-actions">
-          <button type="button" disabled={busy} onClick={() => void controller.choose()}>
-            <Icon name="open" size={16} />
-            {t('openFolder')}
-          </button>
-          {state.value?.root && (
-            <button
-              className="icon-button"
-              type="button"
-              aria-label={t('refreshFiles')}
-              title={t('refreshFiles')}
-              disabled={state.busy}
-              onClick={() => void controller.refresh()}
-            >
-              <Icon name="refresh" size={16} />
-            </button>
-          )}
-        </div>
         {state.value?.root ? (
           <nav aria-label={t('workspaceFiles')}>
-            <p className="workspace-path" title={state.value.root.displayPath}>
-              {state.value.root.displayPath}
-            </p>
             <Directory
               key={state.value.root.id}
               node={state.value.root}
-              bridge={bridge}
               controller={controller}
               busy={busy}
-              initial
+              path={state.value.root.displayPath}
+              activePath={activePath}
+              root
+              closeFolder={closeFolder}
             />
           </nav>
         ) : (
@@ -205,7 +223,7 @@ export function WorkspaceSidebar({
           </details>
         )}
       </div>
-    </details>
+    </section>
   )
 }
 

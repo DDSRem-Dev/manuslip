@@ -47,8 +47,8 @@ export class SearchController {
   expand(expanded: boolean): void {
     this.store.setState({ expanded })
   }
-  show(mode: SearchRequest['mode']): void {
-    if (this.store.getState().mode !== mode) this.mode(mode)
+  show(): void {
+    if (this.store.getState().mode !== 'filename') this.mode('filename')
     this.store.setState((state) => ({ expanded: true, focusRequest: state.focusRequest + 1 }))
   }
   setRoot(rootId: string | null): void {

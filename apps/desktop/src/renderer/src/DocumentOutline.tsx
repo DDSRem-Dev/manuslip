@@ -1,3 +1,4 @@
+import type { Heading } from '@manuslip/core'
 import { useEffect, useState } from 'react'
 import type { DocumentController } from './document'
 import { Icon } from './Icons'
@@ -6,6 +7,55 @@ import { useDocumentStatus } from './use-document-status'
 
 function revealHeading(document: DocumentController, from: number): () => void {
   return () => document.revealRange(from)
+}
+
+interface OutlineItem {
+  heading: Heading
+  children: OutlineItem[]
+}
+
+function nestHeadings(headings: readonly Heading[]): OutlineItem[] {
+  const roots: OutlineItem[] = []
+  const parents: OutlineItem[] = []
+  for (const heading of headings) {
+    while ((parents.at(-1)?.heading.depth ?? 0) >= heading.depth) parents.pop()
+    const item: OutlineItem = { heading, children: [] }
+    const siblings = parents.at(-1)?.children ?? roots
+    siblings.push(item)
+    parents.push(item)
+  }
+  return roots
+}
+
+function OutlineList({
+  items,
+  document,
+  disabled,
+}: {
+  items: OutlineItem[]
+  document: DocumentController
+  disabled: boolean
+}): React.JSX.Element {
+  return (
+    <ul className="outline-list">
+      {items.map(({ heading, children }) => (
+        <li key={`${heading.from}:${heading.to}`}>
+          <button
+            type="button"
+            disabled={disabled}
+            data-depth={heading.depth}
+            onClick={revealHeading(document, heading.from)}
+          >
+            <span className="outline-marker" aria-hidden="true" />
+            <bdi>{heading.text || i18next.t('emptyHeading')}</bdi>
+          </button>
+          {!!children.length && (
+            <OutlineList items={children} document={document} disabled={disabled} />
+          )}
+        </li>
+      ))}
+    </ul>
+  )
 }
 
 export function DocumentOutline({
@@ -50,20 +100,11 @@ export function DocumentOutline({
             </p>
           )}
           {current && !outline.length && <p>{t('noHeadings')}</p>}
-          <ol>
-            {outline.slice(0, visible).map((heading) => (
-              <li key={`${heading.from}:${heading.to}`}>
-                <button
-                  type="button"
-                  disabled={busy || !current || status.composing}
-                  style={{ paddingInlineStart: 12 + (heading.depth - 1) * 10 }}
-                  onClick={revealHeading(document, heading.from)}
-                >
-                  <bdi>{heading.text || t('emptyHeading')}</bdi>
-                </button>
-              </li>
-            ))}
-          </ol>
+          <OutlineList
+            items={nestHeadings(outline.slice(0, visible))}
+            document={document}
+            disabled={busy || !current || status.composing}
+          />
           {outline.length > visible && (
             <button type="button" onClick={() => setVisible((count) => count + 200)}>
               {t('moreHeadings')}

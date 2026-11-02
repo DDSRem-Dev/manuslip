@@ -15,13 +15,19 @@ export const workspaceChannels = {
   forget: 'manuslip:workspace:forget',
   bootstrap: 'manuslip:workspace:bootstrap',
   choose: 'manuslip:workspace:choose',
+  close: 'manuslip:workspace:close',
   recent: 'manuslip:workspace:recent',
   refresh: 'manuslip:workspace:refresh',
   list: 'manuslip:workspace:list',
   open: 'manuslip:workspace:open',
   restore: 'manuslip:workspace:restore',
   remember: 'manuslip:workspace:remember',
+  changed: 'manuslip:workspace:changed',
 } as const
+export interface WorkspaceChange {
+  rootId: string
+  directoryId: string
+}
 export interface WorkspaceNode {
   id: string
   name: string
@@ -61,12 +67,18 @@ export interface WorkspaceBridge {
   forgetSessionFile(id: string): Promise<Result<null>>
   workspace(): Promise<Result<WorkspaceBootstrap>>
   chooseWorkspace(): Promise<Result<WorkspaceBootstrap | null>>
+  closeWorkspace(): Promise<Result<WorkspaceBootstrap>>
   recentWorkspace(id: string): Promise<Result<WorkspaceBootstrap>>
   refreshWorkspace(): Promise<Result<WorkspaceBootstrap>>
   listWorkspace(id: string, offset?: number): Promise<Result<WorkspacePage>>
   openWorkspaceFile(id: string): Promise<Result<FileSnapshot>>
   restoreSessionFile(id: string): Promise<Result<FileSnapshot>>
   rememberDocuments(ids: string[], activeId: string | null): Promise<Result<null>>
+  onWorkspaceChanged(listener: (change: WorkspaceChange) => void): () => void
+}
+export function parseWorkspaceChange(value: unknown): WorkspaceChange {
+  const input = record(value)
+  return { rootId: parseId(input.rootId), directoryId: parseId(input.directoryId) }
 }
 export function parseRememberDocuments(value: unknown): RememberDocuments {
   const input = record(value)

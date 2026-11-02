@@ -1,5 +1,12 @@
 import { defaultEditorPreferences } from '@manuslip/editor/preferences'
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react'
 import { useStore } from 'zustand'
 import appIcon from '../../../build/icon.svg?url'
 import type { Bootstrap, Settings } from '../../shared/contracts'
@@ -46,19 +53,47 @@ export function App(): React.JSX.Element {
   const folder = useStore(workspace.store)
   const tabs = useStore(documents.store)
   const activeDocument = documents.active
+  const activePath = useSyncExternalStore(
+    useCallback(
+      (notify) => activeDocument?.store.subscribe(notify) ?? (() => {}),
+      [activeDocument],
+    ),
+    () => activeDocument?.store.getState().info.displayPath || null,
+  )
   const fileBusy = tabs.busy || folder.busy
   const [fileCommandFocus, setFileCommandFocus] = useState<HTMLButtonElement | null>(null)
   const [preferencesOpen, setPreferencesOpen] = useState(false)
   const [preferencePage, setPreferencePage] = useState<PreferencesPage>('general')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true)
-  const [workspacePage, setWorkspacePage] = useState<'files' | 'search' | 'outline'>('files')
+  const [workspaceSearchOpen, setWorkspaceSearchOpen] = useState(false)
+  const searchToggle = useRef<HTMLButtonElement>(null)
+  const openFolderButton = useRef<HTMLButtonElement>(null)
   const [toolbarHost, setToolbarHost] = useState<HTMLDivElement | null>(null)
   const searchFocusRequest = useStore(search.store, (state) => state.focusRequest)
   useLayoutEffect(() => {
     if (!searchFocusRequest) return
     setSidebarCollapsed(false)
-    setWorkspacePage('search')
+    setWorkspaceSearchOpen(true)
   }, [searchFocusRequest])
+  useEffect(() => workspace.watch(), [workspace])
+  useEffect(() => {
+    if (!workspaceSearchOpen || sidebarCollapsed) return
+    const dismiss = (event: KeyboardEvent): void => {
+      if (
+        event.key !== 'Escape' ||
+        event.defaultPrevented ||
+        !(event.target instanceof HTMLElement) ||
+        !event.target.closest('#workspace-sidebar')
+      )
+        return
+      event.preventDefault()
+      setWorkspaceSearchOpen(false)
+      const focusTarget = folder.value?.root ? searchToggle.current : openFolderButton.current
+      focusTarget?.focus()
+    }
+    window.addEventListener('keydown', dismiss)
+    return () => window.removeEventListener('keydown', dismiss)
+  }, [workspaceSearchOpen, sidebarCollapsed, folder.value?.root])
   useEffect(() => trackLayerMotion(window), [])
   useEffect(() => {
     void loadPluginCatalog(window.manuslip)
@@ -79,13 +114,13 @@ export function App(): React.JSX.Element {
       setFileCommandFocus(focused instanceof HTMLButtonElement ? focused : null)
       if (value === 'open-folder') {
         setSidebarCollapsed(false)
-        setWorkspacePage('files')
+        setWorkspaceSearchOpen(false)
         await workspace.choose()
       } else if (value === 'find-file' || value === 'search-workspace') {
         setPreferencesOpen(false)
         setSidebarCollapsed(false)
-        setWorkspacePage('search')
-        search.show(value === 'find-file' ? 'filename' : 'text')
+        setWorkspaceSearchOpen(true)
+        search.show()
       } else await documents.command(value)
     },
     [workspace, documents, search],
@@ -274,16 +309,21 @@ export function App(): React.JSX.Element {
       type="button"
       aria-label={t(sidebarCollapsed ? 'showWorkspace' : 'hideWorkspace')}
       title={t(sidebarCollapsed ? 'showWorkspace' : 'hideWorkspace')}
-      aria-controls="workspace-sidebar"
+      aria-controls="workspace-sidebar workspace-outline"
       aria-expanded={!sidebarCollapsed}
-      onClick={() => setSidebarCollapsed((value) => !value)}
+      onClick={() => {
+        if (sidebarCollapsed) setWorkspaceSearchOpen(false)
+        setSidebarCollapsed((value) => !value)
+      }}
     >
       <Icon name="sidebar" />
     </button>
   )
 
   return (
-    <div className={`app-shell${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
+    <div
+      className={`app-shell${sidebarCollapsed ? ' sidebar-collapsed' : ''}${workspaceSearchOpen ? ' workspace-search-open' : ''}`}
+    >
       <a className="skip-link" href="#content">
         {t('skip')}
       </a>
@@ -334,51 +374,61 @@ export function App(): React.JSX.Element {
         aria-label={t('workspace')}
         hidden={sidebarCollapsed}
       >
-        <nav className="workspace-switcher" aria-label={t('workspace')}>
-          {(
-            [
-              ['files', 'folder', 'files'],
-              ['search', 'search', 'workspaceSearch'],
-              ['outline', 'outline', 'outline'],
-            ] as const
-          ).map(([page, icon, label]) => (
+        <div className="workspace-heading">
+          <h2>{t('files')}</h2>
+          <div className="workspace-heading-actions">
             <button
-              key={page}
+              ref={searchToggle}
+              className="icon-button workspace-file-search"
+              type="button"
+              hidden={!folder.value?.root && !workspaceSearchOpen}
+              aria-label={t(workspaceSearchOpen ? 'closeWorkspaceSearch' : 'filenameQuery')}
+              title={t(workspaceSearchOpen ? 'closeWorkspaceSearch' : 'filenameQuery')}
+              aria-controls="workspace-search-panel"
+              aria-expanded={workspaceSearchOpen}
+              aria-keyshortcuts="Control+p Meta+p"
+              onClick={() => {
+                if (workspaceSearchOpen) {
+                  setWorkspaceSearchOpen(false)
+                  if (!folder.value?.root) openFolderButton.current?.focus()
+                } else void command('find-file')
+              }}
+            >
+              <Icon name={workspaceSearchOpen ? 'close' : 'search'} size={16} />
+            </button>
+            <button
+              ref={openFolderButton}
               className="icon-button"
               type="button"
-              aria-label={t(label)}
-              title={t(label)}
-              aria-pressed={workspacePage === page}
-              onClick={() => setWorkspacePage(page)}
+              aria-label={t('openFolder')}
+              title={t('openFolder')}
+              disabled={fileBusy}
+              onClick={() => void command('open-folder')}
             >
-              <Icon name={icon} />
+              <Icon name="open" size={16} />
             </button>
-          ))}
-          <span>{t(workspacePage === 'search' ? 'workspaceSearch' : workspacePage)}</span>
-        </nav>
+          </div>
+        </div>
         <div id="workspace-navigation" className="workspace-navigation">
-          <div hidden={workspacePage !== 'files'}>
+          <div hidden={workspaceSearchOpen}>
             <WorkspaceSidebar
               controller={workspace}
-              bridge={window.manuslip}
               busy={fileBusy}
-              panel
+              activePath={activePath}
+              closeFolder={() =>
+                void workspace.close().then(() => {
+                  if (!workspace.store.getState().value?.root) openFolderButton.current?.focus()
+                })
+              }
             />
           </div>
-          <div hidden={workspacePage !== 'search'}>
-            <WorkspaceSearch controller={search} busy={fileBusy} panel />
-          </div>
-          <div hidden={workspacePage !== 'outline'}>
-            {activeDocument ? (
-              <DocumentOutline
-                key={tabs.activeId}
-                document={activeDocument}
-                busy={fileBusy}
-                panel
-              />
-            ) : (
-              <p className="workspace-hint">{t('openDocument')}</p>
-            )}
+          <div id="workspace-search-panel" hidden={!workspaceSearchOpen}>
+            <WorkspaceSearch
+              controller={search}
+              busy={fileBusy}
+              chooseFolder={() => void workspace.choose()}
+              panel
+            />
           </div>
         </div>
       </aside>
@@ -494,6 +544,24 @@ export function App(): React.JSX.Element {
           </footer>
         )}
       </div>
+      <aside
+        id="workspace-outline"
+        className="outline-sidebar"
+        aria-label={t('outline')}
+        hidden={sidebarCollapsed}
+      >
+        <div className="workspace-heading">
+          <h2>{t('outline')}</h2>
+          <Icon name="outline" size={16} />
+        </div>
+        <div className="workspace-navigation">
+          {activeDocument ? (
+            <DocumentOutline key={tabs.activeId} document={activeDocument} busy={fileBusy} panel />
+          ) : (
+            <p className="workspace-hint">{t('outlineEmpty')}</p>
+          )}
+        </div>
+      </aside>
     </div>
   )
 }

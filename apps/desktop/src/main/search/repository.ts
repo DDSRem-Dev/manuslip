@@ -1,4 +1,4 @@
-import { join } from 'node:path'
+import { join, sep } from 'node:path'
 import fuzzysort from 'fuzzysort'
 import type { SearchOpened, SearchPage, SearchRequest } from '../../shared/search-contracts'
 import { searchLimits } from '../../shared/search-contracts'
@@ -126,7 +126,7 @@ export class SearchRepository {
       await verifyRoot(job.grant)
       const binary = await this.binary()
       if (job.abort.signal.aborted) return
-      const candidates: string[] = []
+      const candidates = new Set<string>()
       let candidateBytes = 0
       const outcome = await this.run(
         binary,
@@ -153,10 +153,16 @@ export class SearchRepository {
             job.skipped++
             return true
           }
-          candidateBytes += 128 + path.length * 2
-          if (candidates.length >= searchLimits.files || candidateBytes > searchLimits.filenames)
+          const candidate = path.split(sep).join('/')
+          if (candidates.has(candidate)) return true
+          const weight = 128 + candidate.length * 2
+          if (
+            candidates.size >= searchLimits.files ||
+            candidateBytes + weight > searchLimits.filenames
+          )
             return false
-          candidates.push(path)
+          candidateBytes += weight
+          candidates.add(candidate)
           return true
         },
       )
@@ -164,7 +170,7 @@ export class SearchRepository {
       await verifyRoot(job.grant)
       job.truncated = outcome.truncated
       if (job.request.mode === 'filename') {
-        const results = fuzzysort.go(job.request.query, candidates, {
+        const results = fuzzysort.go(job.request.query.split(sep).join('/'), [...candidates], {
           limit: searchLimits.results + 1,
           threshold: 0,
         })

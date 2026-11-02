@@ -30,6 +30,8 @@ export class WorkspaceController {
   private saving: Promise<void> | null = null
   private timer: ReturnType<typeof setTimeout> | null = null
   private activeOverride: string | null | undefined
+  private listing: Promise<unknown> = Promise.resolve()
+  private readonly directoryListeners = new Map<string, Set<() => void>>()
   private readonly metadataSubscriptions = new Map<string, () => void>()
   constructor(
     private readonly bridge: WorkspaceBridge,
@@ -63,6 +65,29 @@ export class WorkspaceController {
   start(): Promise<void> {
     this.startup ??= this.load()
     return this.startup
+  }
+  watch(): () => void {
+    return this.bridge.onWorkspaceChanged(({ rootId, directoryId }) => {
+      if (rootId !== this.store.getState().value?.root?.id) return
+      for (const listener of this.directoryListeners.get(directoryId) || []) listener()
+    })
+  }
+  onDirectoryChanged(id: string, listener: () => void): () => void {
+    let listeners = this.directoryListeners.get(id)
+    if (!listeners) {
+      listeners = new Set()
+      this.directoryListeners.set(id, listeners)
+    }
+    listeners.add(listener)
+    return () => {
+      listeners.delete(listener)
+      if (!listeners.size) this.directoryListeners.delete(id)
+    }
+  }
+  list(id: string, offset = 0): ReturnType<WorkspaceBridge['listWorkspace']> {
+    const request = this.listing.then(() => this.bridge.listWorkspace(id, offset))
+    this.listing = request.catch(() => {})
+    return request
   }
   private async load(): Promise<void> {
     this.store.setState({ busy: true, restoring: true, error: null })
@@ -102,6 +127,9 @@ export class WorkspaceController {
   }
   recent(id: string): Promise<void> {
     return this.operation(() => this.bridge.recentWorkspace(id))
+  }
+  close(): Promise<void> {
+    return this.operation(() => this.bridge.closeWorkspace())
   }
   refresh(): Promise<void> {
     return this.operation(() => this.bridge.refreshWorkspace())

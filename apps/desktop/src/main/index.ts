@@ -1,6 +1,16 @@
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { app, BrowserWindow, clipboard, ipcMain, Menu, protocol, session, shell } from 'electron'
+import {
+  app,
+  BrowserWindow,
+  clipboard,
+  ipcMain,
+  Menu,
+  protocol,
+  screen,
+  session,
+  shell,
+} from 'electron'
 import { assetLimits } from '../shared/asset-contracts'
 import {
   type Bootstrap,
@@ -13,6 +23,7 @@ import {
 import { type DocumentCommand, fileChannels } from '../shared/file-contracts'
 import { parseAssetUrl } from '../shared/image-contracts'
 import { incomingChannels } from '../shared/incoming-contracts'
+import { workspaceChannels } from '../shared/workspace-contracts'
 import { registerAssetHandlers } from './assets/ipc'
 import { LocalAssets } from './assets/repository'
 import { ClipboardConverter } from './clipboard/converter'
@@ -214,9 +225,10 @@ async function createWindow(): Promise<void> {
   const developmentUrl = !app.isPackaged ? process.env.ELECTRON_RENDERER_URL : undefined
   rendererUrl =
     developmentUrl || pathToFileURL(join(import.meta.dirname, '../renderer/index.html')).href
+  const workArea = screen.getPrimaryDisplay().workAreaSize
   window = new BrowserWindow({
-    width: 1160,
-    height: 780,
+    width: Math.min(1360, workArea.width),
+    height: Math.min(900, workArea.height),
     minWidth: 360,
     minHeight: 500,
     title: 'Manuslip',
@@ -252,6 +264,7 @@ async function createWindow(): Promise<void> {
   })
   window.on('focus', () => {
     void files.checkExternal(owner)
+    workspaces.checkExternal(owner)
   })
   window.webContents.on('render-process-gone', () => {
     allowClose = true
@@ -453,8 +466,14 @@ if (primaryInstance)
         join(app.getPath('userData'), 'workspace-state.json'),
       )
       await workspaceState.load()
-      workspaces = new WorkspaceRepository(workspaceState, files, (owner) =>
-        searches?.closeOwner(owner),
+      workspaces = new WorkspaceRepository(
+        workspaceState,
+        files,
+        (owner) => searches?.closeOwner(owner),
+        (owner, change) => {
+          if (window && !window.isDestroyed() && window.webContents.id === owner)
+            window.webContents.send(workspaceChannels.changed, change)
+        },
       )
       searches = new SearchRepository(files)
       registerSearchHandlers(handle, () => window, workspaces, searches, files)

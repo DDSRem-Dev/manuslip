@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, sep } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { FileOperationError } from '../../../../src/main/files/errors'
 import { FileSessions } from '../../../../src/main/files/sessions'
@@ -10,7 +10,11 @@ import { type runSearchProcess, searchArguments } from '../../../../src/main/sea
 import { matchEntries, relativeFile } from '../../../../src/main/search/records'
 import { SearchRepository } from '../../../../src/main/search/repository'
 import { grantRoot } from '../../../../src/main/workspace/paths'
-import type { SearchPage, SearchRequest } from '../../../../src/shared/search-contracts'
+import {
+  type SearchPage,
+  type SearchRequest,
+  searchLimits,
+} from '../../../../src/shared/search-contracts'
 
 function request(query: string, mode: SearchRequest['mode'] = 'text'): SearchRequest {
   return { id: randomUUID(), rootId: randomUUID(), query, mode, matchCase: false }
@@ -97,6 +101,45 @@ describe('workspace search', () => {
       'other.TXT',
     ])
   })
+  it('returns each normalized file path once across result pages without exhausting the result limit', async () => {
+    await mkdir(join(root, 'chapters'))
+    await writeFile(join(root, 'notes.md'), 'Root notes')
+    await writeFile(join(root, 'chapters', 'notes.md'), 'Chapter notes')
+    const paths = [
+      'notes.md',
+      ...Array.from({ length: 54 }, (_, index) =>
+        join('chapters', index === 0 ? 'notes.md' : `notes-${index}.md`),
+      ),
+    ]
+    const run: typeof runSearchProcess = async (_binary, _root, _request, _signal, accept) => {
+      const records = [
+        ...Array.from({ length: searchLimits.results + 1 }, () => `.${sep}notes.md`),
+        ...paths.flatMap((path) => [path, `.${sep}${path}`, `chapters${sep}..${sep}${path}`]),
+      ]
+      for (const path of records)
+        if (!accept(Buffer.from(path))) return { truncated: true, failed: false }
+      return { truncated: false, failed: false }
+    }
+    repository = new SearchRepository(files, async () => 'binary', run)
+    const query = request('notes', 'filename')
+    repository.start(1, query, await grantRoot(root))
+    const first = await completed(repository, query.id)
+    const next = repository.poll(1, query.id, first.cursor)
+    const entries = [...first.entries, ...next.entries]
+    expect(first.total).toBe(paths.length)
+    expect(first.truncated).toBe(false)
+    expect(first.entries).toHaveLength(searchLimits.batch)
+    expect(next.entries).toHaveLength(paths.length - searchLimits.batch)
+    expect(entries.map((entry) => entry.path).sort()).toEqual(
+      paths.map((path) => path.split(sep).join('/')).sort(),
+    )
+    expect(new Set(entries.map((entry) => entry.id)).size).toBe(paths.length)
+    const hit = entries.find((entry) => entry.path === 'chapters/notes.md')
+    const opened = await repository.open(1, query.id, hit?.id || '')
+    expect(opened.anchor).toBeNull()
+    expect(opened.file.text).toBe('Chapter notes')
+  })
+
   it('caps matches, pages bounded batches, treats patterns literally and obeys case selection', async () => {
     await writeFile(join(root, 'matches.md'), 'needle\n'.repeat(510))
     const query = request('needle')

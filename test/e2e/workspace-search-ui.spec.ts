@@ -133,6 +133,11 @@ for (const state of states)
       }, state.rtl)
       const panel = page.locator('.workspace-search')
       await expect(panel).toHaveAttribute('open', '')
+      await expect(page.locator('#workspace-search-mode')).toHaveValue('filename')
+      if (state.mode === 'text') {
+        await page.locator('#workspace-search-mode').selectOption('text')
+        await page.locator('#workspace-query').focus()
+      }
       const query = page.locator('#workspace-query')
       const results = panel.locator('.search-results button')
       const status = panel.locator('[role=status]')

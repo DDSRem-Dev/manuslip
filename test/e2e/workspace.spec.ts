@@ -1,4 +1,13 @@
-import { mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises'
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  realpath,
+  rename,
+  rm,
+  writeFile,
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { type ElectronApplication, expect, type Page, test } from '@playwright/test'
@@ -46,7 +55,7 @@ async function cleanup(application: ElectronApplication, directory: string): Pro
   await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })
 }
 
-test('folder navigation preserves drafts, refreshes safely and restores named tabs in order after closing', async () => {
+test('folder navigation preserves drafts, updates automatically and restores named tabs in order after closing', async () => {
   const directory = await realpath(await mkdtemp(join(tmpdir(), 'manuslip-workspace-e2e-')))
   const root = join(directory, '写作项目')
   const profile = join(directory, 'profile')
@@ -85,10 +94,43 @@ test('folder navigation preserves drafts, refreshes safely and restores named ta
     await expect(editor).toHaveText('draft retained while browsing')
     await navigation.getByRole('button', { name: 'notes.md', exact: true }).click()
     await expect(page.getByRole('tab')).toHaveCount(3)
+    await expect(page.locator('.workspace-switcher')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Refresh', exact: true })).toHaveCount(0)
+    const headings = page.getByRole('navigation', { name: 'Document headings' })
+    await expect(headings.getByRole('button', { name: 'Notes', exact: true })).toBeVisible()
+    const positions = await page.evaluate(() => {
+      const files = document.querySelector('.sidebar')?.getBoundingClientRect()
+      const editor = document.querySelector('.main-column')?.getBoundingClientRect()
+      const outline = document.querySelector('.outline-sidebar')?.getBoundingClientRect()
+      return {
+        filesEnd: files?.right,
+        editorStart: editor?.left,
+        editorEnd: editor?.right,
+        outlineStart: outline?.left,
+      }
+    })
+    expect(positions.filesEnd).toBe(positions.editorStart)
+    expect(positions.editorEnd).toBe(positions.outlineStart)
+    await folder.focus()
     await writeFile(join(root, 'new.md'), '# New file')
-    await page.getByRole('button', { name: 'Refresh', exact: true }).click()
     await expect(navigation.getByRole('button', { name: 'new.md', exact: true })).toBeVisible()
+    await expect(folder).toBeFocused()
+    await expect(navigation.getByRole('button', { name: 'chapter.md', exact: true })).toBeVisible()
+    await writeFile(join(root, 'chapters', 'next.md'), '# Next chapter')
+    await expect(navigation.getByRole('button', { name: 'next.md', exact: true })).toBeVisible()
+    await rename(join(root, 'new.md'), join(root, 'moved.md'))
+    await expect(navigation.getByRole('button', { name: 'new.md', exact: true })).toHaveCount(0)
+    await expect(navigation.getByRole('button', { name: 'moved.md', exact: true })).toBeVisible()
+    await rm(join(root, 'moved.md'))
+    await expect(navigation.getByRole('button', { name: 'moved.md', exact: true })).toHaveCount(0)
     await expect(page.getByRole('tab')).toHaveCount(3)
+    await page.getByRole('button', { name: 'Find a file', exact: true }).click()
+    await expect(page.locator('#workspace-query')).toBeFocused()
+    await page.locator('#workspace-query').fill('next')
+    await expect(page.locator('.search-results')).toContainText('next.md')
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('button', { name: 'Find a file', exact: true })).toBeFocused()
+    await expect(navigation.getByRole('button', { name: 'chapter.md', exact: true })).toBeVisible()
     await checkWorkspaceContrast(page)
     await page.screenshot({ path: test.info().outputPath('workspace-light.png') })
     await application.evaluate(
@@ -99,6 +141,9 @@ test('folder navigation preserves drafts, refreshes safely and restores named ta
     )
     await clickDocumentAction(page, 'Save As…')
     await expect(page.getByRole('tab', { name: 'renamed.md', exact: true })).toBeVisible()
+    await expect(
+      navigation.getByRole('button', { name: 'renamed.md', exact: true }),
+    ).toHaveAttribute('aria-current', 'page')
     await page.getByRole('tab', { name: 'chapter.md', exact: true }).click()
     await application.evaluate(({ dialog, BrowserWindow }) => {
       dialog.showMessageBox = async () => ({ response: 1, checkboxChecked: false })
@@ -147,7 +192,7 @@ test('folder navigation preserves drafts, refreshes safely and restores named ta
     await page.getByRole('button', { name: '收起写作空间', exact: true }).click()
     await page.getByRole('button', { name: '展开写作空间', exact: true }).click()
     await expect(
-      page.locator('.workspace-switcher').getByText('文件', { exact: true }),
+      page.locator('.sidebar').getByRole('heading', { name: '文件', exact: true }),
     ).toBeVisible()
     await expect(page.getByRole('button', { name: '打开文件夹…', exact: true })).toBeVisible()
     await page

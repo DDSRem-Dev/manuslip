@@ -19,7 +19,7 @@ import { grantRoot } from '../../../../src/main/workspace/paths'
 import { WorkspaceRepository } from '../../../../src/main/workspace/repository'
 import { WorkspaceStateRepository } from '../../../../src/main/workspace/state'
 import type { FileInfo, SaveRequest } from '../../../../src/shared/file-contracts'
-import { workspaceLimits } from '../../../../src/shared/workspace-contracts'
+import { type WorkspaceChange, workspaceLimits } from '../../../../src/shared/workspace-contracts'
 
 function request(info: FileInfo): SaveRequest {
   return {
@@ -48,6 +48,8 @@ describe('main workspace grants and state', () => {
     workspaces = new WorkspaceRepository(state, files)
   })
   afterEach(async () => {
+    workspaces.closeOwner(1)
+    workspaces.closeOwner(2)
     await files.closeOwner(1)
     await files.closeOwner(2)
     await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
@@ -96,7 +98,68 @@ describe('main workspace grants and state', () => {
       const next = await catalog.list(catalog.root.id, first.next || 0)
       expect(next.nodes).toHaveLength(workspaceLimits.page)
       expect(next.nodes.some((node) => first.nodes.some((item) => item.id === node.id))).toBe(false)
+      catalog.dispose()
     })
+  })
+  it('watches browsed directories while preserving unchanged IDs and revoking removed subtrees', async () => {
+    const changes: { owner: number; change: WorkspaceChange }[] = []
+    workspaces = new WorkspaceRepository(state, files, undefined, (owner, change) =>
+      changes.push({ owner, change }),
+    )
+    await mkdir(join(root, 'chapters'))
+    await writeFile(join(root, 'notes.md'), 'notes')
+    await writeFile(join(root, 'chapters', 'first.md'), 'first chapter')
+    const boot = await workspaces.choose(1, root)
+    const rootId = boot.root?.id || ''
+    const first = await workspaces.list(1, rootId, 0)
+    const chapterId = first.nodes[0]?.id || ''
+    const child = (await workspaces.list(1, chapterId, 0)).nodes[0]
+    const opened = await workspaces.open(1, child?.id || '')
+
+    await writeFile(join(root, 'new.md'), 'new')
+    await expect
+      .poll(() =>
+        changes.some(
+          ({ owner, change }) =>
+            owner === 1 && change.rootId === rootId && change.directoryId === rootId,
+        ),
+      )
+      .toBe(true)
+    const updated = await workspaces.list(1, rootId, 0)
+    expect(updated.nodes.map((node) => node.name)).toEqual(['chapters', 'new.md', 'notes.md'])
+    expect(updated.nodes.filter((node) => node.name !== 'new.md')).toEqual(first.nodes)
+    expect(workspaces.describe(1).root?.id).toBe(rootId)
+
+    await rename(join(root, 'chapters', 'first.md'), join(root, 'chapters', 'renamed.md'))
+    await expect
+      .poll(() => changes.some(({ change }) => change.directoryId === chapterId))
+      .toBe(true)
+    expect((await workspaces.list(1, chapterId, 0)).nodes[0]?.name).toBe('renamed.md')
+    await expect(workspaces.open(1, child?.id || '')).rejects.toMatchObject({
+      code: 'workspace-session',
+    })
+
+    await rm(join(root, 'chapters'), { recursive: true })
+    await expect
+      .poll(async () => (await workspaces.list(1, rootId, 0)).nodes.map((node) => node.name))
+      .toEqual(['new.md', 'notes.md'])
+    await expect(workspaces.list(1, chapterId, 0)).rejects.toMatchObject({
+      code: 'workspace-session',
+    })
+    expect(files.describe(1, opened.info.id).name).toBe('first.md')
+    expect(changes.every(({ owner }) => owner === 1)).toBe(true)
+  })
+  it('reconciles all browsed folders on window focus without resetting their IDs', async () => {
+    await mkdir(join(root, 'chapters'))
+    const boot = await workspaces.choose(1, root)
+    const rootId = boot.root?.id || ''
+    const chapterId = (await workspaces.list(1, rootId, 0)).nodes[0]?.id || ''
+    await workspaces.list(1, chapterId, 0)
+    await writeFile(join(root, 'chapters', 'back-from-sleep.md'), 'writing')
+    workspaces.checkExternal(1)
+    expect((await workspaces.list(1, chapterId, 0)).nodes[0]?.name).toBe('back-from-sleep.md')
+    expect((await workspaces.list(1, rootId, 0)).nodes[0]?.id).toBe(chapterId)
+    expect(workspaces.describe(1).root?.id).toBe(rootId)
   })
   it('revokes stale tree IDs on Refresh without closing documents', async () => {
     await writeFile(join(root, 'notes.md'), 'notes')
@@ -109,6 +172,39 @@ describe('main workspace grants and state', () => {
       code: 'workspace-session',
     })
     expect(files.describe(1, opened.info.id).name).toBe('notes.md')
+  })
+  it('closes the folder persistently while retaining open documents and recent folders', async () => {
+    await writeFile(join(root, 'notes.md'), 'notes')
+    const boot = await workspaces.choose(1, root)
+    const rootId = boot.root?.id || ''
+    const node = (await workspaces.list(1, rootId, 0)).nodes[0]
+    const opened = await workspaces.open(1, node?.id || '')
+    await workspaces.remember(1, { ids: [opened.info.id], activeId: opened.info.id })
+
+    const closed = await workspaces.close(1)
+    expect(closed.root).toBeNull()
+    expect(closed.recents.map((entry) => entry.displayPath)).toEqual([root])
+    expect((await workspaces.bootstrap(1)).root).toBeNull()
+    expect((await workspaces.refresh(1)).root).toBeNull()
+    await expect(workspaces.list(1, rootId, 0)).rejects.toMatchObject({ code: 'workspace-session' })
+    await expect(workspaces.open(1, node?.id || '')).rejects.toMatchObject({
+      code: 'workspace-session',
+    })
+    expect(() => workspaces.searchGrant(1, rootId)).toThrow()
+    expect(files.describe(1, opened.info.id)).toEqual(opened.info)
+
+    const stored = new WorkspaceStateRepository(join(directory, 'profile', 'workspace-state.json'))
+    await stored.load()
+    expect(stored.get()).toMatchObject({
+      root: null,
+      recents: [root],
+      documents: [join(root, 'notes.md')],
+      activePath: join(root, 'notes.md'),
+    })
+    const reopened = await workspaces.recent(1, closed.recents[0]?.id || '')
+    expect(reopened.root?.displayPath).toBe(root)
+    expect(reopened.root?.id).not.toBe(rootId)
+    expect(files.describe(1, opened.info.id)).toEqual(opened.info)
   })
   it('skips junctions and refuses changed parent junctions for open, reload and save', async () => {
     const outside = join(directory, 'outside')
