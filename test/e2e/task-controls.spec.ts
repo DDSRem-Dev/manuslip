@@ -5,6 +5,123 @@ import { launchDesktop } from './helpers'
 
 const modifier = process.platform === 'darwin' ? 'Meta' : 'Control'
 
+for (const width of [1144, 400]) {
+  test(`task toggles keep mixed semantic content still at ${width}px throughout the preview update`, async () => {
+    await mkdir('test/artifacts/logs', { recursive: true })
+    const directory = await mkdtemp(resolve('test/artifacts/logs/task-controls-stability-'))
+    const application = await launchDesktop(resolve(directory, 'profile'))
+    try {
+      await application.evaluate(({ BrowserWindow }, width) => {
+        const window = BrowserWindow.getAllWindows()[0]
+        window?.setMinimumSize(0, 0)
+        window?.setContentSize(width, 850)
+      }, width)
+      const page = await application.firstWindow()
+      await page.setViewportSize({ width, height: 850 })
+      await expect.poll(() => page.evaluate(() => innerWidth)).toBe(width)
+      await page.getByRole('button', { name: 'New document', exact: true }).first().click()
+      const editor = page.getByRole('textbox', { name: 'Markdown source', exact: true })
+      const source = [
+        '# Stable tasks',
+        '',
+        '"Keep this prose -- and its punctuation -- still."',
+        '',
+        '$$E=mc^2$$',
+        '',
+        '| Column | Value |',
+        '| --- | --- |',
+        '| A | B |',
+        '',
+        '- [ ] Inline task',
+        '  - [x] Nested task',
+        '',
+        '  3. [ ] Ordered task with $x^2$',
+        '  4. [x] Next ordered task',
+        '',
+        '  > - [ ] "Quoted" task',
+        '',
+        'End',
+        '',
+      ].join('\n')
+      await editor.fill(source)
+      await editor.press(`${modifier}+Home`)
+      const checks = page.getByRole('checkbox', { name: 'Toggle task', exact: true })
+      await expect(checks).toHaveCount(5)
+      await expect(page.locator('.cm-live-math svg')).toHaveCount(1)
+      await expect(page.locator('.cm-live-table table')).toHaveCount(1)
+      const nestedMath = page.locator('.cm-live-list [data-render-kind="inlineMath"] svg')
+      await expect(nestedMath).toHaveCount(1)
+      const formula = await nestedMath.elementHandle()
+      const observations = []
+      for (const index of [0, 1, 2, 4]) {
+        const check = checks.nth(index)
+        await check.scrollIntoViewIfNeeded()
+        await check.focus()
+        await page.evaluate(() => {
+          const samples: { y: number; height: number; scroll: number }[] = []
+          const state = window as typeof window & {
+            taskStability?: Promise<typeof samples>
+          }
+          const started = performance.now()
+          state.taskStability = new Promise((resolve) => {
+            const sample = () => {
+              const task = document.activeElement
+              const scroller = document.querySelector('.cm-scroller')
+              if (task instanceof HTMLInputElement && scroller)
+                samples.push({
+                  y: task.getBoundingClientRect().y,
+                  height: scroller.scrollHeight,
+                  scroll: scroller.scrollTop,
+                })
+              if (performance.now() - started < 600) requestAnimationFrame(sample)
+              else resolve(samples)
+            }
+            sample()
+          })
+        })
+        if (index === 0 || index === 4) await check.click()
+        else await page.keyboard.press('Space')
+        const samples = await page.evaluate(async () => {
+          const state = window as typeof window & {
+            taskStability?: Promise<{ y: number; height: number; scroll: number }[]>
+          }
+          return await state.taskStability
+        })
+        observations.push({ index, samples })
+        await expect(check).toBeFocused()
+        expect(await formula?.evaluate((svg) => svg.isConnected)).toBe(true)
+        expect(samples?.length).toBeGreaterThan(2)
+        for (const property of ['y', 'height', 'scroll'] as const) {
+          const values = samples?.map((sample) => sample[property]) || []
+          expect(Math.max(...values) - Math.min(...values), `${index}: ${property}`).toBeLessThan(1)
+        }
+      }
+      await test.info().attach('task-toggle-layout', {
+        body: JSON.stringify(observations),
+        contentType: 'application/json',
+      })
+      await page.screenshot({ path: test.info().outputPath('task-toggle-stable.png') })
+      await page.getByRole('button', { name: 'Source', exact: true }).click()
+      await expect
+        .poll(async () => (await editor.locator('.cm-line').allTextContents()).join('\n'))
+        .toBe(
+          source
+            .replace('[ ] Inline', '[x] Inline')
+            .replace('[x] Nested', '[ ] Nested')
+            .replace('[ ] Ordered', '[x] Ordered')
+            .replace('[ ] "Quoted"', '[x] "Quoted"'),
+        )
+    } finally {
+      await application
+        .evaluate(({ BrowserWindow }) => {
+          for (const window of BrowserWindow.getAllWindows()) window.destroy()
+        })
+        .catch(() => {})
+      await application.close()
+    }
+  })
+}
+
 test('task targets replace unordered bullets and remain usable in light, dark and narrow layouts', async () => {
   await mkdir('test/artifacts/logs', { recursive: true })
   const directory = await mkdtemp(resolve('test/artifacts/logs/task-controls-layout-'))
@@ -31,6 +148,16 @@ test('task targets replace unordered bullets and remain usable in light, dark an
           window?.setMinimumSize(0, 0)
           window?.setContentSize(360, 800)
         })
+      await expect
+        .poll(() =>
+          page.locator('.cm-live-task').evaluateAll((labels) =>
+            labels.every((label) => {
+              const bounds = label.getBoundingClientRect()
+              return bounds.width >= 24 && bounds.height >= 24
+            }),
+          ),
+        )
+        .toBe(true)
       const targets = await page.locator('.cm-live-task').evaluateAll((labels) =>
         labels.map((label) => {
           const bounds = label.getBoundingClientRect()
@@ -88,11 +215,12 @@ test('keyboard task toggles preserve focus and undo, and follow a pending docume
     const page = await application.firstWindow()
     await page.getByRole('button', { name: 'New document', exact: true }).first().click()
     const editor = page.getByRole('textbox', { name: 'Markdown source', exact: true })
-    const source = '# Tasks\n\n- [ ] First task\n- [x] Second task\n\nEnd\n'
+    const source =
+      '# Tasks\n\n- [ ] First task\n- [x] Second task\n\n1. [ ] Ordered task\n\n> - [ ] "Quoted" task\n\nEnd\n'
     await editor.fill(source)
     await editor.press(`${modifier}+Home`)
     const checks = page.getByRole('checkbox', { name: 'Toggle task', exact: true })
-    await expect(checks).toHaveCount(2)
+    await expect(checks).toHaveCount(4)
     await checks.first().focus()
     await page.keyboard.press('Space')
     await expect(checks.first()).toBeChecked()
@@ -124,6 +252,8 @@ test('keyboard task toggles preserve focus and undo, and follow a pending docume
     await expect.poll(text).toBe(toggled)
     await editor.press(`${modifier}+Home`)
     await page.getByRole('button', { name: 'Live Preview', exact: true }).click()
+    await expect(page.locator('.cm-live-list input[type="checkbox"]')).toHaveCount(1)
+    await expect(page.locator('.cm-live-blockquote input[type="checkbox"]')).toHaveCount(1)
     await application.evaluate(({ dialog }) => {
       dialog.showMessageBox = async () => {
         await new Promise<void>((resolve) => {

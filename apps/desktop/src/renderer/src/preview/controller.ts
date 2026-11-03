@@ -1,4 +1,10 @@
-import { type Heading, semanticLimits } from '@manuslip/core'
+import {
+  defaultMarkdownPlugins,
+  type Heading,
+  type MarkdownPlugins,
+  markdownPluginNames,
+  semanticLimits,
+} from '@manuslip/core'
 import {
   Compartment,
   composingEffect,
@@ -10,10 +16,12 @@ import {
   type LiveOptions,
   liveModel,
   livePreview,
+  navigateLiveAnchor,
   OccurrenceTracker,
   setLiveModel,
   type Transaction,
   type TransactionSpec,
+  yamlFrontmatter,
 } from '@manuslip/editor'
 import type { RenderOptions } from '@manuslip/renderer'
 import type { PackedCapture } from '../../../../../../packages/core/src/packing-capture'
@@ -110,6 +118,7 @@ interface DocumentAccess {
 /** Derived semantics have a separate lifetime from file saving and the editable body. */
 export class DocumentPreview {
   private readonly mode = new Compartment()
+  private readonly metadata = new Compartment()
   private readonly occurrences = new OccurrenceTracker()
   private readonly options = {
     sourceLabel: () => i18next.t('revealSource'),
@@ -131,7 +140,7 @@ export class DocumentPreview {
             ? (url) => images.loadRemoteImage(this.document.id, url)
             : undefined,
           assets ? (url) => assets.loadLocalImage(this.document.id, url) : undefined,
-          this.document.diagrams
+          this.plugins.mermaid && this.document.diagrams
             ? { bridge: this.document.diagrams, documentId: this.document.id }
             : undefined,
           false,
@@ -148,11 +157,42 @@ export class DocumentPreview {
         })
       }
     },
-    openLink: (url: string): void => this.document.openLink(url),
+    openLink: (url: string): void => {
+      if (url.startsWith('#')) {
+        const literal = url.slice(1)
+        let decoded: string
+        try {
+          decoded = decodeURIComponent(literal)
+        } catch {
+          return
+        }
+        const anchors = this.settled?.model.anchors
+        const anchor =
+          anchors?.find((anchor) => anchor.id === literal) ??
+          anchors?.find((anchor) => {
+            const id = anchor.id.startsWith('user-content-')
+              ? anchor.id
+              : `user-content-${anchor.id}`
+            return id === literal || id === decoded || anchor.id === decoded
+          })
+        if (anchor) {
+          const view = this.document.view()
+          if (anchor.rendered && view) {
+            navigateLiveAnchor(view, anchor)
+            return
+          }
+          this.document.dispatch({ selection: { anchor: anchor.from }, scrollIntoView: true })
+          this.document.view()?.focus()
+        }
+        return
+      }
+      this.document.openLink(url)
+    },
   }
   private connection: SemanticConnection | null = null
   private currentMode: PreviewStatus['mode'] = 'source'
   private rawHtml = false
+  private plugins: MarkdownPlugins = defaultMarkdownPlugins
   private remoteImages = false
   private disposed = false
   private mounted = false
@@ -187,7 +227,12 @@ export class DocumentPreview {
   ) {}
 
   get extensions(): Extension[] {
-    return [liveModel, isComposing, this.mode.of([])]
+    return [
+      liveModel,
+      isComposing,
+      this.mode.of([]),
+      this.metadata.of(yamlFrontmatter.of(this.plugins.typora)),
+    ]
   }
 
   attach(): void {
@@ -275,6 +320,9 @@ export class DocumentPreview {
   renderOptions(): RenderOptions {
     return {
       rawHtml: this.rawHtml,
+      ...(!markdownPluginNames.every((name) => this.plugins[name] === defaultMarkdownPlugins[name])
+        ? { plugins: this.plugins }
+        : {}),
       footnotesLabel: i18next.t('footnotes'),
       footnoteBackLabel: i18next.t('backToFootnote'),
     }
@@ -332,6 +380,24 @@ export class DocumentPreview {
     this.document.dispatch({ effects: setLiveModel.of(null) })
     this.document.status({ rawHtml: enabled })
     if (this.currentMode === 'live' || this.navigation) this.activate()
+  }
+  setMarkdownPlugins(plugins: MarkdownPlugins): void {
+    if (markdownPluginNames.every((name) => plugins[name] === this.plugins[name])) return
+    this.failCaptures('translation-capture-changed')
+    this.plugins = { ...plugins }
+    // A request already running for this revision must lose its consumer before
+    // settings change; revision equality alone cannot distinguish two grammars.
+    this.detach()
+    this.settled = null
+    this.releaseOwned()
+    this.activeOwned = null
+    this.document.dispatch({
+      effects: [
+        setLiveModel.of(null),
+        this.metadata.reconfigure(yamlFrontmatter.of(this.plugins.typora)),
+      ],
+    })
+    if (this.viewing && (this.currentMode === 'live' || this.navigation)) this.activate()
   }
   async setRemoteImages(enabled: boolean): Promise<void> {
     if (!this.document.images || this.disposed) return
@@ -717,19 +783,23 @@ export class DocumentPreview {
     return this.settled?.revision === this.document.revision() ? this.settled.snapshot : null
   }
   async captureReading(revision: number, signal: AbortSignal): Promise<ReadingCapture> {
+    const plugins = this.plugins
     const snapshot = await this.capture(revision, signal)
     if (signal.aborted || this.disposed) throw new Error('translation-cancelled')
+    if (plugins !== this.plugins) throw new Error('translation-capture-changed')
     const root = this.settled?.snapshot === snapshot ? this.owned?.captureRoot() : undefined
     if (root)
       return {
         kind: 'packed',
         ...root,
+        plugins: { ...plugins },
         retainedBytes: Math.max(retainedSnapshotBytes(snapshot), root.capture.retainedBytes),
       }
     if ('document' in snapshot)
       return {
         kind: 'native',
         root: snapshot.document.root,
+        plugins: { ...plugins },
         retainedBytes: retainedSnapshotBytes(snapshot),
       }
     throw new Error('translation-capture-changed')

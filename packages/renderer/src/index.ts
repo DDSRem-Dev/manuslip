@@ -1,11 +1,12 @@
-import type { Nodes, Root } from '@manuslip/core'
+import type { MarkdownPlugins, Nodes, Root } from '@manuslip/core'
 import type { Element, Root as HastRoot } from 'hast'
 import type { DiagramSyntax } from './diagram'
 import { projectWithHandlers } from './projection-engine'
 
 export { safeImage, safeLink } from './urls'
-export const rendererVersion = 'mdast-hast13-html9/policy6-composites3'
+export const rendererVersion = 'mdast-hast13-html9/policy8-conventions2'
 export interface RenderOptions {
+  plugins?: MarkdownPlugins
   rawHtml: boolean
   footnotesLabel: string
   footnoteBackLabel: string
@@ -35,8 +36,10 @@ export interface RenderedBlock {
   html: string
   value: string
   syntax?: DiagramSyntax
+  placement?: 'after-document'
+  listStart?: number
 }
-export type ProjectionDescription = Pick<RenderedBlock, 'kind' | 'value' | 'syntax'>
+export type ProjectionDescription = Pick<RenderedBlock, 'kind' | 'value' | 'syntax' | 'placement'>
 export interface RenderProjection {
   html: string
   blocks: RenderedBlock[]

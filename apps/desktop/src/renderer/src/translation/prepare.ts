@@ -1,4 +1,5 @@
 import type { Root } from '@manuslip/core'
+import type { MarkdownPlugins } from '@manuslip/core/conventions'
 import type { TranslationSettings } from '@manuslip/translate'
 import type { PackedCapture } from '../../../../../../packages/core/src/packing-capture'
 import type { PackedSerializedValue } from '../../../../../../packages/core/src/packing-serialize'
@@ -7,9 +8,10 @@ import type { PackedPath } from '../../../../../../packages/core/src/packing-vie
 import { SlicedWork, type SliceRuntime } from '../semantics/sliced-work'
 import { type ReadingEngine, type ReadingValue, readingLimits } from './protocol'
 
-export type ReadingCapture =
+export type ReadingCapture = (
   | { kind: 'native'; root: Root; retainedBytes: number }
   | { kind: 'packed'; capture: PackedCapture; path: PackedPath; retainedBytes: number }
+) & { plugins?: MarkdownPlugins }
 
 /** Own a capture through sliced serialization and an independent output through worker
  * receipt/failure. Every exit releases both, including cancellation before the first step.

@@ -3,6 +3,7 @@ import type { Bootstrap, Locale, Settings, Theme } from '../../shared/contracts'
 import { EditorSettings } from './EditorSettings'
 import { Icon } from './Icons'
 import { i18next } from './i18n'
+import { MarkdownSettings } from './MarkdownSettings'
 import { PluginSettings } from './PluginSettings'
 import { preferenceKeywords, preferencesCopy } from './preferences-copy'
 import { TranslationSettings } from './TranslationSettings'
@@ -286,6 +287,13 @@ export function PreferencesPanel({
             id="preferences-plugins"
             hidden={Boolean(normalizedQuery) || preferencePage !== 'plugins'}
           >
+            <MarkdownSettings
+              settings={current}
+              locale={bootstrap.settings.locale}
+              disabled={disabled}
+              update={update}
+            />
+            {preferencePage === 'plugins' && feedback}
             <PluginSettings locale={bootstrap.settings.locale} />
           </div>
         </div>

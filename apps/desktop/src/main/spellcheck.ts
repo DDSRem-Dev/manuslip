@@ -4,6 +4,11 @@ import { join, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { type BrowserWindow, Menu, type MenuItemConstructorOptions, type Session } from 'electron'
 import type { Locale } from '../shared/contracts'
+import {
+  parseSpellingCorrection,
+  type SpellingCorrection,
+  spellingChannel,
+} from '../shared/spelling-contracts'
 import { nativeStrings } from './native-strings'
 
 const dictionary = 'en-US-10-2.bdic'
@@ -58,15 +63,30 @@ export function installEditingMenu(
     if (!params.isEditable) return
     const items: MenuItemConstructorOptions[] = []
     if (enabled() && params.misspelledWord) {
-      for (const [index, suggestion] of params.dictionarySuggestions.slice(0, 5).entries())
+      for (const [index, suggestion] of params.dictionarySuggestions.slice(0, 5).entries()) {
+        let correction: SpellingCorrection
+        try {
+          correction = parseSpellingCorrection({
+            word: params.misspelledWord,
+            replacement: suggestion,
+          })
+        } catch {
+          continue
+        }
         items.push({
           id: `spelling-${index}`,
           label: suggestion.replace(/&/g, '&&'),
           click: () => {
-            if (!window.isDestroyed() && enabled())
-              window.webContents.replaceMisspelling(suggestion)
+            if (!window.isDestroyed() && enabled()) {
+              // Preserve Chromium's correction for ordinary text fields too.
+              window.webContents.replaceMisspelling(correction.replacement)
+              // CodeMirror may redraw native spelling markers when it paints the
+              // selected word. Apply through its validated, undoable source edit.
+              window.webContents.send(spellingChannel, correction)
+            }
           },
         })
+      }
       if (!items.length)
         items.push({ label: nativeStrings(locale()).noSuggestions, enabled: false })
       items.push({ type: 'separator' })

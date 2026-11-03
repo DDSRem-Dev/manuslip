@@ -20,6 +20,8 @@ export function exportSlotSink(namespace: string, slots: ExportSlot[]) {
   return (element: Element, description: ProjectionDescription): void => {
     if (!['math', 'inlineMath', 'diagram'].includes(description.kind)) return
     if (description.kind === 'diagram' && element.tagName !== 'pre') return
+    if (description.kind === 'inlineMath' && element.tagName !== 'code') return
+    if (description.kind === 'math' && !['pre', 'code'].includes(element.tagName)) return
     const id = `${namespace}-${slots.length}`
     const display = description.kind !== 'inlineMath'
     slots.push({

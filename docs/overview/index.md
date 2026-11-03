@@ -45,8 +45,14 @@ Documents available at this revision, grouped by purpose.
 - [offline dictionaries](../development/offline-dictionaries.md)
 - [repository layout](../development/repository-layout.md)
 
+## Examples
+
+- [latex](../examples/latex.md)
+- [markdown conventions](../examples/markdown-conventions.md)
+
 ## Guides
 
+- [commonmark](../guides/commonmark.md)
 - [plugins](../guides/plugins.md)
 - [sync](../guides/sync.md)
 
@@ -65,8 +71,11 @@ Documents available at this revision, grouped by purpose.
 ## Reviews
 
 - [accessibility review](../reviews/accessibility-review.md)
+- [feature availability review](../reviews/feature-availability-review.md)
 - [interface review](../reviews/interface-review.md)
 - [navigation review](../reviews/navigation-review.md)
+- [renderer polish review](../reviews/renderer-polish-review.md)
+- [table rendering review](../reviews/table-rendering-review.md)
 
 ## Testing
 

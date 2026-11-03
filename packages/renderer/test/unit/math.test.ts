@@ -17,3 +17,11 @@ it('bounds input and keeps user macros private to each expression', () => {
   expect(() => renderMath('\\private', false)).toThrow()
   expect(() => renderMath('\\require{html}\\href{javascript:alert(1)}{x}', false)).toThrow()
 })
+
+it('keeps both sides and the exponent of inline equations in one SVG', () => {
+  const svg = renderMath('E = mc^2', false)
+  expect(svg).toContain('data-mml-node="mo"')
+  expect(svg).toContain('data-mml-node="msup"')
+  expect(svg).toContain('data-latex="2"')
+  expect(svg.match(/<svg/g)).toHaveLength(1)
+})

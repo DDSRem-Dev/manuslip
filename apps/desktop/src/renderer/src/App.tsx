@@ -222,6 +222,13 @@ export function App(): React.JSX.Element {
       }),
     [command],
   )
+  useEffect(
+    () =>
+      window.manuslip.onSpellingCorrection((correction) => {
+        void documents.active?.correctSpelling(correction)
+      }),
+    [documents],
+  )
 
   useEffect(() => {
     if (busy) {
@@ -462,6 +469,7 @@ export function App(): React.JSX.Element {
               locale={bootstrap.settings.locale}
               spellcheck={Boolean(bootstrap.settings.spellcheck) && bootstrap.spellcheckAvailable}
               editorPreferences={bootstrap.settings.editor ?? defaultEditorPreferences}
+              markdownPlugins={bootstrap.settings.markdown}
               readingLayout={bootstrap.settings.reading?.layout ?? 'replace'}
               document={activeDocument}
               command={(value) => void command(value)}

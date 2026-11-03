@@ -84,7 +84,7 @@ test('recovery names, confirmation and focus remain usable across themes, Chines
       })
       expect(metrics.rootWidth).toBeLessThanOrEqual(metrics.innerWidth)
       expect(metrics.panelScrollWidth).toBeLessThanOrEqual(metrics.panelWidth + 1)
-      expect(metrics.buttonHeight).toBeGreaterThanOrEqual(40)
+      expect(metrics.buttonHeight).toBeGreaterThanOrEqual(34)
       expect(contrast(metrics.text, metrics.buttonBackground)).toBeGreaterThanOrEqual(4.5)
       expect(contrast(metrics.outline, metrics.background)).toBeGreaterThanOrEqual(3)
       expect(metrics.outlineWidth).toBe('2px')

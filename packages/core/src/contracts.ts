@@ -38,6 +38,7 @@ export interface BlockOccurrence extends SemanticBlock {
   id: string
 }
 export interface Heading extends SourceRange {
+  id?: string
   depth: number
   text: string
 }

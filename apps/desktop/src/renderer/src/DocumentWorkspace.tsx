@@ -1,3 +1,4 @@
+import { defaultMarkdownPlugins, type MarkdownPlugins } from '@manuslip/core/conventions'
 import type { EditorPreferences } from '@manuslip/editor/preferences'
 import type { ReadingLayout } from '@manuslip/renderer/reading'
 import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react'
@@ -35,6 +36,7 @@ export function DocumentWorkspace({
   locale,
   spellcheck,
   editorPreferences,
+  markdownPlugins,
   readingLayout,
   configureTranslation,
   toolbarHost,
@@ -45,6 +47,7 @@ export function DocumentWorkspace({
   locale: string
   spellcheck: boolean
   editorPreferences: EditorPreferences
+  markdownPlugins?: MarkdownPlugins
   readingLayout: ReadingLayout
   configureTranslation: ConfigureTranslation
   toolbarHost: HTMLElement | null
@@ -95,6 +98,10 @@ export function DocumentWorkspace({
           : 'blankDocument',
   )
   useLayoutEffect(() => document.setSpellcheck(spellcheck), [document, spellcheck])
+  useLayoutEffect(() => {
+    document.preview.setMarkdownPlugins(markdownPlugins ?? defaultMarkdownPlugins)
+    document.reading?.conventionsChanged()
+  }, [document, markdownPlugins])
   useLayoutEffect(
     () => document.setEditorPreferences(editorPreferences),
     [document, editorPreferences],

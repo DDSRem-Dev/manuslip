@@ -1,4 +1,5 @@
-import { parseMarkdown, semanticLimits } from '@manuslip/core'
+import { parseDocumentMarkdown, parseMarkdown, semanticLimits } from '@manuslip/core'
+import { defaultMarkdownPlugins, type MarkdownPlugins } from '@manuslip/core/conventions'
 import { createSourceState } from '@manuslip/editor'
 import type { TranslationSettings } from '@manuslip/translate'
 import { afterEach, expect, it, vi } from 'vitest'
@@ -35,8 +36,12 @@ afterEach(() => {
   for (const controller of controllers.splice(0)) controller.dispose()
   vi.useRealTimers()
 })
-function setup(source = 'First paragraph.\n\nSecond paragraph.\n\nThird paragraph.') {
+function setup(
+  source = 'First paragraph.\n\nSecond paragraph.\n\nThird paragraph.',
+  initialPlugins?: MarkdownPlugins,
+) {
   vi.useFakeTimers()
+  let plugins = initialPlugins
   let state = createSourceState(source)
   let revision = 0
   let composing = false
@@ -82,14 +87,17 @@ function setup(source = 'First paragraph.\n\nSecond paragraph.\n\nThird paragrap
       revision: () => revision,
       composing: () => composing,
       capture: async () => {
-        const document = parseMarkdown(state.doc.toString())
+        const document = plugins
+          ? parseDocumentMarkdown(state.doc.toString(), plugins)
+          : parseMarkdown(state.doc.toString())
         return {
           kind: 'native',
           root: document.root,
           retainedBytes: 200,
+          ...(plugins ? { plugins: { ...plugins } } : {}),
         } satisfies ReadingCapture
       },
-      options: () => options,
+      options: () => ({ ...options, ...(plugins ? { plugins } : {}) }),
     },
     bridge,
     () => {
@@ -111,6 +119,9 @@ function setup(source = 'First paragraph.\n\nSecond paragraph.\n\nThird paragrap
     bridge,
     engines,
     state: () => state,
+    setPlugins(value: MarkdownPlugins) {
+      plugins = value
+    },
     edit(from: number, to: number, insert: string) {
       const transaction = state.update({ changes: { from, to, insert } })
       state = transaction.state
@@ -165,6 +176,59 @@ it('releases a rejected mounted copy and permits an explicit retry with the orig
   await fixture.reading.start(false)
   await vi.advanceTimersByTimeAsync(1)
   expect(fixture.engines).toHaveLength(2)
+})
+it('keeps captured conventions for layout and export, then explicitly refreshes with new settings', async () => {
+  const source = '==First paragraph.==\n\n```mermaid\nflowchart LR\nA-->B\n```'
+  const initial = { ...defaultMarkdownPlugins }
+  const f = setup(source, initial)
+  await f.reading.start(true)
+  f.finish(0)
+  await vi.advanceTimersByTimeAsync(600)
+  const capture = f.reading.captureExport()
+  expect(capture.plugins).toEqual(initial)
+  expect(f.reading.store.getState().projection?.html).toContain('<mark')
+  const next = { ...initial, opt: false, mermaid: false }
+  f.setPlugins(next)
+  f.reading.conventionsChanged()
+  expect(f.reading.store.getState().stale).toBe(true)
+  f.reading.setLayout('interlinear')
+  await vi.advanceTimersByTimeAsync(600)
+  expect(f.reading.store.getState().projection?.html).toContain('<mark')
+  expect(f.reading.captureExport().plugins).toEqual(initial)
+  await f.reading.start(true)
+  await vi.advanceTimersByTimeAsync(600)
+  expect(f.engines).toHaveLength(2)
+  expect(f.reading.store.getState().projection?.html).not.toContain('<mark')
+  expect(f.reading.captureExport().plugins).toEqual(next)
+  expect(capture.plugins).toEqual(initial)
+  expect(f.state().doc.toString()).toBe(source)
+})
+it('translates inline note bodies in source order and preserves their export indices', async () => {
+  const source = 'First paragraph^[Note paragraph with `private`].\n\nLast paragraph.'
+  const f = setup(source, { ...defaultMarkdownPlugins })
+  await f.reading.start(true)
+  expect(f.reading.store.getState().phase).toBe('translating')
+  expect(f.calls).toHaveLength(2)
+  expect(f.calls[0]?.request.payload.text).toContain('First paragraph')
+  expect(f.calls[1]?.request.payload.text).toContain('Note paragraph')
+  f.finish(0)
+  f.finish(1)
+  await vi.advanceTimersByTimeAsync(1)
+  expect(f.calls).toHaveLength(3)
+  f.finish(2)
+  await vi.advanceTimersByTimeAsync(600)
+  expect(f.reading.store.getState().phase).toBe('ready')
+  expect(f.reading.store.getState().projection?.html).toContain('Note 段落')
+  expect(
+    f.reading
+      .captureExport()
+      .reading.units.map((unit) => ({ index: unit.index, output: unit.output })),
+  ).toEqual([
+    { index: 0, output: f.calls[0]?.request.payload.text.replaceAll('paragraph', '段落') },
+    { index: 1, output: f.calls[1]?.request.payload.text.replaceAll('paragraph', '段落') },
+    { index: 2, output: 'Last 段落.' },
+  ])
+  expect(f.state().doc.toString()).toBe(source)
 })
 it('changes layout without provider calls and captures immutable partial outputs, language and revision', async () => {
   const f = setup()

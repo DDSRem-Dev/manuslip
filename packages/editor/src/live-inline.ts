@@ -147,7 +147,8 @@ function inline(view: EditorView, options: LiveOptions): InlineState {
       hidden.push({ from, to })
   }
   let math = 0
-  const blocks = state.field(liveModel)?.blocks || []
+  const model = state.field(liveModel)
+  const blocks = model?.blocks || []
   // Semantic prose widgets own their descendants. Revealing them shows the complete
   // raw source, including syntax that Lezer cannot represent or safely parse inline.
   const sourceBlocks: LiveBlock[] = []
@@ -239,12 +240,21 @@ function inline(view: EditorView, options: LiveOptions): InlineState {
         }
         if (['Table', 'HTMLBlock'].includes(name)) return false
         if (covered.some((range) => node.from >= range.from && node.to <= range.to)) return false
-        if (/^(ATX|Setext)Heading[1-6]$/.test(name))
+        if (/^(ATX|Setext)Heading[1-6]$/.test(name)) {
+          const anchor = model?.anchors?.find((anchor) => anchor.from === node.from)?.id
           decorations.push(
-            Decoration.line({ class: `cm-live-heading cm-live-heading-${name.slice(-1)}` }).range(
-              state.doc.lineAt(node.from).from,
-            ),
+            Decoration.line({
+              class: `cm-live-heading cm-live-heading-${name.slice(-1)}`,
+              ...(anchor
+                ? {
+                    attributes: {
+                      id: anchor.startsWith('user-content-') ? anchor : `user-content-${anchor}`,
+                    },
+                  }
+                : {}),
+            }).range(state.doc.lineAt(node.from).from),
           )
+        }
         if (name === 'Blockquote') {
           const last = state.doc.lineAt(Math.min(node.to, visible.to)).number
           for (

@@ -28,6 +28,7 @@ import type { FileBridge, FileInfo, FileSnapshot, SaveRequest } from '../../shar
 import type { ImageBridge } from '../../shared/image-contracts'
 import type { PluginBridge } from '../../shared/plugin-contracts'
 import type { SearchAnchor } from '../../shared/search-contracts'
+import type { SpellingCorrection } from '../../shared/spelling-contracts'
 import type { StyleBridge } from '../../shared/style-contracts'
 import type { SyncBridge } from '../../shared/sync-contracts'
 import type { TranslationBridge } from '../../shared/translation-contracts'
@@ -276,6 +277,7 @@ export class DocumentController {
                   revision: status.revision,
                   source: this.state.doc.toString(),
                   rawHtml: status.rawHtml,
+                  plugins: this.preview.renderOptions().plugins,
                   remoteImages: status.remoteImages,
                 }
           },
@@ -407,6 +409,33 @@ export class DocumentController {
       effects: this.spelling.reconfigure(
         EditorView.contentAttributes.of({ spellcheck: String(enabled) }),
       ),
+    })
+  }
+  async correctSpelling({ word, replacement }: SpellingCorrection): Promise<void> {
+    const view = this.view
+    const revision = this.store.getState().revision
+    await this.synchronizeInput()
+    if (
+      !view ||
+      view !== this.view ||
+      this.disposed ||
+      this.locked ||
+      !view.hasFocus ||
+      view.state.readOnly ||
+      this.store.getState().composing ||
+      this.reading?.store.getState().visible ||
+      revision !== this.store.getState().revision ||
+      !view.contentDOM.spellcheck ||
+      view.state.selection.ranges.length !== 1
+    )
+      return
+    const range = view.state.selection.main
+    if (range.empty || view.state.doc.sliceString(range.from, range.to) !== word) return
+    view.dispatch({
+      changes: { from: range.from, to: range.to, insert: replacement },
+      selection: { anchor: range.from + replacement.length },
+      annotations: isolateHistory.of('full'),
+      userEvent: 'input.spelling',
     })
   }
   setEditorPreferences(preferences: EditorPreferences = defaultEditorPreferences): void {

@@ -1,8 +1,14 @@
-import { StateField, type Text } from '@codemirror/state'
+import { Facet, StateField, type Text } from '@codemirror/state'
+import { defaultMarkdownPlugins } from '@manuslip/core/conventions'
 
-function metadataEnd(doc: Text): number {
+/** Matches the desktop Typora convention independently of the semantic worker. */
+export const yamlFrontmatter = Facet.define<boolean, boolean>({
+  combine: (values) => values.at(-1) ?? defaultMarkdownPlugins.typora,
+})
+
+function metadataEnd(doc: Text, yaml: boolean): number {
   const fence = doc.line(1).text.match(/^(---|\+\+\+)[\t ]*$/)?.[1]
-  if (!fence) return 0
+  if (!fence || (fence === '---' && !yaml)) return 0
   let offset = doc.line(1).to + 1
   for (const line of doc.iterLines(2)) {
     if (line.trimEnd() === fence) return offset + line.length
@@ -14,10 +20,13 @@ function metadataEnd(doc: Text): number {
 
 /** Keep metadata literal in live mode without copying the document or styling its contents. */
 export const frontmatterEnd = StateField.define<number>({
-  create: (state) => metadataEnd(state.doc),
+  create: (state) => metadataEnd(state.doc, state.facet(yamlFrontmatter)),
   update: (end, transaction) => {
+    const yaml = transaction.state.facet(yamlFrontmatter)
+    if (yaml !== transaction.startState.facet(yamlFrontmatter))
+      return metadataEnd(transaction.newDoc, yaml)
     if (!transaction.docChanged) return end
     if (end && !transaction.changes.touchesRange(0, end)) return end
-    return metadataEnd(transaction.newDoc)
+    return metadataEnd(transaction.newDoc, yaml)
   },
 })

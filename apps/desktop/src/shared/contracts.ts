@@ -1,3 +1,4 @@
+import { type MarkdownPlugins, parseMarkdownPlugins } from '@manuslip/core/conventions'
 import type { EditorPreferences } from '@manuslip/editor/preferences'
 import type { AssetBridge } from './asset-contracts'
 import type { DiagramBridge } from './diagram-contracts'
@@ -8,6 +9,7 @@ import type { IncomingBridge } from './incoming-contracts'
 import type { PandocBridge } from './pandoc-contracts'
 import type { PluginBridge } from './plugin-contracts'
 import type { SearchBridge } from './search-contracts'
+import type { SpellingCorrection } from './spelling-contracts'
 import type { StyleBridge } from './style-contracts'
 import type { SyncBridge } from './sync-contracts'
 import type { TranslationBridge } from './translation-contracts'
@@ -35,6 +37,7 @@ export interface Settings {
   spellcheck?: boolean
   editor?: EditorPreferences
   reading?: { layout: 'replace' | 'side-by-side' | 'interlinear' }
+  markdown?: MarkdownPlugins
 }
 export interface RuntimeInfo {
   app: string
@@ -68,6 +71,7 @@ export interface DesktopBridge
   bootstrap(): Promise<Result<Bootstrap>>
   updateSettings(settings: Settings): Promise<Result<Settings>>
   edit(action: ClipboardAction): Promise<Result<null>>
+  onSpellingCorrection(listener: (correction: SpellingCorrection) => void): () => void
 }
 
 export function parseExternalLink(value: unknown): string {
@@ -94,7 +98,15 @@ export function parseSettings(value: unknown): Settings {
     !isRecord(value) ||
     Object.keys(value).some(
       (key) =>
-        !['schemaVersion', 'theme', 'locale', 'spellcheck', 'editor', 'reading'].includes(key),
+        ![
+          'schemaVersion',
+          'theme',
+          'locale',
+          'spellcheck',
+          'editor',
+          'reading',
+          'markdown',
+        ].includes(key),
     ) ||
     (value.spellcheck !== undefined && typeof value.spellcheck !== 'boolean') ||
     value.schemaVersion !== 1 ||
@@ -106,6 +118,7 @@ export function parseSettings(value: unknown): Settings {
     throw new Error('Invalid settings')
   }
   const editor = value.editor
+  const markdown = value.markdown === undefined ? undefined : parseMarkdownPlugins(value.markdown)
   if (
     editor !== undefined &&
     (!isRecord(editor) ||
@@ -127,6 +140,7 @@ export function parseSettings(value: unknown): Settings {
     schemaVersion: 1,
     theme: value.theme as Theme,
     locale: value.locale as Locale,
+    ...(markdown === undefined ? {} : { markdown }),
     ...(value.spellcheck === undefined ? {} : { spellcheck: value.spellcheck as boolean }),
     ...(editor === undefined ? {} : { editor: { ...(editor as unknown as EditorPreferences) } }),
     ...(reading === undefined

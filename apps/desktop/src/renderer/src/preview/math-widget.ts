@@ -1,5 +1,6 @@
 import type { LiveOptions } from '@manuslip/editor'
 import { i18next } from '../i18n'
+import { mountInlineMathLayout } from './inline-math-layout'
 import { mathRenderer } from './math'
 import type { WidgetBorrow } from './widget-borrow'
 import { setWidgetState } from './widget-state'
@@ -17,6 +18,8 @@ export function renderMathWidget(
     if (signal.aborted || rendering) return
     rendering = true
     const restoreFocus = container.contains(document.activeElement)
+    container.style.removeProperty('vertical-align')
+    container.removeAttribute('data-math-scroll')
     container.textContent = block.value
     container.removeAttribute('role')
     container.removeAttribute('aria-label')
@@ -35,6 +38,7 @@ export function renderMathWidget(
       .then((svg) => {
         if (signal.aborted || !install(svg, 'math')) return
         setWidgetState(container, 'ready')
+        if (block.kind === 'inlineMath') mountInlineMathLayout(container, signal, measure)
         container.setAttribute('role', 'math')
         container.setAttribute('aria-label', block.value)
         container.tabIndex = 0

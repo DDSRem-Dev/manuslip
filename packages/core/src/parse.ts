@@ -85,6 +85,7 @@ export function needsGfm(source: string): boolean {
 
 export interface MarkdownGrammar {
   readonly gfm: boolean
+  readonly autolinks?: boolean
   readonly processor: ReturnType<typeof markdownProcessor>
 }
 
@@ -158,13 +159,25 @@ export function parseMarkdownWithGrammar(
     ? (processor.parse(source) as Root)
     : compileMarkdownRoot(source, { processor, gfm })
   const parsed = performance.now()
+  return describeMarkdownRoot(root, source, syntax, started, parsed, syntax === 'manuslip' && !gfm)
+}
+
+/** Shared semantic description for the grammar compiler and configured desktop documents. */
+export function describeMarkdownRoot(
+  root: Root,
+  source: string,
+  syntax: string,
+  started: number,
+  parsed: number,
+  normalizeTasks = false,
+): SemanticDocument {
   const blocks: SemanticBlock[] = []
   const outline: SemanticDocument['outline'] = []
   const text: string[] = []
   let nodes = 0
   const visit = (node: Nodes): void => {
     // The task-list mdast extension initializes this even for ordinary list items.
-    if (syntax === 'manuslip' && !gfm && node.type === 'listItem') node.checked = null
+    if (normalizeTasks && node.type === 'listItem') node.checked = null
     // Bound traversal even for deeply nested container input; no recursive user-controlled stack.
     if (++nodes > semanticLimits.blocks * 16)
       throw new SemanticLimitError('Document syntax exceeds semantic limits')

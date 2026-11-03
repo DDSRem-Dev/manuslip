@@ -99,6 +99,10 @@ describe('context collected by complete cold snapshot validation', () => {
   })
 
   it.each([
+    ['list', '3. first\n1. second\n9. third'],
+    ['list', '0) zero\n0) one'],
+    ['list', '- Outer\n\n  7. nested\n  1. next'],
+    ['blockquote', '> 3. first\n> 1. second'],
     ['table', '| A | B |\n| --- | --- |\n| one | two |'],
     ['code', '```js\nconst value = 1\n```'],
     ['code', '```MeRmAiD\ngraph LR; A-->B\n```'],

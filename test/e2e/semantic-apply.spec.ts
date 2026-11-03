@@ -1,13 +1,26 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { expect, test } from '@playwright/test'
+import { expect, type Page, test } from '@playwright/test'
 import { launchDesktop } from './helpers'
 
-test('packed preparation admission failure keeps the complete native preview editable and saveable', async () => {
+async function expectCharacters(page: Page, count: number): Promise<void> {
+  const trigger = page.getByRole('button', { name: /Document details$/ })
+  await trigger.focus()
+  await page.keyboard.press('Enter')
+  await expect(
+    page
+      .locator('.document-statistics > div')
+      .filter({ has: page.locator('dt', { hasText: /^Characters$/ }) })
+      .locator('dd'),
+  ).toHaveText(count.toLocaleString('en'))
+  await page.keyboard.press('Escape')
+}
+
+test('dense inline input keeps the complete native preview editable and saveable', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'manuslip-encoder-fallback-'))
   const path = join(directory, 'inline-pressure.md')
-  // Fits packed-preview eligibility and encoding, but exceeds native-output workspace.
+  // Exercise dense inline syntax through the document convention grammar.
   const source = `# Inline pressure\n\n${'**x** '.repeat(16000)}\n\nComplete tail 世界.\n`
   await writeFile(path, source)
   const application = await launchDesktop(join(directory, 'profile'))
@@ -32,7 +45,7 @@ test('packed preparation admission failure keeps the complete native preview edi
       'aria-pressed',
       'true',
     )
-    await expect(page.getByText(`${source.length} characters`, { exact: true })).toBeVisible()
+    await expectCharacters(page, source.length)
     await editor.focus()
     const modifier = process.platform === 'darwin' ? 'Meta' : 'Control'
     await page.keyboard.press(`${modifier}+End`)
@@ -71,14 +84,16 @@ test('packed preparation admission failure keeps the complete native preview edi
 
 for (const { name, paragraphs } of [
   { name: 'native dense', paragraphs: 16500 },
-  { name: 'owned packed', paragraphs: 160 },
+  { name: 'native conventions', paragraphs: 6000 },
 ]) {
   test(`editing during a yielded ${name} apply installs only the newest complete snapshot`, async () => {
     const directory = await mkdtemp(join(tmpdir(), 'manuslip-apply-'))
     const path = join(directory, 'dense.md')
-    const source =
-      '# Dense document\n\n' +
-      'A small paragraph. One more short sentence for the next block.\n\n'.repeat(paragraphs)
+    const paragraph =
+      name === 'native conventions'
+        ? '"Smart" -- punctuation...\n\n'
+        : 'A small paragraph. One more short sentence for the next block.\n\n'
+    const source = `# Dense document\n\n${paragraph.repeat(paragraphs)}`
     await writeFile(path, source)
     const application = await launchDesktop(join(directory, 'profile'))
     try {
@@ -137,21 +152,17 @@ for (const { name, paragraphs } of [
           { timeout: 15000 },
         )
         .toBe(1)
-      if (name === 'owned packed') {
-        expect(
-          await page.evaluate(
-            () => performance.getEntriesByName('manuslip:packed-preview-apply').length,
-          ),
-        ).toBe(1)
-      }
+      expect(
+        await page.evaluate(
+          () => performance.getEntriesByName('manuslip:packed-preview-apply').length,
+        ),
+      ).toBe(0)
       await expect(page.getByText('Updating preview…', { exact: true })).toHaveCount(0)
       await expect(page.getByRole('button', { name: 'Live Preview', exact: true })).toHaveAttribute(
         'aria-pressed',
         'true',
       )
-      await expect(
-        page.getByText(`${source.length + 20} characters`, { exact: true }),
-      ).toBeVisible()
+      await expectCharacters(page, source.length + 20)
       await page.keyboard.press(`${modifier}+s`)
       await expect(page.getByText('All changes saved', { exact: true })).toBeVisible()
       expect((await readFile(path, 'utf8')) === `${source}abcdefghijklmnopqrst`).toBe(true)

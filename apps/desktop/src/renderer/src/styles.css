@@ -1312,20 +1312,46 @@ main.editing {
   background: var(--surface);
 }
 .render-table-scroll {
+  min-inline-size: 0;
   max-inline-size: 100%;
+  margin-block: 1em;
   overflow: auto;
   overscroll-behavior-inline: contain;
+  scrollbar-color: var(--input-border) transparent;
 }
-.reading-article table {
+.reading-article table,
+.cm-live-rendered table {
   border-collapse: collapse;
+  border-spacing: 0;
+  inline-size: 100%;
   text-align: start;
   font: inherit;
+  line-height: 1.6;
+  font-variant-numeric: tabular-nums;
 }
-.reading-article :is(th, td) {
-  padding: 6px 12px;
+:is(.reading-article, .cm-live-rendered) :is(th, td) {
+  padding: 8px 12px;
   border: 1px solid var(--border);
+  vertical-align: top;
+  text-align: inherit;
   overflow-wrap: normal;
   word-break: normal;
+}
+:is(.reading-article, .cm-live-rendered) :is(th, td)[align="left" i] {
+  text-align: left;
+}
+:is(.reading-article, .cm-live-rendered) :is(th, td)[align="center" i] {
+  text-align: center;
+}
+:is(.reading-article, .cm-live-rendered) :is(th, td)[align="right" i] {
+  text-align: right;
+}
+:is(.reading-article, .cm-live-rendered) th {
+  background: var(--surface);
+  font-weight: 600;
+}
+:is(.reading-article, .cm-live-rendered) tbody tr:nth-child(even) {
+  background: var(--surface);
 }
 .reading-article blockquote {
   margin-inline: 0;
@@ -1569,12 +1595,27 @@ main.editing {
   padding: 2px 8px;
   font-size: 12px;
 }
+.cm-live-table {
+  margin: 1em 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
+  background: transparent;
+}
+.cm-live-table .render-table-scroll {
+  margin: 0;
+}
 .cm-live-table .cm-live-source-button {
   display: inline-flex;
   align-items: center;
   min-height: 32px;
+  margin-block-start: 8px;
   margin-inline-end: 8px;
   padding: 4px 10px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
   font-size: 13px;
 }
 .cm-live-rendered {
@@ -1583,6 +1624,29 @@ main.editing {
 }
 .cm-live-rendered :is(p, blockquote, ul, ol, pre) {
   margin-block: 0.75em;
+}
+.cm-live-rendered :is(h1, h2, h3, h4, h5, h6) {
+  font-family: inherit;
+  font-weight: 600;
+  letter-spacing: normal;
+  line-height: 1.4;
+  margin-block: 10px;
+}
+.cm-live-rendered h1 {
+  font-size: 1.85em;
+}
+.cm-live-rendered h2 {
+  font-size: 1.5em;
+}
+.cm-live-rendered h3 {
+  font-size: 1.25em;
+}
+.cm-live-block.cm-live-math {
+  background: transparent;
+  border-color: transparent;
+}
+.cm-live-math > .cm-live-rendered {
+  text-align: center;
 }
 .cm-live-rendered > :first-child {
   margin-block-start: 0;
@@ -1596,6 +1660,20 @@ main.editing {
   border-inline-start: 3px solid var(--border);
   color: var(--muted);
 }
+.cm-live-rendered blockquote.markdown-alert {
+  border-inline-start: 1px solid var(--callout-color);
+  color: var(--text);
+}
+.markdown-settings .markdown-plugin {
+  margin-block: 12px;
+}
+.markdown-plugin .spellcheck-preference {
+  min-height: 32px;
+}
+.markdown-plugin .preference-hint {
+  margin-block: 4px 0;
+  margin-inline-start: 24px;
+}
 .cm-live-rendered a[href] {
   color: var(--accent);
   text-decoration: underline;
@@ -1607,13 +1685,35 @@ main.editing {
   border-radius: 3px;
   white-space: pre-wrap;
 }
-.cm-live-block:is(.cm-live-paragraph, .cm-live-heading, .cm-live-blockquote, .cm-live-list) {
+.cm-live-block:is(
+  .cm-live-paragraph,
+  .cm-live-heading,
+  .cm-live-blockquote,
+  .cm-live-list,
+  .cm-live-footnoteDefinition
+) {
   margin: 0 24px 0 0;
   padding: 0;
   border: 0;
   border-radius: 0;
   background: transparent;
   overflow: visible;
+}
+.cm-live-block.cm-live-footnoteDefinition {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-block: 16px;
+}
+.cm-live-footnoteDefinition > .cm-live-rendered {
+  flex: 1;
+  min-inline-size: 0;
+  margin-block: 0;
+  padding-inline-start: 1.5em;
+}
+.cm-live-footnoteDefinition > .cm-live-source-button {
+  flex: none;
+  margin-block-start: 0;
 }
 
 .cm-live-rendered dl,
@@ -1637,21 +1737,6 @@ main.editing {
   white-space: pre;
   overflow: auto;
   tab-size: 4;
-}
-.cm-live-rendered table {
-  border-collapse: collapse;
-  width: 100%;
-  text-align: start;
-  font: inherit;
-}
-.cm-live-rendered :is(th, td) {
-  padding: 6px 12px;
-  border: 1px solid var(--border);
-  overflow-wrap: normal;
-  word-break: normal;
-}
-.cm-live-rendered th {
-  font-weight: 650;
 }
 .cm-live-rendered :is(.tok-keyword, .tok-operator) {
   color: var(--syntax-keyword);
@@ -1678,6 +1763,7 @@ main.editing {
   max-width: 100%;
 }
 .cm-live-inline-widget:is(
+  [data-kind="inlineMath"],
   [data-kind="link"],
   [data-kind="footnoteReference"],
   [data-kind="subscript"],
@@ -1699,8 +1785,15 @@ main.editing {
 :is(.cm-live-rendered, .reading-article) [data-render-kind="inlineMath"] {
   display: inline-block;
   max-inline-size: 100%;
+  overflow: visible;
+  vertical-align: baseline;
+}
+.cm-live-rendered[data-render-kind="inlineMath"][data-math-scroll],
+:is(.cm-live-rendered, .reading-article) [data-render-kind="inlineMath"][data-math-scroll] {
   overflow: auto;
-  vertical-align: middle;
+  scrollbar-width: thin;
+  scrollbar-color: var(--input-border) transparent;
+  overscroll-behavior-inline: contain;
 }
 :is(.cm-live-rendered, .reading-article)[data-render-kind="math"],
 :is(.cm-live-rendered, .reading-article) [data-render-kind="math"] {
@@ -1710,6 +1803,15 @@ main.editing {
 :is(.cm-live-rendered, .reading-article) [role="math"] > svg,
 .cm-live-rendered[role="math"] > svg {
   max-width: none;
+}
+.cm-live-rendered[data-render-kind="inlineMath"][data-render-state="ready"],
+:is(.cm-live-rendered, .reading-article)
+  [data-render-kind="inlineMath"][data-render-state="ready"] {
+  line-height: 0;
+}
+.cm-live-rendered[data-render-kind="inlineMath"] > svg,
+:is(.cm-live-rendered, .reading-article) [data-render-kind="inlineMath"] > svg {
+  display: block;
 }
 .cm-live-diagram pre {
   max-height: min(24rem, 50vh);
@@ -2057,6 +2159,7 @@ dialog::backdrop {
   font-variant-numeric: tabular-nums;
 }
 .table-editor-grid {
+  isolation: isolate;
   flex: 1 1 auto;
   min-height: 80px;
   max-height: min(52dvh, 560px);
@@ -2086,6 +2189,11 @@ dialog::backdrop {
 .table-editor-grid th {
   background: var(--surface);
   font-weight: 600;
+}
+.table-editor-grid thead th {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 1;
 }
 .table-editor-grid th:first-child {
   min-width: 48px;

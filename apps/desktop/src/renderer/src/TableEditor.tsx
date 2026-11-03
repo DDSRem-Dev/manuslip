@@ -71,6 +71,7 @@ export function TableEditor({
         aria-label={`${atRow === 0 ? copy.header : `${copy.row} ${atRow}`}, ${copy.column} ${atColumn + 1}`}
         data-row={atRow}
         data-column={atColumn}
+        style={{ textAlign: draft?.align[atColumn] ?? undefined }}
         spellCheck={false}
         onFocus={() => controller.select(atRow, atColumn)}
         onChange={(event) => controller.cell(atRow, atColumn, event.target.value)}

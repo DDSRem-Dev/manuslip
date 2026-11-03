@@ -19,6 +19,7 @@ export function proseNavigation(field: StateField<{ visible: DecorationSet }>): 
         to = Math.max(range.head, moved.head)
       let occurrence: string | undefined
       visible.between(from, to, (start, end, decoration) => {
+        if (decoration.spec.virtual) return
         if (!proseProjection(decoration.spec.widget?.block.kind)) return
         if (forward && start >= range.head && start <= moved.head && occurrence === undefined)
           occurrence = decoration.spec.occurrence as string

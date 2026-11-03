@@ -9,6 +9,7 @@ import type { LiveOptions } from './live-model'
 export {
   composingEffect,
   isComposing,
+  type LiveAnchor,
   type LiveBlock,
   type LiveModel,
   type LiveOptions,
@@ -16,6 +17,7 @@ export {
   setLiveModel,
 } from './live-model'
 export { OccurrenceTracker } from './occurrences'
+export { navigateLiveAnchor } from './live-anchors'
 export function livePreview(options: LiveOptions): Extension[] {
   return [
     EditorView.lineWrapping,

@@ -99,7 +99,10 @@ test('translated reading preserves structure, private bindings, source history, 
           const operation = args[0]?.operation as
             | { kind?: string; payload?: ArrayBuffer }
             | undefined
-          if (operation?.kind === 'prepare') probe.native++
+          if (operation?.kind === 'prepare') {
+            probe.native++
+            probe.bytes += new TextEncoder().encode(JSON.stringify(operation)).byteLength
+          }
           if (operation?.kind === 'prepare-packed') {
             probe.packed++
             probe.bytes += operation.payload?.byteLength ?? 0
@@ -162,8 +165,10 @@ test('translated reading preserves structure, private bindings, source history, 
           }
         ).readingTransferProbe,
     )
-    expect(transfer.packed).toBe(1)
-    expect(transfer.native).toBe(0)
+    // Configurable document conventions use the native semantic path so their
+    // heading, callout and inline metadata survive into the reading worker.
+    expect(transfer.packed).toBe(0)
+    expect(transfer.native).toBe(1)
     expect(transfer.detached).toBe(transfer.packed)
     expect(transfer.bytes).toBeGreaterThan(4)
     expect(transfer.shared).toBe(1)

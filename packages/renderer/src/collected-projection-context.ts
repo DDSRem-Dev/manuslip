@@ -150,10 +150,11 @@ class Collection implements CollectedProjectionContext {
     lines: number,
     at: number,
     depth: number,
+    ordered: boolean,
   ): void {
     state.summaries[at] = (state.summaries[at] ?? 0) + 1
     state.summaries[at + 1] = Math.max(state.summaries[at + 1] ?? 0, depth)
-    if (isProjectionWidgetType(type, units, lines)) state.summaries[at + 2] = 1
+    if (isProjectionWidgetType(type, units, lines, ordered)) state.summaries[at + 2] = 1
   }
   /** The document and text validators have proved this complete immutable subtree.
    * It contains no definitions or footnote calls, so charge its whole logical walk
@@ -192,6 +193,8 @@ class Collection implements CollectedProjectionContext {
       }
     }
     const lines = position ? position.end.line - position.start.line + 1 : 1
+    const ordered =
+      type === 'list' && node.scalar(['ordered'], { retained: 16, staging: 0 }) === true
     if (depth === 2) {
       if (++state.block >= state.blocks) throw new Error('Collected projection block limit')
       if (state.bodySummaries) {
@@ -203,15 +206,15 @@ class Collection implements CollectedProjectionContext {
       }
     }
     if (depth > 1 && state.bodySummaries)
-      this.#summarize(state, type, units, lines, state.block * 4, depth - 1)
+      this.#summarize(state, type, units, lines, state.block * 4, depth - 1, ordered)
     const footer = state.bodySummaries ? state.blocks * 4 : 0
     // The root validator still observes every descendant of copied definitions.
     // Count that complete selected subtree exactly once for the eventual footer,
     // including unused notes and definitions nested within them.
     if (state.selectedDepth && depth > state.selectedDepth)
-      this.#summarize(state, type, units, lines, footer, depth - state.selectedDepth + 1)
+      this.#summarize(state, type, units, lines, footer, depth - state.selectedDepth + 1, ordered)
     else if (type === 'definition' || type === 'footnoteDefinition')
-      this.#summarize(state, type, units, lines, footer, 1)
+      this.#summarize(state, type, units, lines, footer, 1, ordered)
     if (state.selectedDepth && depth > state.selectedDepth) return
     state.selectedDepth = 0
     if (++state.nodes > state.limits.nodes || depth > state.limits.depth)

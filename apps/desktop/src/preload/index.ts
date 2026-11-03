@@ -54,6 +54,7 @@ import {
   parseSearchRequest,
   searchChannels,
 } from '../shared/search-contracts'
+import { parseSpellingCorrection, spellingChannel } from '../shared/spelling-contracts'
 import {
   parseStyleReset,
   parseTypographyRequest,
@@ -91,6 +92,13 @@ function parseNull(value: unknown): null {
 }
 
 const bridge: DesktopBridge = {
+  onSpellingCorrection: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, value: unknown): void => {
+      listener(parseSpellingCorrection(value))
+    }
+    ipcRenderer.on(spellingChannel, handler)
+    return () => ipcRenderer.removeListener(spellingChannel, handler)
+  },
   edit: async (action) =>
     parseResult(await ipcRenderer.invoke(channels.edit, parseClipboardAction(action)), parseNull),
   syncState: async (id) =>

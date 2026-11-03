@@ -1,14 +1,20 @@
 import { parseMarkdown } from '@manuslip/core'
 import { describe, expect, it } from 'vitest'
-import { frontmatterEnd } from '../../src/frontmatter'
-import { createSourceState, EditorSelection, selectionInCode } from '../../src/index'
+import { frontmatterEnd, yamlFrontmatter } from '../../src/frontmatter'
+import {
+  Compartment,
+  createSourceState,
+  EditorSelection,
+  selectionInCode,
+  undo,
+} from '../../src/index'
 import { editorSyntax, maxEditorInlineLength } from '../../src/syntax'
 
 describe('bounded editor inline syntax', () => {
   it('keeps closed frontmatter literal and recognizes edits that close or remove it', () => {
     for (const fence of ['---', '+++']) {
       const source = `${fence}\ntitle: **literal**\n${fence}\n\n# Actual heading`
-      let state = createSourceState(source)
+      let state = createSourceState(source, { extensions: [yamlFrontmatter.of(true)] })
       const end = source.indexOf('\n\n')
       expect(state.field(frontmatterEnd)).toBe(end)
       state = state.update({ changes: { from: state.doc.length, insert: '\nAfter' } }).state
@@ -18,10 +24,41 @@ describe('bounded editor inline syntax', () => {
       state = state.update({ changes: { from: end - 3, insert: fence } }).state
       expect(state.field(frontmatterEnd)).toBe(end)
     }
-    expect(createSourceState('---\nUnclosed **Markdown**').field(frontmatterEnd)).toBe(0)
     expect(
-      createSourceState('Paragraph\n\n---\ntitle: **Markdown**\n---').field(frontmatterEnd),
+      createSourceState('---\nUnclosed **Markdown**', {
+        extensions: [yamlFrontmatter.of(true)],
+      }).field(frontmatterEnd),
     ).toBe(0)
+    expect(
+      createSourceState('Paragraph\n\n---\ntitle: **Markdown**\n---', {
+        extensions: [yamlFrontmatter.of(true)],
+      }).field(frontmatterEnd),
+    ).toBe(0)
+  })
+  it('updates YAML interpretation on configuration changes without changing source or undo', () => {
+    const source = '---\ntitle: **literal**\n---\n\n# Actual heading'
+    const configuration = new Compartment()
+    let state = createSourceState(source, {
+      extensions: [configuration.of(yamlFrontmatter.of(false))],
+    })
+    const end = source.indexOf('\n\n')
+    expect(state.field(frontmatterEnd)).toBe(0)
+    state = state.update({ changes: { from: state.doc.length, insert: '\nAfter' } }).state
+    for (const enabled of [true, false, true]) {
+      state = state.update({
+        effects: configuration.reconfigure(yamlFrontmatter.of(enabled)),
+      }).state
+      expect(state.field(frontmatterEnd)).toBe(enabled ? end : 0)
+      expect(state.doc.toString()).toBe(`${source}\nAfter`)
+    }
+    expect(undo({ state, dispatch: (transaction) => (state = transaction.state) })).toBe(true)
+    expect(state.doc.toString()).toBe(source)
+    expect(state.field(frontmatterEnd)).toBe(end)
+  })
+  it('recognizes TOML with YAML disabled by default', () => {
+    expect(createSourceState('---\ntitle: **literal**\n---').field(frontmatterEnd)).toBe(0)
+    const source = '+++\ntitle = "**literal**"\n+++'
+    expect(createSourceState(source).field(frontmatterEnd)).toBe(source.length)
   })
   it('retains ordinary inline parsing and surrounding block structure', () => {
     const source = `# Heading\n\n${'x'.repeat(maxEditorInlineLength)} **large**\n\n**ordinary** and \`code\`\n`

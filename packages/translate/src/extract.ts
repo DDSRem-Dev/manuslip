@@ -6,8 +6,8 @@ import {
   translationLimits,
   type UnitKind,
 } from './contracts'
-import { type ExtractionCost, ExtractionMemory } from './extraction-memory'
 import { translationUnitKinds, UnitExtraction } from './extract-unit'
+import { type ExtractionCost, ExtractionMemory } from './extraction-memory'
 
 /** A captured semantic root is input; this function never rewrites source or that root. */
 export function extractTranslation(
@@ -91,5 +91,8 @@ function extract(
         }
       }
   }
+  // Generated inline-note definitions live in the AST footer but retain their
+  // original source positions. Keep provider/export indices in source order.
+  result.sort((a, b) => a.from - b.from || b.to - a.to)
   return { root, units: result, payloadBytes: extraction.payloadBytes }
 }

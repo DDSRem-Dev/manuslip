@@ -1,4 +1,6 @@
 export type { Nodes, Root, RootContent } from 'mdast'
 export { BoundedCache } from './cache'
 export * from './contracts'
+export * from './conventions'
+export { parseDocumentMarkdown } from './document-markdown'
 export { nodeRange, parseMarkdown, plainText } from './parse'

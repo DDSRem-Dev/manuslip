@@ -20,7 +20,10 @@ if (blockTransforms.length !== 1) throw new Error('Unsupported GFM block transfo
 /** One compiler configuration for streamed and complete application roots. Native
  * tokenization, global references, positions and audited block-local transforms remain.
  */
-export function markdownCompileSteps(source: string, { processor, gfm }: MarkdownGrammar) {
+export function markdownCompileSteps(
+  source: string,
+  { processor, gfm, autolinks }: MarkdownGrammar,
+) {
   const options = {
     extensions: processor.data('micromarkExtensions') ?? [],
     mdastExtensions: processor.data('fromMarkdownExtensions') ?? [],
@@ -34,7 +37,7 @@ export function markdownCompileSteps(source: string, { processor, gfm }: Markdow
       processor.data('micromarkExtensions') ?? [],
       gfm,
     ),
-    _manuslipBlockTransforms: gfm ? blockTransforms : [],
+    _manuslipBlockTransforms: gfm && autolinks !== false ? blockTransforms : [],
   }
   const iterator = fromMarkdown(source, options) as unknown as Generator<
     RootContent | undefined,

@@ -56,6 +56,7 @@ export function selectionInCode(state: EditorState): boolean {
   })
 }
 export { highlightCode } from './code-widget'
+export { yamlFrontmatter } from './frontmatter'
 export { SourceInputSynchronization } from './input-synchronization'
 export { documentBytes, limitRejected, maxDocumentBytes } from './limits'
 export * from './live'

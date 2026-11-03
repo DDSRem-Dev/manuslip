@@ -1,3 +1,4 @@
+import { defaultMarkdownPlugins } from '@manuslip/core/conventions'
 import { defaultEditorPreferences } from '@manuslip/editor/preferences'
 import { describe, expect, it } from 'vitest'
 import {
@@ -67,11 +68,14 @@ describe('bridge boundary validation', () => {
       ...defaultSettings,
       editor: { ...defaultEditorPreferences },
       reading: { layout: 'interlinear' as const },
+      markdown: { ...defaultMarkdownPlugins },
     }
     const parsed = parseSettings(input)
     expect(parsed).toEqual(input)
     input.editor.tabSize = 8
+    input.markdown.github = true
     expect(parsed.editor?.tabSize).toBe(4)
+    expect(parsed.markdown?.github).toBe(false)
   })
   it.each([
     { editor: null },
@@ -84,5 +88,15 @@ describe('bridge boundary validation', () => {
     { reading: { layout: 'replace', network: true } },
   ])('rejects malformed preference domains: %j', (domain) => {
     expect(() => parseSettings({ ...defaultSettings, ...domain })).toThrow('Invalid settings')
+  })
+  it.each([
+    null,
+    { opt: true },
+    { ...defaultMarkdownPlugins, latex: 'yes' },
+    { ...defaultMarkdownPlugins, executable: 'untrusted' },
+  ])('rejects malformed Markdown plugin preferences: %j', (markdown) => {
+    expect(() => parseSettings({ ...defaultSettings, markdown })).toThrow(
+      'Invalid Markdown plugins',
+    )
   })
 })

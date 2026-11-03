@@ -57,7 +57,7 @@ export function readingBlocks(root: Root, source: string): ReadingBlock[] {
       to: source.length,
       hash: 'footnotes',
     })
-  return blocks
+  return blocks.sort((a, b) => a.from - b.from || b.to - a.to)
 }
 export interface ReadingOptions {
   layout: ReadingLayout

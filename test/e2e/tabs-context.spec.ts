@@ -210,6 +210,7 @@ for (const theme of ['light', 'dark'])
       expect(await tabs.evaluateAll((nodes) => nodes.map((node) => node.id))).toEqual(ids)
       expect(await readFile(renamed, 'utf8')).toBe(edited)
       expect(await readFile(paths[0] ?? '', 'utf8')).toBe(originals[0])
+      await page.getByRole('button', { name: 'Source', exact: true }).click()
       await editor.focus()
       await page.keyboard.press(`${process.platform === 'darwin' ? 'Meta' : 'Control'}+z`)
       const source = () =>

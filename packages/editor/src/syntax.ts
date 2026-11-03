@@ -13,8 +13,42 @@ export const editorSyntax = markdown({
   completeHTMLTags: false,
   pasteURLAsLink: false,
   extensions: {
-    defineNodes: ['UnparsedInline'],
+    defineNodes: ['UnparsedInline', 'LiteralHTML'],
+    parseBlock: [
+      {
+        name: 'LiteralDisclosure',
+        before: 'HTMLBlock',
+        parse(context, line) {
+          if (!/^<\/?(?:details|summary)(?=[\s/>]|$)/i.test(line.text.slice(line.pos))) return false
+          const from = context.lineStart + line.pos
+          const text = line.text.slice(line.pos)
+          context.addElement(
+            context.elt(
+              'Paragraph',
+              from,
+              from + text.length,
+              context.parser.parseInline(text, from),
+            ),
+          )
+          context.nextLine()
+          return true
+        },
+      },
+    ],
     parseInline: [
+      {
+        name: 'LiteralDisclosure',
+        before: 'HTMLTag',
+        parse(context, next, position) {
+          if (next !== 60) return -1
+          const tag = /^<\/?(?:details|summary)(?=[\s/>])(?:[^"'<>]|"[^"]*"|'[^']*')*>/i.exec(
+            context.slice(position, context.end),
+          )
+          return tag
+            ? context.addElement(context.elt('LiteralHTML', position, position + tag[0].length))
+            : -1
+        },
+      },
       {
         name: 'BoundedInline',
         before: 'Escape',

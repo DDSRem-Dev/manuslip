@@ -1,8 +1,9 @@
-import { type Nodes as MarkdownNode, type Root, semanticLimits } from '@manuslip/core'
+import { type Nodes as MarkdownNode, plainText, type Root, semanticLimits } from '@manuslip/core'
 import type { Element, Root as HastRoot, Nodes } from 'hast'
 import { toHtml } from 'hast-util-to-html'
 import { defListHastHandlers } from 'mdast-util-definition-list'
 import { defaultHandlers, type Handlers, type Options, toHast } from 'mdast-util-to-hast'
+import { conventionHandlers, refreshTableOfContents } from './convention-handlers'
 import { diagramSyntax } from './diagram'
 import { extendedInlineHandlers } from './extended-inline'
 import {
@@ -35,9 +36,16 @@ const widgetKinds = new Set([
   'emoji',
 ])
 
-export function isProjectionWidgetType(type: string, units = 0, lines = 1): boolean {
+export function isProjectionWidgetType(
+  type: string,
+  units = 0,
+  lines = 1,
+  ordered = false,
+): boolean {
   return (
     widgetKinds.has(type) ||
+    // Subsequent source markers do not determine an ordered list's rendered numbers.
+    (type === 'list' && ordered) ||
     ((type === 'paragraph' || type === 'heading') && units > semanticLimits.editorInlineUnits) ||
     (type === 'heading' && lines > 2) ||
     // A multiline code span requires its enclosing paragraph's normalized HTML.
@@ -71,6 +79,7 @@ function compositeProjection(node: MarkdownNode): boolean {
     if (!child) continue
     if (
       child.type === 'html' ||
+      (child.type === 'list' && child.ordered) ||
       (child.type === 'inlineCode' &&
         child.position &&
         child.position.end.line > child.position.start.line) ||
@@ -89,18 +98,30 @@ function compositeProjection(node: MarkdownNode): boolean {
   return false
 }
 
-export function describeProjectionNode(node: MarkdownNode) {
+export function describeProjectionNode(node: MarkdownNode, options?: RenderOptions) {
   if (node.type === 'inlineCode') return undefined
   const from = node.position?.start.offset
   const to = node.position?.end.offset
   if (from === undefined || to === undefined) return undefined
   const lines = (node.position?.end.line ?? 1) - (node.position?.start.line ?? 1) + 1
   if (
-    !isProjectionWidgetType(node.type, projectionUnits(node), lines) &&
-    !compositeProjection(node)
+    !isProjectionWidgetType(
+      node.type,
+      projectionUnits(node),
+      lines,
+      node.type === 'list' && !!node.ordered,
+    ) &&
+    !compositeProjection(node) &&
+    !(
+      node.data?.manuslipProjection &&
+      ['paragraph', 'heading', 'blockquote', 'list', 'defList'].includes(node.type)
+    )
   )
     return undefined
-  const syntax = node.type === 'code' ? diagramSyntax(node.lang) : undefined
+  const syntax =
+    node.type === 'code' && options?.plugins?.mermaid !== false
+      ? diagramSyntax(node.lang)
+      : undefined
   return {
     key: `${from}:${to}`,
     description: {
@@ -113,6 +134,9 @@ export function describeProjectionNode(node: MarkdownNode) {
               ? 'diagram'
               : (node.type as RenderedBlock['kind']),
       value: 'value' in node ? node.value : '',
+      ...(node.type === 'footnoteDefinition' && node.data?.manuslipInlineFootnote
+        ? { placement: 'after-document' as const }
+        : {}),
       ...(syntax && syntax !== 'mermaid' ? { syntax } : {}),
     },
   }
@@ -148,6 +172,7 @@ export function projectionOptions(options: RenderOptions, handlers: Handlers = {
     handlers: {
       ...defListHastHandlers,
       ...extendedInlineHandlers,
+      ...conventionHandlers,
       ...handlers,
       html: (state, node: Extract<Root['children'][number], { type: 'html' }>) => {
         const result = options.rawHtml
@@ -199,17 +224,32 @@ export function projectHast(
 ): RenderProjection {
   const blocks = new Map<string, RenderedBlock>()
   const descriptions = new Map<string, ProjectionDescription>()
+  const inlineFootnotes = root.children.some(
+    (node) => node.type === 'footnoteDefinition' && node.data?.manuslipInlineFootnote,
+  )
+  const headingLabels = new Map<string, string>()
   const pending: MarkdownNode[] = [...root.children]
   while (pending.length) {
     const node = pending.pop()
     if (!node) break
     if ('children' in node) for (const child of node.children) pending.push(child)
-    const described = describeProjectionNode(node)
+    if (node.type === 'heading' && typeof node.data?.hProperties?.id === 'string')
+      headingLabels.set(node.data.hProperties.id, plainText(node))
+    const described = describeProjectionNode(node, options)
     if (described) descriptions.set(described.key, described.description)
   }
-  const visit = (node: Nodes): void => {
-    if (node.type === 'element') applyProjectionPolicy(node)
-    if ('children' in node) for (const child of node.children) visit(child)
+  const visit = (node: Nodes, listStart?: number): void => {
+    if (node.type === 'element') {
+      refreshTableOfContents(node, headingLabels)
+      applyProjectionPolicy(node)
+    }
+    if ('children' in node) {
+      let ordinal = 0
+      for (const child of node.children) {
+        if (child.type === 'element' && child.tagName === 'li') ordinal++
+        visit(child, node.type === 'element' && node.tagName === 'ol' ? ordinal : undefined)
+      }
+    }
     const from = node.position?.start.offset
     const to = node.position?.end.offset
     const description =
@@ -219,6 +259,9 @@ export function projectHast(
       if (node.type === 'element') exportSlot?.(node, description)
       const block = {
         ...description,
+        ...(inlineFootnotes && description.kind === 'footnoteDefinition' && listStart
+          ? { listStart }
+          : {}),
         from,
         to,
         html: toHtml(node, { allowDangerousHtml: options.rawHtml }),

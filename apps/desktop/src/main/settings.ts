@@ -78,6 +78,18 @@ export class SettingsRepository {
         theme: { type: 'string', enum: ['system', 'light', 'dark'] },
         locale: { type: 'string', enum: ['en', 'zh-CN'] },
         spellcheck: { type: 'boolean' },
+        markdown: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['opt', 'latex', 'mermaid', 'github', 'typora'],
+          properties: {
+            opt: { type: 'boolean' },
+            latex: { type: 'boolean' },
+            mermaid: { type: 'boolean' },
+            github: { type: 'boolean' },
+            typora: { type: 'boolean' },
+          },
+        },
         editor: {
           type: 'object',
           additionalProperties: false,

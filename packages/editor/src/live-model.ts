@@ -1,5 +1,6 @@
-import { StateEffect, StateField } from '@codemirror/state'
+import { type EditorState, StateEffect, StateField } from '@codemirror/state'
 import type { EditorView } from '@codemirror/view'
+import { preserveTaskToggle } from './live-task-changes'
 
 export interface LiveBlock {
   id: string
@@ -9,10 +10,19 @@ export interface LiveBlock {
   html: string
   value: string
   syntax?: 'mermaid' | 'sequence' | 'flowchart'
+  placement?: 'after-document'
+  listStart?: number
   lines: number
 }
 export interface LiveModel {
   blocks: readonly LiveBlock[]
+  anchors?: readonly LiveAnchor[]
+}
+export interface LiveAnchor {
+  from: number
+  id: string
+  rendered?: boolean
+  placement?: 'after-document'
 }
 export function inlineProjection(kind: string): boolean {
   return [
@@ -43,7 +53,7 @@ export const composingEffect = StateEffect.define<boolean>()
 export const liveModel = StateField.define<LiveModel | null>({
   create: () => null,
   update: (model, transaction) => {
-    if (transaction.docChanged) model = null
+    if (transaction.docChanged) model = model && preserveTaskToggle(model, transaction)
     for (const effect of transaction.effects) if (effect.is(setLiveModel)) model = effect.value
     return model
   },
@@ -57,11 +67,35 @@ export const isComposing = StateField.define<boolean>({
   },
 })
 
+/** Semantic positions can start after block indentation. A block widget owns that
+ * whitespace too, but must never consume neighboring text on the same source line.
+ */
+export function blockSourceRange(
+  state: EditorState,
+  block: LiveBlock,
+): { from: number; to: number } | undefined {
+  const first = state.doc.lineAt(block.from)
+  const last = state.doc.lineAt(block.to)
+  if (!/^[ \t]*$/.test(state.doc.sliceString(first.from, block.from))) return undefined
+  if (block.kind === 'defList' && last.from === block.to) return { from: first.from, to: block.to }
+  if (!/^[ \t]*$/.test(state.doc.sliceString(block.to, last.to))) return undefined
+  return { from: first.from, to: last.to }
+}
+
 export function revealSource(view: EditorView, dom: HTMLElement): void {
   const block = view.state
     .field(liveModel)
     ?.blocks.find((block) => block.id === dom.dataset.occurrence)
   if (!block) return
-  view.dispatch({ selection: { anchor: block.from, head: block.to }, scrollIntoView: true })
+  if (block.placement === 'after-document') {
+    view.dispatch({ selection: { anchor: block.from - 1, head: block.to }, scrollIntoView: true })
+    view.focus()
+    return
+  }
+  const range = !inlineProjection(block.kind) && blockSourceRange(view.state, block)
+  view.dispatch({
+    selection: { anchor: range ? range.from : block.from, head: range ? range.to : block.to },
+    scrollIntoView: true,
+  })
   view.focus()
 }

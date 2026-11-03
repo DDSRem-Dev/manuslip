@@ -517,7 +517,10 @@ test('a late translation above the reader preserves its block and pixel offset',
           element.getBoundingClientRect().top -
           (element.closest('.reading-pane')?.getBoundingClientRect().top ?? 0),
       )
-    await expect.poll(offset).toBeCloseTo(-17, 0)
+    // Chromium may quantize scrollTop to device pixels. Capture the achieved
+    // offset, then verify that the late translation preserves it.
+    await expect.poll(async () => Math.abs((await offset()) + 17)).toBeLessThanOrEqual(1)
+    const beforeTranslation = await offset()
     if (!leading) throw new Error('Missing held translation')
     answer(
       leading,
@@ -526,7 +529,7 @@ test('a late translation above the reader preserves its block and pixel offset',
     await expect(page.locator('.reading-translation').first()).toContainText(
       'A much longer translated passage',
     )
-    await expect.poll(offset).toBeCloseTo(-17, 0)
+    await expect.poll(offset).toBeCloseTo(beforeTranslation, 0)
     expect(await pair.getAttribute('data-reading-block')).toBe(id)
     expect(
       await page

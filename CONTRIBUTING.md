@@ -59,7 +59,10 @@ npm ci
 npm run dev
 ```
 
-**Current state:** the desktop app implements the secure shell, localized preferences, source/file lifecycle, recovery, and initial Live Preview with semantic and math workers. Workspace, export, translation, and remaining acceptance gates are in [the implementation plan](./docs/adr/002-implementation-plan.md). Current evidence and platform gaps are recorded in [VALIDATION.md](./docs/validation/implementation-history.md).
+**Current state:** the desktop app includes editing, file recovery, workspaces, export,
+translation, plugins and explicit sync. See the [feature availability review](docs/reviews/feature-availability-review.md)
+for supported flows, the [testing guide](docs/testing/testing.md) for current commands,
+and the [validation history](docs/validation/implementation-history.md) for evidence and platform gaps.
 
 ## Root scripts
 

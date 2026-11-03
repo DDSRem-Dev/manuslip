@@ -30,9 +30,7 @@ test('Live Preview uses a worker and preserves source, selection and undo across
     await page.screenshot({ path: test.info().outputPath('live-preview.png') })
     await expect(page.getByText('Updating preview…', { exact: true })).toHaveCount(0)
     expect(
-      await page.evaluate(
-        () => performance.getEntriesByName('manuslip:packed-preview-apply').length,
-      ),
+      await page.evaluate(() => performance.getEntriesByName('manuslip:semantic-apply').length),
     ).toBeGreaterThan(0)
     await page.getByRole('button', { name: 'Source', exact: true }).click()
     await expect
@@ -69,7 +67,7 @@ test('Live Preview uses a worker and preserves source, selection and undo across
   }
 })
 
-test('exhausting packed widget leases falls back to editable source without losing content', async () => {
+test('many visible native widgets preserve editable source without losing content', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'manuslip-preview-capacity-'))
   const application = await launchDesktop(join(directory, 'profile'))
   try {
@@ -82,10 +80,12 @@ test('exhausting packed widget leases falls back to editable source without losi
     const source = `# Many visible tables\n\n${'| A | B |\n| - | - |\n| 1 | 2 |\n\n'.repeat(150)}`
     await editor.fill(source)
     await page.getByRole('button', { name: 'Live Preview', exact: true }).click()
-    await expect(page.getByRole('button', { name: 'Source', exact: true })).toHaveAttribute(
+    await expect(page.getByRole('button', { name: 'Live Preview', exact: true })).toHaveAttribute(
       'aria-pressed',
       'true',
     )
+    await expect(page.locator('.cm-live-table table')).toHaveCount(150)
+    await page.getByRole('button', { name: 'Source', exact: true }).click()
     await expect
       .poll(async () => (await editor.locator('.cm-line').allTextContents()).join('\n'))
       .toBe(source)

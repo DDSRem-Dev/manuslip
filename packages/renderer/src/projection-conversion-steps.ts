@@ -3,6 +3,7 @@ import type { Nodes, Parents } from 'mdast'
 import { defListHastHandlers } from 'mdast-util-definition-list'
 import { defaultHandlers, type State } from 'mdast-util-to-hast'
 import { extendedInlineHandlers } from './extended-inline'
+import { conventionHandlers } from './convention-handlers'
 
 type Result = ReturnType<State['one']>
 interface Children {
@@ -77,6 +78,7 @@ export function* projectionConversionSteps(
       type !== 'html' &&
       handler !== defaultHandlers[type as keyof typeof defaultHandlers] &&
       handler !== extendedInlineHandlers[type as keyof typeof extendedInlineHandlers] &&
+      handler !== conventionHandlers[type as keyof typeof conventionHandlers] &&
       handler !== defListHastHandlers[type as keyof typeof defListHastHandlers]
     )
       throw new Error('Unsupported cooperative projection handler')

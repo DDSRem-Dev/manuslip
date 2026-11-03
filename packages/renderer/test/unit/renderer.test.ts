@@ -5,6 +5,21 @@ import { localImagePath } from '../../src/urls'
 
 const options = { rawHtml: false, footnotesLabel: 'Footnotes', footnoteBackLabel: 'Back' }
 describe('shared rendering policy', () => {
+  it('projects ordered lists with semantic numbering, both delimiters and nested contents', () => {
+    const source =
+      '3. first\n1. second\n9. third\n\n0) zero\n0) one\n\n- Outer\n\n  7. nested\n  1. next'
+    const result = renderMarkdown(parseMarkdown(source).root, options)
+    const lists = result.blocks.filter((block) => block.kind === 'list')
+    expect(lists[0]?.html).toBe(
+      '<ol start="3">\n<li>first</li>\n<li>second</li>\n<li>third</li>\n</ol>',
+    )
+    expect(lists[1]?.html).toBe('<ol start="0">\n<li>zero</li>\n<li>one</li>\n</ol>')
+    expect(lists[2]?.html).toContain('<ul>\n<li>\n<p>Outer</p>\n<ol start="7">')
+    expect(source.slice(lists[0]?.from, lists[0]?.to)).toBe('3. first\n1. second\n9. third')
+    expect(
+      renderMarkdown(parseMarkdown('> 3. first\n> 1. second').root, options).blocks[0]?.kind,
+    ).toBe('blockquote')
+  })
   it('projects multiline code spans and headings with CommonMark whitespace normalization', () => {
     const source = 'Heading first\nsecond\n======\n\nCode ` first\nsecond ` after.'
     const result = renderMarkdown(parseMarkdown(source).root, options)

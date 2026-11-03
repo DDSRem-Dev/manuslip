@@ -1,4 +1,6 @@
-export const exportStyle = `
+import { markdownConventionStyle } from './convention-style'
+
+export const exportStyle = `${markdownConventionStyle}
 @page { size: A4; margin: 20mm; }
 :root { color-scheme: light; }
 * { box-sizing: border-box; }
@@ -13,12 +15,18 @@ dd > :first-child { margin-block-start: 0; } dd > :last-child { margin-block-end
 code,pre { font-family: "Manuslip CJK", Consolas, "Liberation Mono", monospace; font-size: .9em; }
 pre { white-space: pre-wrap; overflow-wrap: anywhere; border: 1px solid #ccd0c7; padding: 12px; background: #f5f6f2; }
 blockquote { margin-inline: 0; border-inline-start: 3px solid #88977b; padding-inline-start: 16px; }
-table { border-collapse: collapse; width: 100%; table-layout: auto; }
-th,td { border: 1px solid #aeb6a6; padding: 6px 10px; text-align: start; }
+table { border-collapse: collapse; border-spacing: 0; width: 100%; table-layout: auto; text-align: start; font: inherit; line-height: 1.6; font-variant-numeric: tabular-nums; }
+th,td { border: 1px solid #aeb6a6; padding: 8px 12px; text-align: inherit; vertical-align: top; }
+:is(th,td)[align="left" i] { text-align: left; }
+:is(th,td)[align="center" i] { text-align: center; }
+:is(th,td)[align="right" i] { text-align: right; }
+th { font-weight: 600; background: #f5f6f2; }
+tbody tr:nth-child(even) { background: #f5f6f2; }
 thead { display: table-header-group; } tr { break-inside: avoid; }
 a { color: #285b32; text-decoration: underline; } img,svg { max-width: 100%; height: auto; }
 img { object-fit: contain; max-height: 240mm; } [data-export-kind="diagram"], [data-export-kind="display-math"] { break-inside: avoid; text-align: center; margin-block: 1em; }
-[data-export-kind="math"] { display: inline-block; vertical-align: middle; }
+[data-export-kind="math"] { display: inline-block; max-width: 100%; overflow: auto; vertical-align: baseline; line-height: 0; }
+[data-export-kind="math"] > svg { display: block; }
 hr { border: 0; border-top: 1px solid #aeb6a6; } input { accent-color: #365d36; }
 .reading-export-note { font: 13px/1.5 "Manuslip CJK", "Segoe UI", system-ui, sans-serif; border-bottom: 1px solid #aeb6a6; padding-bottom: 12px; }
 .reading-pair { min-width: 0; padding-block: 12px; border-bottom: 1px solid #ccd0c7; }

@@ -61,9 +61,13 @@ test('offline spelling is opt-in, offers native corrections with undo and surviv
                 Menu.buildFromTemplate = original
                 const menu = original(template)
                 menu.popup = () => {
-                  const suggestion = menu.getMenuItemById('spelling-0')
-                  suggestion?.click()
-                  resolve(suggestion?.label || '')
+                  // A native menu choice happens after the context-menu event
+                  // returns and Chromium has selected the misspelled word.
+                  setImmediate(() => {
+                    const suggestion = menu.getMenuItemById('spelling-0')
+                    suggestion?.click()
+                    resolve(suggestion?.label || '')
+                  })
                 }
                 return menu
               }

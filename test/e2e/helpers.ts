@@ -19,7 +19,8 @@ export function launchDesktop(profile: string, paths: string[] = []): Promise<El
 async function openDisclosure(page: Page, name: RegExp): Promise<Locator> {
   const trigger = page.getByRole('button', { name })
   const panel = page.getByRole('group', { name, includeHidden: true })
-  if (!(await panel.isVisible())) await trigger.click()
+  // A closed native popover can remain painted during its exit transition.
+  if (!(await panel.evaluate((element) => element.matches(':popover-open')))) await trigger.click()
   await expect(panel).toBeVisible()
   await expect(trigger).toHaveAttribute('aria-expanded', 'true')
   return panel

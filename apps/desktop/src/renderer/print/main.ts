@@ -1,4 +1,5 @@
 import { exportStyle } from '@manuslip/renderer/export-style'
+import { inlineMathBaseline } from '@manuslip/renderer/math-layout'
 import { createSanitizer, scopeReadingReferences } from '@manuslip/renderer/sanitize'
 import type { PrintPayload } from '../../shared/export-contracts'
 import '../fonts.css'
@@ -56,6 +57,10 @@ window.manuslipPrintHost.onJob((payload) => {
         const svg = slot.kind === 'diagram' ? sanitizer.diagram(slot.svg) : sanitizer.svg(slot.svg)
         if (!svg.querySelector('svg')) throw new Error('export-render')
         element.replaceChildren(svg)
+        const image = element.querySelector('svg')
+        if (slot.kind === 'math' && !slot.display && image)
+          (element as HTMLElement).style.verticalAlign =
+            inlineMathBaseline(image.getAttribute('height'), image.getAttribute('viewBox')) ?? ''
         element.removeAttribute('data-export-slot')
         element.setAttribute(
           'data-export-kind',

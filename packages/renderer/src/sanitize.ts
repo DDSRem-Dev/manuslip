@@ -36,13 +36,12 @@ const tags = [
   'sup',
   'sub',
   'section',
+  'nav',
   'dl',
   'dt',
   'dd',
   'kbd',
   'mark',
-  'details',
-  'summary',
 ]
 const attributes = [
   'class',
@@ -214,8 +213,9 @@ export function createSanitizer(window: WindowLike): {
     ALLOWED_TAGS: tags,
     ALLOWED_ATTR: attributes,
     ALLOW_DATA_ATTR: false,
-    // The hook validates this dormant reference; it is never a browser src URL.
-    ADD_URI_SAFE_ATTR: ['data-local-image', 'type', 'lang', 'dir'],
+    // The hook validates the dormant image reference. Alignment, list starts and
+    // language/type metadata must survive the restrictive navigation URI policy.
+    ADD_URI_SAFE_ATTR: ['data-local-image', 'type', 'lang', 'dir', 'start', 'align'],
     RETURN_DOM_FRAGMENT: true,
     SANITIZE_NAMED_PROPS: true,
     ALLOWED_URI_REGEXP: /^(?:https:|manuslip-asset:|data:image\/|#)/i,
@@ -369,12 +369,9 @@ export function createSanitizer(window: WindowLike): {
           ? {
               ADD_ATTR: ['data-export-slot', 'data-reading-block'],
               ADD_URI_SAFE_ATTR: [
-                'data-local-image',
+                ...(markdownConfig.ADD_URI_SAFE_ATTR ?? []),
                 'data-export-slot',
                 'data-reading-block',
-                'type',
-                'lang',
-                'dir',
               ],
             }
           : {}),
@@ -384,7 +381,7 @@ export function createSanitizer(window: WindowLike): {
         if (input.getAttribute('type') !== 'checkbox') input.remove()
         else input.disabled = true
       }
-      // DOMPurify prefixes named properties once, including already-prefixed mdast footnotes.
+      // Mirror DOMPurify's idempotent named-property prefix, including mdast footnotes.
       const named = (id: string) => (id.startsWith('user-content-') ? id : `user-content-${id}`)
       for (const anchor of fragment.querySelectorAll('a[href^="#"]')) {
         const href = anchor.getAttribute('href') ?? ''

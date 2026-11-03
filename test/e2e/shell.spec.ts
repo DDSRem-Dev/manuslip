@@ -73,6 +73,7 @@ test('secure shell launches, stays offline, and restores preferences', async () 
         'closeWindow',
         'onFileChanged',
         'onCommand',
+        'onSpellingCorrection',
         'checkpoint',
         'clearRecovery',
         'listRecoveries',

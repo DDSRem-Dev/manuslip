@@ -1,4 +1,9 @@
 import { messageSize, semanticLimits } from '@manuslip/core'
+import {
+  defaultMarkdownPlugins,
+  type MarkdownPlugins,
+  markdownPluginNames,
+} from '@manuslip/core/conventions'
 import { type EditorState, OccurrenceTracker, type Text, type Transaction } from '@manuslip/editor'
 import type { RenderOptions } from '@manuslip/renderer'
 import {
@@ -80,6 +85,7 @@ export class DocumentReading {
   private engine: ReadingEngine | null = null
   private captureAbort: AbortController | null = null
   private source: Text | null = null
+  private plugins: MarkdownPlugins = defaultMarkdownPlugins
   private units: ReadingUnit[] = []
   private groups = new Map<string, ReadingUnit[]>()
   private readonly outputs = new Map<string, string>()
@@ -162,6 +168,13 @@ export class DocumentReading {
     if (this.source) this.store.setState({ stale: true })
     // Freeze the captured projection, even if provider responses for its old source arrive.
   }
+  private matchingConventions(): boolean {
+    const current = this.document.options().plugins ?? defaultMarkdownPlugins
+    return markdownPluginNames.every((name) => current[name] === this.plugins[name])
+  }
+  conventionsChanged(): void {
+    if (this.source && !this.matchingConventions()) this.store.setState({ stale: true })
+  }
   async target(language: string): Promise<void> {
     const state = await this.metadata()
     if (
@@ -210,6 +223,7 @@ export class DocumentReading {
     const reusable =
       this.engine &&
       this.source === text &&
+      this.matchingConventions() &&
       this.store.getState().revision === revision &&
       !this.store.getState().stale
     if (failedOnly && !reusable) {
@@ -292,6 +306,7 @@ export class DocumentReading {
           blocks: this.blocks,
         }).bytes
         this.source = text
+        this.plugins = { ...(snapshot.plugins ?? defaultMarkdownPlugins) }
         this.errors.clear()
         this.misses.clear()
         for (const key of this.outputs.keys())
@@ -309,7 +324,7 @@ export class DocumentReading {
         }
         this.store.setState({
           revision,
-          stale: revision !== this.document.revision(),
+          stale: revision !== this.document.revision() || !this.matchingConventions(),
           projection: null,
           error: null,
         })
@@ -492,7 +507,7 @@ export class DocumentReading {
       const result = await engine.request({
         kind: 'render',
         outputs,
-        options: this.document.options(),
+        options: { ...this.document.options(), plugins: this.plugins },
         layout: this.store.getState().layout,
         blocks: this.blocks,
         labels: { original: copy.original, translation: copy.translation },
@@ -532,7 +547,13 @@ export class DocumentReading {
       return
     this.store.setState({ layout })
   }
-  captureExport(): { source: string; revision: number; reading: ReadingExport; missing: number } {
+  captureExport(): {
+    source: string
+    revision: number
+    reading: ReadingExport
+    missing: number
+    plugins: MarkdownPlugins
+  } {
     const status = this.store.getState()
     const settings = status.configuration?.settings
     if (!this.source || status.revision === null || !settings || !status.projection)
@@ -544,6 +565,7 @@ export class DocumentReading {
     const snapshot = {
       source: this.source.toString(),
       revision: status.revision,
+      plugins: { ...this.plugins },
       missing: this.units.length - units.length,
       reading: {
         schema: 'mdast-reading/v1' as const,

@@ -2,6 +2,7 @@ import { type EditorState, type Range, StateField } from '@codemirror/state'
 import { Decoration, type DecorationSet, EditorView, WidgetType } from '@codemirror/view'
 import { preserveProseLineBreaks } from './live-line-breaks'
 import {
+  blockSourceRange,
   inlineProjection,
   isComposing,
   type LiveBlock,
@@ -12,17 +13,22 @@ import {
 } from './live-model'
 import { proseNavigation, revealProse } from './live-navigation'
 import { rangeTouches } from './live-selection'
+import { taskCheckboxes } from './live-task-changes'
 import { mountTaskControls } from './live-tasks'
 
 // CodeMirror can hand the same DOM to a newer equivalent widget object. Its lifetime
 // belongs to that DOM, so whichever widget finally destroys it must close the renderer.
-const widgetLifetimes = new WeakMap<HTMLElement, AbortController>()
+const widgetLifetimes = new WeakMap<
+  HTMLElement,
+  { controller: AbortController; widget: RenderedWidget }
+>()
 
 export class RenderedWidget extends WidgetType {
   constructor(
     readonly block: LiveBlock,
     private readonly options: LiveOptions,
     readonly inline = false,
+    private readonly readOnly = false,
   ) {
     super()
   }
@@ -33,7 +39,10 @@ export class RenderedWidget extends WidgetType {
       this.block.html === other.block.html &&
       this.block.syntax === other.block.syntax &&
       this.block.value === other.block.value &&
+      this.block.placement === other.block.placement &&
+      this.block.listStart === other.block.listStart &&
       this.inline === other.inline &&
+      this.readOnly === other.readOnly &&
       this.options === other.options
     )
   }
@@ -44,15 +53,21 @@ export class RenderedWidget extends WidgetType {
       : `cm-live-block cm-live-${this.block.kind}`
     container.dataset.occurrence = this.block.id
     container.dataset.kind = this.block.kind
+    if (this.block.placement) container.dataset.placement = this.block.placement
     container.setAttribute('contenteditable', 'false')
     const lifetime = new AbortController()
-    widgetLifetimes.set(container, lifetime)
+    widgetLifetimes.set(container, { controller: lifetime, widget: this })
     const content = document.createElement(
       this.inline ? 'span' : this.block.kind === 'footnoteDefinition' ? 'ol' : 'div',
     )
     content.className = 'cm-live-rendered'
+    if (this.block.kind === 'footnoteDefinition' && this.block.listStart)
+      content.setAttribute('start', String(this.block.listStart))
     container.append(content)
-    if (!this.inline && !proseProjection(this.block.kind)) {
+    if (
+      !this.inline &&
+      (!proseProjection(this.block.kind) || this.block.kind === 'footnoteDefinition')
+    ) {
       if (this.block.kind === 'table' && this.options.editTable && this.options.editTableLabel) {
         const table = document.createElement('button')
         table.type = 'button'
@@ -89,8 +104,25 @@ export class RenderedWidget extends WidgetType {
         if (event.defaultPrevented || !view.dom.contains(container)) return
         event.preventDefault()
         const anchor = event.target instanceof Element ? event.target.closest('a[href]') : null
-        if (anchor && event instanceof MouseEvent && (event.ctrlKey || event.metaKey))
+        if (
+          anchor &&
+          event instanceof MouseEvent &&
+          (event.ctrlKey ||
+            event.metaKey ||
+            anchor.closest('.markdown-toc') ||
+            anchor.hasAttribute('data-footnote-ref') ||
+            anchor.hasAttribute('data-footnote-backref'))
+        )
           openLink(anchor.getAttribute('href') || '')
+        else if (
+          this.inline &&
+          !anchor &&
+          event.target instanceof Element &&
+          !event.target
+            .closest('button, input, select, textarea, label, [tabindex]')
+            ?.closest('.cm-live-inline-widget')
+        )
+          revealSource(view, container)
       },
       { signal: lifetime.signal },
     )
@@ -108,6 +140,36 @@ export class RenderedWidget extends WidgetType {
     }
     return container
   }
+  override updateDOM(dom: HTMLElement, view: EditorView): boolean {
+    const mounted = widgetLifetimes.get(dom)
+    const previous = mounted?.widget
+    if (
+      !mounted ||
+      !previous ||
+      !proseProjection(this.block.kind) ||
+      previous.block.kind !== this.block.kind ||
+      previous.block.from !== this.block.from ||
+      previous.block.to !== this.block.to ||
+      previous.block.value !== this.block.value ||
+      previous.block.syntax !== this.block.syntax ||
+      previous.inline !== this.inline ||
+      previous.options !== this.options
+    )
+      return false
+    const oldTasks = taskCheckboxes(previous.block.html)
+    const nextTasks = taskCheckboxes(this.block.html)
+    if (!nextTasks.checked.length || oldTasks.html !== nextTasks.html) return false
+    const inputs = dom.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')
+    if (inputs.length !== nextTasks.checked.length) return false
+    inputs.forEach((input, index) => {
+      input.checked = nextTasks.checked[index] ?? false
+      input.disabled = view.state.readOnly
+      input.setAttribute('aria-label', this.options.taskLabel())
+    })
+    dom.dataset.occurrence = this.block.id
+    mounted.widget = this
+    return true
+  }
   override get estimatedHeight(): number {
     return this.inline ? -1 : Math.max(48, Math.min(720, this.block.lines * 24 + 24))
   }
@@ -118,15 +180,20 @@ export class RenderedWidget extends WidgetType {
     // CodeMirror, so a selected widget can reveal its original source range.
     return (
       Boolean(control?.closest('.cm-live-block, .cm-live-inline-widget')) ||
+      Boolean(
+        event.target.closest(
+          'a[data-footnote-ref], a[data-footnote-backref], .markdown-toc a[href]',
+        ),
+      ) ||
       (event instanceof MouseEvent &&
-        (event.ctrlKey || event.metaKey) &&
-        Boolean(event.target.closest('a[href]')))
+        Boolean(event.target.closest('a[href]')) &&
+        (event.ctrlKey || event.metaKey))
     )
   }
   override destroy(dom: HTMLElement): void {
     const lifetime = widgetLifetimes.get(dom)
     widgetLifetimes.delete(dom)
-    lifetime?.abort()
+    lifetime?.controller.abort()
   }
 }
 
@@ -141,7 +208,8 @@ function active(state: EditorState, all: DecorationSet): Set<string> {
   const selected = new Set<string>()
   for (const selection of state.selection.ranges)
     all.between(selection.from, selection.to, (start, end, decoration) => {
-      if (rangeTouches(selection, start, end)) selected.add(decoration.spec.occurrence as string)
+      if (!decoration.spec.virtual && rangeTouches(selection, start, end))
+        selected.add(decoration.spec.occurrence as string)
     })
   return selected
 }
@@ -150,7 +218,26 @@ function build(state: EditorState, options: LiveOptions): BlockState {
   const ranges: Range<Decoration>[] = []
   const byId = new Map<string, Range<Decoration>>()
   let renderedEnd = 0
+  let footer = 0
   for (const block of state.field(liveModel)?.blocks || []) {
+    if (
+      block.kind === 'footnoteDefinition' &&
+      block.placement === 'after-document' &&
+      block.from > 0 &&
+      block.from < block.to &&
+      block.to <= state.doc.length
+    ) {
+      const range = Decoration.widget({
+        block: true,
+        side: ++footer,
+        widget: new RenderedWidget(block, options),
+        occurrence: block.id,
+        virtual: true,
+      }).range(state.doc.length)
+      ranges.push(range)
+      byId.set(block.id, range)
+      continue
+    }
     // Outer widgets own their descendants, including links inside tables and definitions.
     if (
       block.from < renderedEnd ||
@@ -163,21 +250,27 @@ function build(state: EditorState, options: LiveOptions): BlockState {
     const endLine = state.doc.lineAt(block.to)
     // Replacing line breaks requires a state field, even for an inline widget.
     const inline = inlineProjection(block.kind) && startLine.number !== endLine.number
+    const source = inline ? { from: block.from, to: block.to } : blockSourceRange(state, block)
     if (
-      !inline &&
-      ((!proseProjection(block.kind) &&
-        !['table', 'code', 'diagram', 'math', 'html'].includes(block.kind)) ||
-        startLine.from !== block.from ||
-        (endLine.to !== block.to && !(block.kind === 'defList' && endLine.from === block.to)))
+      !source ||
+      source.from < renderedEnd ||
+      (!inline &&
+        !proseProjection(block.kind) &&
+        !['table', 'code', 'diagram', 'math', 'html'].includes(block.kind))
     )
       continue
     const range = Decoration.replace({
       block: !inline,
-      widget: new RenderedWidget(block, options, inline),
+      widget: new RenderedWidget(
+        block,
+        options,
+        inline,
+        state.readOnly && block.html.includes('type="checkbox"'),
+      ),
       occurrence: block.id,
-    }).range(block.from, block.to)
+    }).range(source.from, source.to)
     ranges.push(range)
-    renderedEnd = block.to
+    renderedEnd = source.to
     byId.set(block.id, range)
   }
   const all = Decoration.set(ranges, true)
@@ -200,7 +293,8 @@ export function blockDecorations(options: LiveOptions): StateField<BlockState> {
     update: (previous, transaction) => {
       if (
         transaction.startState.field(liveModel) !== transaction.state.field(liveModel) ||
-        transaction.startState.field(isComposing) !== transaction.state.field(isComposing)
+        transaction.startState.field(isComposing) !== transaction.state.field(isComposing) ||
+        transaction.startState.readOnly !== transaction.state.readOnly
       )
         return build(transaction.state, options)
       const reveal = transaction.effects.flatMap((effect) =>

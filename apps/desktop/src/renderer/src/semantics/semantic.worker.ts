@@ -1,6 +1,6 @@
 import {
   BoundedCache,
-  parseMarkdown,
+  parseDocumentMarkdown,
   parserVersion,
   SemanticLimitError,
   semanticLimits,
@@ -42,7 +42,7 @@ self.onmessage = (event: MessageEvent<unknown>): void => {
     const cached = hit?.source === request.source
     if (cached) encoded = { ...hit.encoded, payload: hit.encoded.payload.slice(0), serializeMs: 0 }
     else {
-      const document = parseMarkdown(request.source)
+      const document = parseDocumentMarkdown(request.source, request.options.plugins)
       try {
         encoded = encodeSemanticSnapshot(document, request.source.length, request.options)
       } catch {

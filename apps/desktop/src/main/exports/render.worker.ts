@@ -1,5 +1,5 @@
 import { parentPort } from 'node:worker_threads'
-import { parseMarkdown, SemanticLimitError } from '@manuslip/core'
+import { parseDocumentMarkdown, SemanticLimitError } from '@manuslip/core'
 import { renderExport } from '@manuslip/renderer/export'
 import { exportLimits, parseExportProjection } from '../../shared/export-contracts'
 import { FileOperationError } from '../files/errors'
@@ -10,7 +10,7 @@ parentPort?.on('message', (request) => {
     try {
       let value: unknown
       if (request.kind === 'parse') {
-        const document = parseMarkdown(request.source)
+        const document = parseDocumentMarkdown(request.source, request.options.plugins)
         value = parseExportProjection(
           request.reading
             ? renderCapturedReading(

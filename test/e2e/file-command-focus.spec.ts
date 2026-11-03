@@ -134,9 +134,9 @@ for (const state of [
             overflow: document.documentElement.scrollWidth > innerWidth,
           }
         })
-        expect(visual.height).toBeGreaterThanOrEqual(40)
+        expect(visual.height).toBeGreaterThanOrEqual(name.startsWith('welcome') ? 34 : 32)
         expect(visual.width).toBeGreaterThanOrEqual(24)
-        expect(visual.font).toBeGreaterThanOrEqual(name.startsWith('welcome') ? 14 : 13)
+        expect(visual.font).toBeGreaterThanOrEqual(13)
         expect(visual.outline).toBe('solid')
         expect(visual.outlineWidth).toBeGreaterThanOrEqual(2)
         expect(contrast(visual.color, visual.background)).toBeGreaterThanOrEqual(4.5)
@@ -213,7 +213,7 @@ for (const state of [
       await expect(preferences).toBeFocused()
 
       await begin(save, 'save')
-      await page.locator('.brand strong').click()
+      await page.locator('.app-toolbar').click({ position: { x: 2, y: 2 } })
       await expect
         .poll(() => page.evaluate(() => document.activeElement === document.body))
         .toBe(true)

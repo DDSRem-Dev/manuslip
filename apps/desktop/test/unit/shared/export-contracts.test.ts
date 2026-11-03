@@ -1,3 +1,4 @@
+import { defaultMarkdownPlugins } from '@manuslip/core/conventions'
 import { expect, it } from 'vitest'
 import {
   exportLimits,
@@ -18,6 +19,9 @@ const request = () => ({
 })
 it('admits only exact export requests with bounded UTF-8 snapshots and owned IDs', () => {
   expect(parseExportRequest(request()).source).toBe('# Text')
+  expect(parseExportRequest({ ...request(), plugins: defaultMarkdownPlugins }).plugins).toEqual(
+    defaultMarkdownPlugins,
+  )
   for (const format of ['html', 'pdf', 'png', 'jpeg', 'present'])
     expect(parseExportRequest({ ...request(), format }).format).toBe(format)
   for (const patch of [
@@ -30,6 +34,8 @@ it('admits only exact export requests with bounded UTF-8 snapshots and owned IDs
     { remoteImages: 1 },
     { locale: 'fr' },
     { destination: '/unsafe' },
+    { plugins: { ...defaultMarkdownPlugins, latex: 'yes' } },
+    { plugins: { opt: true } },
   ])
     expect(() => parseExportRequest({ ...request(), ...patch })).toThrow()
   expect(() =>

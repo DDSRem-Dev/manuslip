@@ -132,6 +132,8 @@ export function renderWidget(
   for (const table of container.querySelectorAll('table')) {
     const scroll = document.createElement('div')
     scroll.className = 'render-table-scroll'
+    scroll.setAttribute('role', 'region')
+    scroll.setAttribute('aria-label', i18next.t('table'))
     scroll.tabIndex = 0
     table.before(scroll)
     scroll.append(table)

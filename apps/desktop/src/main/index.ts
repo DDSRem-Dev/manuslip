@@ -1,4 +1,4 @@
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import {
   app,
@@ -66,7 +66,9 @@ import { WorkspaceStateRepository } from './workspace/state'
 if (!app.isPackaged || process.env.MANUSLIP_TEST_PROFILE) {
   app.setPath(
     'userData',
-    process.env.MANUSLIP_TEST_PROFILE || join(app.getPath('appData'), 'Manuslip Development'),
+    resolve(
+      process.env.MANUSLIP_TEST_PROFILE || join(app.getPath('appData'), 'Manuslip Development'),
+    ),
   )
 }
 

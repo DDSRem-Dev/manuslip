@@ -1,4 +1,9 @@
-import { messageSize, type SemanticDocument, semanticLimits } from '@manuslip/core'
+import {
+  messageSize,
+  parseMarkdownPlugins,
+  type SemanticDocument,
+  semanticLimits,
+} from '@manuslip/core'
 import type { RenderOptions, RenderProjection } from '@manuslip/renderer'
 import type { ProjectionLayout } from '../../../../../../packages/renderer/src/projection-layout'
 
@@ -87,6 +92,7 @@ export function parseRequest(value: unknown): ParseRequest {
     messageSize(value) > semanticLimits.messageBytes
   )
     throw new Error('Invalid semantic request')
+  if (value.options.plugins !== undefined) parseMarkdownPlugins(value.options.plugins)
   return value as unknown as ParseRequest
 }
 

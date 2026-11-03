@@ -48,12 +48,15 @@ for (const mode of ['Source', 'Live Preview']) {
       await page.getByRole('button', { name: mode, exact: true }).click()
       const editor = page.getByRole('textbox', { name: 'Markdown source' })
       for (const literal of ['(', '[', '{', '"', "'", '`', '<i>']) {
-        await editor.fill('')
+        await editor.press(`${modifier}+a`)
+        await editor.press('Backspace')
         await page.keyboard.type(literal)
         await saved(page, path, literal)
       }
       for (const prefix of ['    text', '- item', '1. item', '> quote']) {
-        await editor.fill(prefix)
+        // Native Select All includes source hidden behind CodeMirror's widgets.
+        await editor.press(`${modifier}+a`)
+        await page.keyboard.insertText(prefix)
         await editor.press(`${modifier}+End`)
         await editor.press('Enter')
         await page.keyboard.type('next')
@@ -152,7 +155,11 @@ test('multiline code spans and setext headings use the complete semantic formatt
   const source = 'Heading first\nsecond\n======\n\nCode ` first\nsecond ` after.\n\nEnd'
   await documentFixture(source, async (page, _application, path) => {
     await page.getByRole('button', { name: 'Live Preview', exact: true }).click()
-    await expect(page.locator('.cm-live-rendered h1')).toHaveText('Heading first\nsecond')
+    // Live prose uses br elements for source newlines; compare the rendered rows.
+    await expect(page.locator('.cm-live-rendered h1')).toHaveText('Heading first\nsecond', {
+      useInnerText: true,
+    })
+    await expect(page.locator('.cm-live-rendered h1 br')).toHaveCount(1)
     await expect(page.locator('.cm-live-rendered code')).toHaveText('first second')
     await saved(page, path, source)
   })
@@ -248,14 +255,31 @@ test('inline HTML renders only when enabled and never changes the raw source', a
   })
 })
 
-test('frontmatter is literal metadata rather than headings, emphasis or separators', async () => {
+test('Typora toggles YAML metadata without changing its editable source', async () => {
   const source = '---\ntitle: **literal**\n---\n\n# Actual heading\n\nEnd'
   await documentFixture(source, async (page, _application, path) => {
     await page.getByRole('button', { name: 'Live Preview', exact: true }).click()
-    await expect(page.locator('.cm-live-heading')).toHaveText('Actual heading')
-    await expect(page.locator('.cm-live-strong')).toHaveCount(0)
-    await expect(page.locator('.cm-live-rule')).toHaveCount(0)
-    await expect(page.locator('.cm-content')).toContainText('title: **literal**')
+    await expect(page.locator('.cm-live-heading')).toHaveCount(2)
+    await expect(page.locator('.cm-live-strong')).toHaveText('literal')
+    await expect(page.locator('.cm-live-rule')).toHaveCount(1)
+    for (const enabled of [true, false, true]) {
+      await page.getByRole('button', { name: 'Preferences', exact: true }).click()
+      await page.getByRole('button', { name: 'Plugins', exact: true }).click()
+      await page.getByRole('checkbox', { name: 'Typora', exact: true }).setChecked(enabled)
+      await expect(page.getByText('Preferences saved', { exact: true })).toBeVisible()
+      await page.getByRole('button', { name: 'Close preferences', exact: true }).click()
+      await expect(page.locator('.cm-live-heading')).toHaveCount(enabled ? 1 : 2)
+      await expect(page.locator('.cm-live-strong')).toHaveCount(enabled ? 0 : 1)
+      await expect(page.locator('.cm-live-rule')).toHaveCount(enabled ? 0 : 1)
+      if (enabled) await expect(page.locator('.cm-content')).toContainText('title: **literal**')
+    }
+    await expect(page.locator('dialog[open]')).toHaveCount(0)
+    await page.screenshot({
+      path: test.info().outputPath('typora-yaml-frontmatter.png'),
+      animations: 'disabled',
+    })
+    await page.getByRole('button', { name: 'Source', exact: true }).click()
+    await expect(page.locator('.cm-content > .cm-line')).toHaveText(source.split('\n'))
     await saved(page, path, source)
   })
 })

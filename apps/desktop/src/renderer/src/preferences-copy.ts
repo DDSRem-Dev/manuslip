@@ -11,9 +11,9 @@ export const preferencesCopy = {
     translation: 'Translation',
     translationHint: 'Providers, languages, API keys and offline cache.',
     plugins: 'Plugins',
-    pluginsHint: 'Installed extensions and their permissions.',
+    pluginsHint: 'Markdown conventions, installed extensions and their permissions.',
     appScope: 'App preferences apply to every document.',
-    saveHint: 'General and editor changes save automatically.',
+    saveHint: 'App preferences save automatically.',
     source: 'Markdown source',
     lineNumbers: 'Show line numbers',
     wrapLines: 'Wrap long lines',
@@ -41,9 +41,9 @@ export const preferencesCopy = {
     translation: '翻译',
     translationHint: '翻译服务、语言、API 密钥与离线缓存。',
     plugins: '插件',
-    pluginsHint: '已安装的扩展及其权限。',
+    pluginsHint: 'Markdown 约定、已安装的扩展及其权限。',
     appScope: '应用偏好设置适用于所有文档。',
-    saveHint: '通用与编辑器设置会自动保存。',
+    saveHint: '应用偏好设置会自动保存。',
     source: 'Markdown 源码',
     lineNumbers: '显示行号',
     wrapLines: '长行自动换行',
@@ -67,5 +67,6 @@ export const preferenceKeywords = {
   editor: 'writing source markdown wrap lines tab indent numbers 写作 源码 换行 行号 制表符',
   translation:
     'translate provider openai ollama deepl source target language glossary formality temperature tokens key api cache offline reading layout default side by side interlinear 翻译 服务 语言 术语表 语气 密钥 缓存 离线 阅读 布局 默认 对照',
-  plugins: 'plugin extension install permission 插件 扩展 安装 权限',
+  plugins:
+    'plugin extension install permission markdown commonmark opt latex math formula mermaid diagram github autolink alert callout typora toc yaml front matter frontmatter metadata highlight strike superscript subscript heading punctuation table footnote 插件 扩展 安装 权限 公式 数学 图表 提示 目录 元数据 前置 高亮 删除线 标题 标点 表格 脚注 上标 下标',
 } as const

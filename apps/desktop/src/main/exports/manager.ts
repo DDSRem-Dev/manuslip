@@ -139,6 +139,7 @@ export class ExportManager {
             options: {
               rawHtml: request.rawHtml,
               footnotesLabel: request.locale === 'zh-CN' ? '脚注' : 'Footnotes',
+              plugins: request.plugins,
               footnoteBackLabel: request.locale === 'zh-CN' ? '返回引用' : 'Back',
             },
           },

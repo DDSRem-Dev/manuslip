@@ -57,6 +57,12 @@ export function describeHeading(node: Nodes): Heading | undefined {
   const from = node.position?.start.offset
   const to = node.position?.end.offset
   return node.type === 'heading' && from !== undefined && to !== undefined
-    ? { from, to, depth: node.depth, text: plainText(node) }
+    ? {
+        from,
+        to,
+        depth: node.depth,
+        text: plainText(node),
+        ...(typeof node.data?.hProperties?.id === 'string' ? { id: node.data.hProperties.id } : {}),
+      }
     : undefined
 }

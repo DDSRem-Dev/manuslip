@@ -6,7 +6,9 @@
 
 Manuslip is a local-first, cross-platform Markdown editor built around one idea: a document is not just text — it is something you **write**, **read**, and **share across languages**. It combines seamless WYSIWYG editing with a rendering pipeline that can present every document in three forms: raw source, rendered preview, and translated preview.
 
-[English](./README.md) | [简体中文](./README.zh-CN.md)
+[English](README.md) | [简体中文](README.zh-CN.md)
+
+[Documentation](docs/overview/index.md) · [Testing guide](docs/testing/testing.md)
 
 ![Status](https://img.shields.io/badge/status-early%20development-orange)
 ![License](https://img.shields.io/badge/license-MIT-blue)
@@ -25,9 +27,22 @@ Most Markdown editors force a choice: a raw code editor with a detached preview 
 ## Features
 
 **Implementation status:** the desktop app now opens, edits, and safely saves Markdown files.
+CommonMark is the default, with tables, footnotes, strikethrough, task lists, smart
+punctuation, heading attributes and scripts. Preferences → Plugins provides independent
+Opt, LaTeX, Mermaid, GitHub and Typora switches; Opt, LaTeX and Mermaid start enabled.
+Typora adds YAML front matter and linked `[TOC]` tables of contents.
+See the [convention guide and examples](docs/guides/commonmark.md) and [LaTeX gallery](docs/examples/latex.md).
+Inline footnotes use `^[Note body]`; formulas follow the surrounding text baseline. Document
+`<details>` and `<summary>` tags remain literal, including with HTML opt-in.
 Manuslip syntax also supports `~subscript~`, `^superscript^` (without spaces) and offline
 `:smile:` shortcodes, plus definition lists (`Term` followed by `: Description`) in Live Preview, translated reading and export; `~~strikethrough~~`
-and strict CommonMark remain available. See the [syntax decisions](./docs/adr/006-extended-markdown.md).
+and strict CommonMark remain available. See the [syntax decisions](docs/adr/006-extended-markdown.md).
+
+CommonMark support includes indented/tabbed code, backtick and tilde fences (including unfinished
+fences), nested blocks, and ordered lists with either marker style. Code stays literal and uses
+language highlighting when available. All 652 CommonMark 0.31.2 examples exercise the parser,
+shared renderer and Live Preview block integration. See [CommonMark support](docs/guides/commonmark.md).
+
 It includes a CodeMirror source editor, native file dialogs, encoding/BOM/newline preservation,
 auto-save, external-change conflicts, close protection, and recoverable drafts, alongside the
 secure shell and English/Chinese preferences. Windows build and packaged flows are tested;
@@ -62,32 +77,33 @@ The footer's word count opens compact document statistics and file details. Docu
 groups utility tools separately; plugin commands appear only for installed, enabled plugins.
 Choose Edit table beside a Live table, or in Document actions with the caret inside a table.
 The dialog stages cell, row, column and alignment changes, then applies them as one undoable
-source edit. Cancel leaves the document unchanged. See [table editing](./docs/adr/007-visual-tables.md)
+source edit. Cancel leaves the document unchanged. See [table editing](docs/adr/007-visual-tables.md)
 for keyboard navigation, source preservation and visual-editor limits.
 Document appearance adds per-document fonts, text size, line spacing and writing width, plus
 explicit local CSS import for Live Preview, reading and HTML/PDF export. Reset and Source stay
 available if a style makes content hard to read. Named documents retain appearance after restart;
-see [appearance and supported CSS](./docs/adr/008-document-appearance.md).
+see [appearance and supported CSS](docs/adr/008-document-appearance.md).
 Present document opens a captured slide deck with keyboard navigation and a visible Exit.
 Export PNG/JPEG saves the complete source or selected reading copy, including its appearance,
 images, formulas and diagrams. Oversized images fail with a useful message; HTML/PDF remain
-available. See [slides, controls and image limits](./docs/adr/009-presentation-image-export.md).
+available. See [slides, controls and image limits](docs/adr/009-presentation-image-export.md).
 Export with Pandoc adds Word (.docx), EPUB and LaTeX source with images (.zip).
 Choose a trusted local Pandoc 3 application, then Standard or Numbered headings + contents.
 Text, tables and notes remain editable; formulas and diagrams become images. Each format
 uses its own styles. LaTeX compilation requires a separate Unicode-capable LaTeX installation.
 The selected source or reading copy stays unchanged. Pandoc is optional and is not bundled;
-see [tool selection, profiles and limits](./docs/adr/010-optional-pandoc.md).
+see [tool selection, profiles and limits](docs/adr/010-optional-pandoc.md).
 Preferences → Plugins installs local command bundles with explicit permission review,
 enable/disable, permission changes and removal. Document actions → Plugin commands runs
 an isolated command on captured source; proposed edits require review and apply as one
-undoable change. File and network access require grants. See the [API and working example](./docs/guides/plugins.md).
+undoable change. File and network access require grants. See the [API and working example](docs/guides/plugins.md).
 Document actions → Sync connects a saved document to one folder file or WebDAV URL.
 Review both versions before sending, receiving or keeping both. Offline edits remain local;
-explicit retry, durable recovery export and disconnect preserve your writing. See [sync](./docs/guides/sync.md).
+explicit retry, durable recovery export and disconnect preserve your writing. See [sync](docs/guides/sync.md).
 Opening Preferences, translated preview or changing layout sends no provider request. The
 feature list below describes the intended product. See
-[validation and remaining work](./docs/validation/implementation-history.md).
+[the current feature availability review](docs/reviews/feature-availability-review.md) and
+[validation and remaining work](docs/validation/implementation-history.md).
 
 ### Core editing
 
@@ -99,7 +115,7 @@ feature list below describes the intended product. See
 - **Code highlighting** — editor-native CodeMirror language modes, consistent across source, preview, and export.
 - **Rich table editing** — visual table operations, keyboard navigation, column alignment.
 - **Plain-text paste** — clipboard text stays literal; image-only paste imports to a managed asset folder.
-- **Spellcheck** — system-level spellchecking with per-language dictionaries.
+- **Spellcheck** — optional offline checking with native suggestions and undo; bundled US English on Windows/Linux and system languages on macOS.
 - **Outline & navigation** — auto-generated table of contents, heading jump, per-document word/character count.
 
 ### Workspace
@@ -131,7 +147,7 @@ Translation in Manuslip is **structural, not textual**:
 
 - **AST-level translation.** The pipeline walks the document tree and translates only translatable nodes — paragraphs, headings, list items, table cells, blockquotes, captions. Code blocks, inline code, math, URLs, frontmatter, and Mermaid diagrams are passed through untouched.
 - **Block-level caching.** Every block is keyed by source text, target language, provider, model, glossary/formality, and prompt/extractor schema version. Unchanged units are never re-translated, so editing one paragraph in a 10,000-word document re-translates only the changed units.
-- **Provider-agnostic.** Bring your own key: OpenAI-compatible endpoints, DeepL, Google Cloud Translation, LibreTranslate, or fully local models via Ollama. Glossary and formality controls are part of the provider interface.
+- **Provider-agnostic.** Configure an OpenAI-compatible endpoint, DeepL, or a local model via Ollama. DeepL supports native glossary and formality controls. Google Cloud Translation and LibreTranslate adapters remain planned.
 - **Three reading layouts.** *Replace* (target language only), *side-by-side* (aligned original/translation blocks in one scroll surface), and *interlinear* (each original block followed by its translation).
 - **On-demand and offline-friendly.** Translation runs when you ask for it; results persist in a local cache. No document leaves your machine unless you configure a cloud provider.
 
@@ -224,7 +240,7 @@ edit → CodeMirror state + incremental Lezer syntax
 
 Source mode opens without waiting for semantic work. Mode changes reconfigure the same editor state and preserve text, selection, scroll anchor, and undo history. Content changes invalidate old widgets immediately; obsolete worker results cannot update the current document.
 
-The semantic worker has a 5 s watchdog and at most three automatic restarts in 60 s, followed by a visible Source fallback and manual Retry. Preview is limited to 2 MiB or 50,000 blocks; worker messages are capped at 8 MiB. The worker snapshot cache is limited to 16 MiB, separately from the renderer's 64 MiB derived-data budget. These are enforced resource limits; performance acceptance targets still require the measurements in [ADR 002](./docs/adr/002-implementation-plan.md).
+The semantic worker has a 5 s watchdog and at most three automatic restarts in 60 s, followed by a visible Source fallback and manual Retry. Preview is limited to 2 MiB or 50,000 blocks; worker messages are capped at 8 MiB. The worker snapshot cache is limited to 16 MiB, separately from the renderer's 64 MiB derived-data budget. These are enforced resource limits; performance acceptance targets still require the measurements in [ADR 002](docs/adr/002-implementation-plan.md).
 
 Rendering resolves references against the complete root before selecting widget fragments. DOMPurify sanitizes every HTML/SVG DOM sink. Raw HTML is escaped by default; its explicit opt-in still sanitizes output. Images cannot load remote URLs implicitly. Block replacements come directly from a CodeMirror StateField, while inline decorations visit visible ranges only.
 
@@ -250,8 +266,8 @@ Cancelling Save As leaves the document unchanged. Undo, source deletion, and clo
 retain image files. Relative PNG/JPEG/GIF/WebP images use the controlled asset protocol,
 independently of remote-image permission; missing images offer retry. Paths stay within
 the captured workspace or, for direct opens, the document's parent. Limits and validation
-are recorded in [ADR 002](./docs/adr/002-implementation-plan.md) and
-[the validation record](./docs/validation/implementation-history.md).
+are recorded in [ADR 002](docs/adr/002-implementation-plan.md) and
+[the validation record](docs/validation/implementation-history.md).
 
 ### Mermaid diagrams — implemented
 
@@ -261,9 +277,9 @@ the selected theme; source and undo history stay intact. Invalid, oversized or t
 diagrams retain their source and offer Retry. A main-process watchdog terminates a hung
 diagram without blocking editing or saving. Document configuration directives and
 frontmatter cannot override the rendering policy. Legacy `sequence`/`seq` and `flowchart`/`flow`
-fences support the [documented subset](./docs/adr/006-extended-markdown.md), including participants,
+fences support the [documented subset](docs/adr/006-extended-markdown.md), including participants,
 messages, notes, standard flow nodes and condition branches. Unsupported syntax retains its
-complete source with editing guidance. See [validation](./docs/validation/implementation-history.md) for limits and tested scope.
+complete source with editing guidance. See [validation](docs/validation/implementation-history.md) for limits and tested scope.
 
 ### HTML and PDF export — implemented
 
@@ -289,7 +305,7 @@ open document's permission. Missing, blocked or invalid assets fail the whole ex
 retain an earlier destination. Cancel stops the export without changing the source; native
 file publication already in progress can finish. Export allows one job per window, 60 seconds
 after destination selection, 2 MiB source, 500 raster images and 2,000 PDF pages. Detailed
-resource limits and outstanding platform checks are in [VALIDATION.md](./docs/validation/implementation-history.md).
+resource limits and outstanding platform checks are in [VALIDATION.md](docs/validation/implementation-history.md).
 
 ### Translation pipeline — OpenAI-compatible, Ollama and DeepL
 
@@ -297,7 +313,7 @@ In Translated preview, choose the target language and **Translate**. Open **Read
 for the layout, **Load cached**, translation settings and help. Cancellation, retry, progress
 and errors stay beside the reading copy; changing modes closes the reading options.
 
-The pure [translation core](./docs/architecture/translation.md) now extracts canonical prose units,
+The pure [translation core](docs/architecture/translation.md) now extracts canonical prose units,
 keeps protected values local, validates placeholders, reconstructs text-only AST output, and
 computes provider/settings-aware cache keys. Its offline fixtures include all 652 CommonMark
 examples. OpenAI-compatible, Ollama and DeepL endpoints, credentials, SQLite cache, and three reading
@@ -381,16 +397,16 @@ publish automatically. Linux Electron tests need a display (`xvfb-run --auto-ser
 run test:e2e` in CI). Development uses a separate preferences directory from installed builds.
 Windows `npm run test:installer` verifies the installed application and restores installer
 state after uninstalling. Separate signing/update metadata hooks are available through
-`npm run package:release -- --plan`; see [building and reviewing a release](./docs/development/distribution.md).
-Selected dependency versions and runtime details are in [DEPENDENCIES.md](./docs/development/dependencies.md).
+`npm run package:release -- --plan`; see [building and reviewing a release](docs/development/distribution.md).
+Selected dependency versions and runtime details are in [DEPENDENCIES.md](docs/development/dependencies.md).
 `npm run test:performance` runs the separate packaged performance gates. It currently exposes
 unresolved nested-document capacity; methods and focused profiling commands are in
-[docs/testing/benchmarks.md](./docs/testing/benchmarks.md).
+[docs/testing/benchmarks.md](docs/testing/benchmarks.md).
 
 ## Roadmap
 
 For implementation order, architecture decisions, and acceptance criteria, see the
-[implementation plan](./docs/adr/002-implementation-plan.md).
+[implementation plan](docs/adr/002-implementation-plan.md).
 
 - **M1 — Editor core.** Source mode + Live Preview (CommonMark, GFM, tables, MathJax, code highlighting), file open/save, auto-save.
 - **M2 — Workspace.** Sidebar file tree, tabs, outline, global search, themes, spellcheck, images/asset management, HTML/PDF export.
@@ -399,7 +415,7 @@ For implementation order, architecture decisions, and acceptance criteria, see t
 
 ## Contributing
 
-Manuslip is in early development — the best time to shape it. Bug reports, design feedback, provider integrations, and translations of the UI are all welcome. Please open an issue before large pull requests so we can align on direction. See [CONTRIBUTING.md](./CONTRIBUTING.md) for setup, conventions, and review expectations; report vulnerabilities privately as described in [SECURITY.md](./SECURITY.md).
+Manuslip is in early development — the best time to shape it. Bug reports, design feedback, provider integrations, and translations of the UI are all welcome. Please open an issue before large pull requests so we can align on direction. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, conventions, and review expectations; report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
 
 1. Fork the repo and create a feature branch.
 2. `npm install && npm run dev` to run the app.
@@ -412,4 +428,4 @@ Manuslip stands on the shoulders of outstanding open-source projects: [Electron]
 
 ## License
 
-[MIT](./LICENSE) © The Manuslip Authors
+[MIT](LICENSE) © The Manuslip Authors
