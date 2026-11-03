@@ -18,18 +18,29 @@ import { remarkLatexDelimiters } from './latex-delimiters'
 import { compileMarkdownRoot } from './markdown-compile'
 import { describeMarkdownRoot } from './parse'
 
-function createProcessor(plugins: MarkdownPlugins) {
+function createProcessor(plugins: MarkdownPlugins, yamlClose: '---' | '...') {
   const processor = unified()
     .data('settings', { _manuslipEventSpans: true })
     .use(remarkParse)
     .use(remarkGfm, { singleTilde: false })
-    .use(remarkFrontmatter, plugins.typora ? ['yaml', 'toml'] : ['toml'])
+    .use(
+      remarkFrontmatter,
+      plugins.typora
+        ? [{ type: 'yaml', fence: { open: '---', close: yamlClose } }, 'toml']
+        : ['toml'],
+    )
     .use(remarkExtendedInline)
     .use(remarkInlineFootnotes)
     .use(remarkDocumentHtml)
     .use(remarkDefinitionList)
   if (plugins.latex) processor.use(remarkMath).use(remarkLatexDelimiters)
   if (plugins.opt) processor.use(remarkHighlight)
+  else
+    processor.use(function () {
+      const data = this.data()
+      data.micromarkExtensions ??= []
+      data.micromarkExtensions.push({ disable: { null: ['strikethrough'] } })
+    })
   if (!plugins.github)
     processor.use(function () {
       const data = this.data()
@@ -64,6 +75,16 @@ function createProcessor(plugins: MarkdownPlugins) {
 
 const processors = new Map<number, ReturnType<typeof createProcessor>>()
 
+function yamlClosingFence(source: string): '---' | '...' {
+  const opening = /^---[\t ]*(?:\r\n?|\n)/.exec(source)
+  if (!opening) return '---'
+  // Select the first terminator, so a later thematic break cannot swallow prose
+  // following a YAML document-end marker. Source and all offsets stay untouched.
+  const fence = /^(---|\.\.\.)[\t ]*\r?$/gm
+  fence.lastIndex = opening[0].length
+  return fence.exec(source)?.[1] === '...' ? '...' : '---'
+}
+
 /** Desktop convention policy. The lower-level parseMarkdown API retains the fixed
  * canonical grammar used by the experimental compiler and its differential proofs.
  */
@@ -74,14 +95,16 @@ export function parseDocumentMarkdown(
   if (utf8Bytes(source) > semanticLimits.previewBytes)
     throw new SemanticLimitError('Document exceeds Live Preview size limit')
   const started = performance.now()
+  const yamlClose = plugins.typora ? yamlClosingFence(source) : '---'
   const key =
     Number(plugins.opt) +
     2 * Number(plugins.latex) +
     4 * Number(plugins.github) +
-    8 * Number(plugins.typora)
+    8 * Number(plugins.typora) +
+    16 * Number(yamlClose === '...')
   let processor = processors.get(key)
   if (!processor) {
-    processor = createProcessor(plugins)
+    processor = createProcessor(plugins, yamlClose)
     processors.set(key, processor)
   }
   const root = compileMarkdownRoot(source, { processor, gfm: true, autolinks: plugins.github })
@@ -108,7 +131,7 @@ export function parseDocumentMarkdown(
   const document = describeMarkdownRoot(
     root,
     source,
-    `document-v3/${markdownPluginNames.map((name) => Number(plugins[name])).join('')}`,
+    `document-v4/${markdownPluginNames.map((name) => Number(plugins[name])).join('')}`,
     started,
     performance.now(),
   )

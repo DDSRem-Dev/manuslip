@@ -1,6 +1,7 @@
 import { type ReactNode, useLayoutEffect, useRef, useState } from 'react'
 import { useStore } from 'zustand'
 import type { DocumentExport } from './export'
+import { ExportFeedback } from './ExportFeedback'
 import { Icon } from './Icons'
 import { i18next } from './i18n'
 import { PandocDialog } from './PandocDialog'
@@ -15,7 +16,6 @@ export function ExportControls({
   reading = false,
   readingReady = false,
   children,
-  options,
   toolbar,
 }: {
   exporter: DocumentExport
@@ -24,57 +24,31 @@ export function ExportControls({
   reading?: boolean
   readingReady?: boolean
   children: ReactNode
-  options: ReactNode
   toolbar(controls: ReactNode): ReactNode
 }): React.JSX.Element {
   const status = useStore(exporter.store)
   const [pandoc, setPandoc] = useState(false)
-  const controls = useRef<HTMLDivElement>(null)
   const first = useRef<HTMLButtonElement>(null)
   const hadPandoc = useRef(false)
   useLayoutEffect(() => {
     if (!pandoc && hadPandoc.current) first.current?.focus()
     hadPandoc.current = pandoc
   }, [pandoc])
-  const wasRunning = useRef(false)
-  const hadFocus = useRef(false)
   const confirmation = useRef<HTMLButtonElement>(null)
   const wasConfirming = useRef(false)
   useLayoutEffect(() => {
     if (status.confirmation) confirmation.current?.focus()
-    else if (wasConfirming.current && !status.running) first.current?.focus()
+    else if (wasConfirming.current) first.current?.focus()
     wasConfirming.current = Boolean(status.confirmation)
-  }, [status.confirmation, status.running])
-  useLayoutEffect(() => {
-    if (
-      wasRunning.current &&
-      !status.running &&
-      hadFocus.current &&
-      (document.activeElement === document.body ||
-        controls.current?.contains(document.activeElement))
-    )
-      first.current?.focus()
-    wasRunning.current = status.running
-  }, [status.running])
+  }, [status.confirmation])
   const t = i18next.t.bind(i18next)
   const copy = readingCopy[i18next.language === 'zh-CN' ? 'zh-CN' : 'en']
   const prompt = status.format === 'present' ? t('presentReadingPrompt') : copy.exportPrompt
+  const presenting = status.running && status.format === 'present'
   return (
-    <div
-      className="export-controls"
-      onBlurCapture={(event) => {
-        if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget))
-          hadFocus.current = false
-      }}
-    >
+    <div className="export-controls">
       {toolbar(
-        <div
-          ref={controls}
-          className="export-actions"
-          onFocusCapture={() => {
-            hadFocus.current = true
-          }}
-        >
+        <div className="export-actions">
           <ToolbarDisclosure label={t('documentCommands')} triggerRef={first} icon="more" iconOnly>
             {children}
             <fieldset className="toolbar-command-group">
@@ -129,13 +103,17 @@ export function ExportControls({
             </fieldset>
             <button
               type="button"
-              disabled={status.running || composing || Boolean(status.confirmation)}
-              onClick={() => void exporter.start('present')}
+              disabled={
+                (status.running && !presenting) || composing || Boolean(status.confirmation)
+              }
+              onClick={() => {
+                if (presenting) exporter.cancel()
+                else void exporter.start('present')
+              }}
             >
               <Icon name="present" />
-              {t(reading ? 'presentReading' : 'presentDocument')}
+              {t(presenting ? 'closePresentation' : reading ? 'presentReading' : 'presentDocument')}
             </button>
-            {options}
           </ToolbarDisclosure>
         </div>,
       )}
@@ -155,7 +133,6 @@ export function ExportControls({
               ref={confirmation}
               type="button"
               onClick={() => {
-                hadFocus.current = true
                 void exporter.confirm()
               }}
             >
@@ -178,40 +155,7 @@ export function ExportControls({
           }}
         />
       )}
-      {status.running && (
-        <div
-          className="export-running"
-          onFocusCapture={() => {
-            hadFocus.current = true
-          }}
-        >
-          <p role="status">
-            {t(status.format === 'present' ? 'presentationRunning' : 'exportRunning', {
-              revision: status.revision,
-            })}
-          </p>
-          <button type="button" onClick={() => exporter.cancel()}>
-            {t(status.format === 'present' ? 'closePresentation' : 'cancelExport')}
-          </button>
-        </div>
-      )}
-      {status.error && !(status.error === 'export-reading-empty' && readingReady) && (
-        <p role="alert">{t(status.error, { defaultValue: t('export-render') })}</p>
-      )}
-      {status.cancelled && (
-        <p role="status">
-          {t(status.format === 'present' ? 'presentationClosed' : 'exportCancelled')}
-        </p>
-      )}
-      {status.presented && <p role="status">{t('presentationClosed')}</p>}
-      {status.path && (
-        <p role="status">
-          {t(status.revision === revision ? 'exportSaved' : 'exportSavedEarlier', {
-            path: status.path,
-            revision: status.revision,
-          })}
-        </p>
-      )}
+      <ExportFeedback exporter={exporter} revision={revision} readingReady={readingReady} />
     </div>
   )
 }

@@ -127,7 +127,7 @@ for (const locale of ['en', 'zh-CN'] as const) {
       ).toHaveCount(2)
       await expect(page.locator('.cm-live-inline-widget sup strong')).toHaveCount(2)
       await expect(page.locator('.cm-live-inline-widget sub sup')).toHaveText('b')
-      await expect(page.locator('.cm-live-inline-widget .md-emoji')).toHaveCount(3)
+      await expect(editor.locator('.md-emoji')).toHaveCount(3)
       await page.locator('.cm-live-inline-widget sub').filter({ hasText: 'world' }).first().click()
       await expect(editor).toContainText('~world~')
       await editor.press(`${modifier}+End`)

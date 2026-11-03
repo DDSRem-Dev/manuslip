@@ -11,6 +11,7 @@ interface ExportState {
   path: string | null
   error: string | null
   cancelled: boolean
+  feedbackAt: number | null
   confirmation: {
     format: ExportRequest['format']
     revision: number
@@ -32,6 +33,7 @@ export class DocumentExport {
     path: null,
     error: null,
     cancelled: false,
+    feedbackAt: null,
     confirmation: null,
   }))
   private jobId: string | null = null
@@ -45,7 +47,14 @@ export class DocumentExport {
   ) {}
   async start(format: ExportRequest['format'], options?: PandocOptions): Promise<void> {
     if (this.disposed || this.jobId || this.pending || this.preparation) return
-    this.store.setState({ format, presented: false })
+    this.store.setState({
+      format,
+      presented: false,
+      error: null,
+      path: null,
+      cancelled: false,
+      feedbackAt: null,
+    })
     let pandoc: PandocOptions | undefined
     try {
       if (format === 'pandoc') {
@@ -53,13 +62,13 @@ export class DocumentExport {
         pandoc = { format: options.format, profile: options.profile }
       } else if (options !== undefined) throw new Error('pandoc-invalid')
     } catch {
-      this.store.setState({ error: 'pandoc-invalid' })
+      this.feedback({ error: 'pandoc-invalid' })
       return
     }
     if (this.synchronizeInput) {
       const preparation = {}
       this.preparation = preparation
-      this.store.setState({
+      this.feedback({
         running: true,
         revision: null,
         error: null,
@@ -71,7 +80,7 @@ export class DocumentExport {
       } catch {
         if (!this.disposed && this.preparation === preparation) {
           this.preparation = null
-          this.store.setState({ running: false, error: 'export-render' })
+          this.feedback({ running: false, error: 'export-render' })
         }
         return
       }
@@ -83,7 +92,7 @@ export class DocumentExport {
       snapshot = this.snapshot()
       if (snapshot && pandoc) snapshot = { ...snapshot, pandoc }
     } catch (error) {
-      this.store.setState({
+      this.feedback({
         running: false,
         error:
           error instanceof Error && error.message === 'export-reading-empty'
@@ -94,13 +103,14 @@ export class DocumentExport {
       return
     }
     if (!snapshot) {
-      this.store.setState({ running: false, error: 'export-composing' })
+      this.feedback({ running: false, error: 'export-composing' })
       return
     }
     if (snapshot.reading && (snapshot.reading.stale || (snapshot.missing ?? 0) > 0)) {
       this.pending = { format, snapshot }
       this.store.setState({
         running: false,
+        feedbackAt: null,
         confirmation: {
           format,
           revision: snapshot.revision,
@@ -129,12 +139,12 @@ export class DocumentExport {
   }
   cancelConfirmation(): void {
     this.pending = null
-    this.store.setState({ confirmation: null, cancelled: true })
+    this.feedback({ confirmation: null, cancelled: true })
   }
   private async run(format: ExportRequest['format'], snapshot: CapturedExport): Promise<void> {
     const jobId = crypto.randomUUID()
     this.jobId = jobId
-    this.store.setState({
+    this.feedback({
       running: true,
       revision: snapshot.revision,
       path: null,
@@ -153,13 +163,13 @@ export class DocumentExport {
         locale: i18next.language === 'zh-CN' ? 'zh-CN' : 'en',
       })
       if (this.disposed || this.jobId !== jobId) return
-      if (!result.ok) this.store.setState({ error: result.code || 'export-render' })
-      else if (result.value.kind === 'exported') this.store.setState({ path: result.value.path })
-      else if (result.value.kind === 'presented') this.store.setState({ presented: true })
-      else this.store.setState({ cancelled: true })
+      if (!result.ok) this.feedback({ error: result.code || 'export-render' })
+      else if (result.value.kind === 'exported') this.feedback({ path: result.value.path })
+      else if (result.value.kind === 'presented') this.feedback({ presented: true })
+      else this.feedback({ cancelled: true })
     } catch (error) {
       if (!this.disposed)
-        this.store.setState({
+        this.feedback({
           error:
             error instanceof Error && error.message === 'export-limit'
               ? 'export-limit'
@@ -170,10 +180,13 @@ export class DocumentExport {
       if (!this.disposed) this.store.setState({ running: false })
     }
   }
+  private feedback(state: Partial<ExportState>): void {
+    this.store.setState({ ...state, feedbackAt: Date.now() })
+  }
   cancel(): void {
     if (this.preparation) {
       this.preparation = null
-      this.store.setState({ running: false, cancelled: true })
+      this.feedback({ running: false, cancelled: true })
     }
     if (this.pending) this.cancelConfirmation()
     if (this.jobId) void this.bridge.cancelExport(this.jobId).catch(() => {})

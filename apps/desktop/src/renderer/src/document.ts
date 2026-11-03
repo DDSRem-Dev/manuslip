@@ -1,4 +1,5 @@
 import {
+  activeEmbeddedEditor,
   Compartment,
   createSourceState,
   documentBytes,
@@ -302,9 +303,6 @@ export class DocumentController {
         }
       },
       openLink,
-      editTable: (at) => {
-        void this.table.open(at)
-      },
       images,
       assets,
       diagrams,
@@ -385,9 +383,16 @@ export class DocumentController {
     await this.synchronizeInput()
     if (!this.view || this.disposed || this.locked || this.store.getState().composing) return
     if (this.reading?.store.getState().visible) return
+    const embedded = activeEmbeddedEditor(this.view)
+    if (embedded && action === 'select-all') {
+      embedded.focus()
+      selectAll(embedded)
+      return
+    }
     this.view.focus()
     const commands = { undo, redo, 'select-all': selectAll, find: openSearchPanel }
     commands[action](this.view)
+    if (embedded && (action === 'undo' || action === 'redo')) embedded.focus()
   }
   measureAppearance(): void {
     this.view?.requestMeasure()

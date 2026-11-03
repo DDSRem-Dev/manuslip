@@ -83,7 +83,7 @@ test('Source keeps literal Markdown and uniform typography through mode changes 
   })
 })
 
-test('completed inline syntax stays rendered at the insertion point and reveals selected delimiters', async () => {
+test('completed inline syntax keeps typography and exposes quiet delimiters at the insertion point', async () => {
   await withDocument('', async (page, application) => {
     const editor = page.getByRole('textbox', { name: 'Markdown source' })
     const live = page.getByRole('button', { name: 'Live Preview', exact: true })
@@ -105,10 +105,18 @@ test('completed inline syntax stays rendered at the insertion point and reveals 
     for (const [raw, rendered, style] of cases) {
       await editor.fill('')
       await page.keyboard.type(raw)
-      await expect(editor.locator('.cm-line')).toHaveText(rendered)
-      await expect(editor.locator(style)).toHaveText(rendered)
+      await expect(editor.locator('.cm-line')).toHaveText(raw)
+      await expect
+        .poll(() =>
+          editor.locator(style).evaluate((element) => {
+            const body = element.cloneNode(true) as HTMLElement
+            for (const marker of body.querySelectorAll('.cm-live-markup')) marker.remove()
+            return body.textContent
+          }),
+        )
+        .toBe(rendered)
       await editor.press('ArrowLeft')
-      await expect(editor.locator('.cm-line')).toHaveText(rendered)
+      await expect(editor.locator('.cm-line')).toHaveText(raw)
       await editor.press(`${modifier}+a`)
       await expect(editor.locator('.cm-line')).toHaveText(raw)
       await expect(editor.locator(style)).toBeVisible()
@@ -128,7 +136,7 @@ test('completed inline syntax stays rendered at the insertion point and reveals 
     })
     await editor.fill('')
     await editor.press(`${modifier}+v`)
-    await expect(editor.locator('.cm-line')).toHaveText('title')
+    await expect(editor.locator('.cm-line')).toHaveText('**title**')
     await expect(editor.locator('.cm-live-strong')).toHaveText('title')
     await page.screenshot({ path: test.info().outputPath('active-inline-preview.png') })
     await page.setViewportSize({ width: 720, height: 900 })
@@ -141,19 +149,19 @@ test('completed inline syntax stays rendered at the insertion point and reveals 
   })
 })
 
-test('active headings, quotes and entities stay rendered while unfinished syntax stays literal', async () => {
+test('active headings and quotes expose markers and entities expose trailing source hints', async () => {
   await withDocument('', async (page) => {
     const editor = page.getByRole('textbox', { name: 'Markdown source' })
     await page.getByRole('button', { name: 'Live Preview', exact: true }).click()
     for (const [raw, rendered] of [
-      ['# Title', 'Title'],
-      ['# Title ###', 'Title'],
-      ['> Title', 'Title'],
-      ['\\*literal\\*', '*literal*'],
-      ['&amp;', '&'],
+      ['# Title', '# Title'],
+      ['# Title ###', '# Title ###'],
+      ['> Title', '> Title'],
+      ['\\*literal\\*', '*literal*\\*'],
+      ['&amp;', '&&amp;'],
       ['**unfinished', '**unfinished'],
       ['2 * 3 = 6', '2 * 3 = 6'],
-      ['`**literal** &amp;`', '**literal** &amp;'],
+      ['`**literal** &amp;`', '`**literal** &amp;`'],
     ]) {
       await editor.fill('')
       await page.keyboard.type(raw || '')
@@ -175,12 +183,12 @@ test('editing visible formatted text preserves its delimiters, source history an
     await expect(editor).toBeFocused()
     await expect(page.getByText('Ln 1, Col 5', { exact: true })).toBeVisible()
     await page.keyboard.type('X')
-    await expect(editor.locator('.cm-line')).toHaveText('tiXtle')
+    await expect(editor.locator('.cm-line')).toHaveText('**tiXtle**')
     await source.click()
     await expect(editor.locator('.cm-line')).toHaveText('**tiXtle**')
     await editor.press(`${modifier}+z`)
     await live.click()
-    await expect(editor.locator('.cm-line')).toHaveText('title')
+    await expect(editor.locator('.cm-line')).toHaveText('**title**')
     await editor.press(`${modifier}+End`)
     await page.keyboard.type('!')
     await expect(editor.locator('.cm-line')).toHaveText('title!')
@@ -188,13 +196,14 @@ test('editing visible formatted text preserves its delimiters, source history an
     await expect(editor.locator('.cm-line')).toHaveText('**title**!')
     await editor.press(`${modifier}+z`)
     await live.click()
-    await expect(editor.locator('.cm-line')).toHaveText('title')
+    await expect(editor.locator('.cm-line')).toHaveText('**title**')
     await editor.press(`${modifier}+Home`)
     await editor.press('ArrowRight')
-    await expect(page.getByText('Ln 1, Col 3', { exact: true })).toBeVisible()
+    await expect(page.getByText('Ln 1, Col 2', { exact: true })).toBeVisible()
+    await editor.press('ArrowRight')
     await editor.press('ArrowRight')
     await editor.press('Delete')
-    await expect(editor.locator('.cm-line')).toHaveText('ttle')
+    await expect(editor.locator('.cm-line')).toHaveText('**ttle**')
     await source.click()
     await expect(editor.locator('.cm-line')).toHaveText('**ttle**')
   })
@@ -333,7 +342,9 @@ test('references stay rendered at the caret, reveal selected source and follow d
       .toEqual(['https://example.invalid/old'])
     await expect(guide).toBeVisible()
     await guide.click()
-    await expect(guide).toBeVisible()
+    await expect(guide).toHaveCount(0)
+    await expect.poll(() => page.evaluate(() => getSelection()?.toString())).toBe('')
+    await expect(editor.locator('.cm-line').first()).toHaveText('Read [**Guide**][manual].')
     await editor.press(`${modifier}+Home`)
     for (let index = 0; index < 5; index++) await editor.press('ArrowRight')
     await editor.press('Shift+ArrowRight')

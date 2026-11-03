@@ -35,18 +35,35 @@ describe('document conventions', () => {
         document.blocks.some((block) => block.kind === kind),
         kind,
       ).toBe(true)
-    expect(JSON.stringify(document.root)).toContain('"type":"delete"')
+    expect(JSON.stringify(document.root)).not.toContain('"type":"delete"')
+    expect(plainText(document.root)).toContain('~~gone~~')
   })
-  it.each(['\n', '\r\n'])(
-    'recognizes YAML metadata only with Typora enabled, using %j line endings',
-    (newline) => {
+  it('toggles highlight and strikethrough together without changing code or scripts', () => {
+    const source = '==**marked**== ~~**gone**~~ H~2~O x^2^ `~~code~~ ==code==` \\~~literal~~'
+    for (const opt of [false, true, false, true]) {
+      const document = parseDocumentMarkdown(source, { ...defaultMarkdownPlugins, opt })
+      const root = JSON.stringify(document.root)
+      expect(root.includes('"type":"delete"')).toBe(opt)
+      expect(root.includes('"hName":"mark"')).toBe(opt)
+      expect(document.blocks.some((block) => block.kind === 'subscript')).toBe(true)
+      expect(document.blocks.some((block) => block.kind === 'superscript')).toBe(true)
+      expect(plainText(document.root)).toContain('~~code~~ ==code==')
+      expect(plainText(document.root)).toContain('~~literal~~')
+      expect(document.counts.characters).toBe([...source].length)
+    }
+  })
+  it.each(
+    ['\n', '\r\n'].flatMap((newline) => ['---', '...'].map((closing) => ({ newline, closing }))),
+  )(
+    'recognizes YAML metadata only with Typora enabled: $closing with $newline',
+    ({ newline, closing }) => {
       const metadata = [
         '---',
         'title: "**literal** -- ..."',
         'tags: [writing, reading]',
         'summary: |',
         '  ==Highlight== $x^2$ [TOC]',
-        '---',
+        closing,
       ].join(newline)
       const source = `${metadata}${newline}${newline}# Actual heading${newline}${newline}Body.`
       // Alternate configurations to catch processor reuse across Typora toggles.
@@ -66,6 +83,20 @@ describe('document conventions', () => {
       }
     },
   )
+  it.each([
+    { closing: '...', later: '---' },
+    { closing: '---', later: '...' },
+  ])('ends YAML at the first $closing before a later $later', ({ closing, later }) => {
+    const header = `--- \t\ntitle: Test\n${closing} \t`
+    const source = `${header}\n# Heading\n\nBody\n\n${later}`
+    const document = parseDocumentMarkdown(source, { ...defaultMarkdownPlugins, typora: true })
+    const metadata = document.root.children[0]
+    expect(metadata?.type).toBe('yaml')
+    expect(metadata?.type === 'yaml' && metadata.value).toBe('title: Test')
+    expect(metadata?.position?.end.offset).toBe(header.length)
+    expect(document.outline.map((heading) => heading.text)).toEqual(['Heading'])
+    expect(plainText(document.root)).toContain('Body')
+  })
   it('retains TOML metadata independently of the Typora plugin', () => {
     const source = '+++\ntitle = "**literal**"\n+++\n\n# Heading'
     for (const typora of [false, true, false]) {

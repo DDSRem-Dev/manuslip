@@ -1,5 +1,7 @@
 import { defaultMarkdownPlugins, markdownPluginNames } from '@manuslip/core/conventions'
 import type { Locale, Settings } from '../../shared/contracts'
+import type { DocumentController } from './document'
+import { MarkdownRenderSettings } from './MarkdownRenderSettings'
 
 const labels = {
   opt: 'Opt',
@@ -10,26 +12,26 @@ const labels = {
 }
 const copy = {
   en: {
-    title: 'Markdown conventions',
-    base: 'CommonMark with tables, fenced code, footnotes, strikethrough, task lists, smart punctuation, heading attributes, superscript and subscript.',
-    hint: 'Changes save automatically and apply to preview, new reading copies and export.',
-    opt: 'Highlight with ==text==. Strikethrough with ~~text~~ is always available.',
-    latex: 'Inline and display formulas, aligned equations, matrices and chemistry.',
-    mermaid: 'Render fenced diagrams with Mermaid.',
-    github: 'Autolink bare URLs and render Note, Tip, Important, Warning and Caution callouts.',
-    typora: 'Recognize YAML front matter and generate a linked table of contents from [TOC].',
-    reset: 'Reset Markdown plugins',
+    title: 'Markdown extensions',
+    base: 'CommonMark · Tables · Tasks · Footnotes · Smart punctuation · Heading attributes · Superscript · Subscript',
+    hint: 'Applies to preview, new reading copies and export.',
+    opt: 'Highlight · Strikethrough',
+    latex: 'Inline & display math · Matrices · Chemistry',
+    mermaid: 'Diagrams',
+    github: 'Autolinks · Callouts',
+    typora: 'Front matter · Table of contents',
+    reset: 'Reset extensions',
   },
   'zh-CN': {
-    title: 'Markdown 约定',
-    base: 'CommonMark 及表格、围栏代码块、脚注、删除线、任务列表、智能标点、标题属性、上标与下标。',
-    hint: '更改会自动保存，并应用于预览、新建阅读副本和导出。',
-    opt: '使用 ==文本== 高亮。~~文本~~ 删除线始终可用。',
-    latex: '行内与独立公式、对齐方程、矩阵和化学式。',
-    mermaid: '使用 Mermaid 渲染围栏图表。',
-    github: '自动链接网址，并渲染 Note、Tip、Important、Warning 和 Caution 提示块。',
-    typora: '识别 YAML 前置元数据，并使用 [TOC] 生成带链接的目录。',
-    reset: '重置 Markdown 插件',
+    title: 'Markdown 扩展',
+    base: 'CommonMark · 表格 · 任务列表 · 脚注 · 智能标点 · 标题属性 · 上标 · 下标',
+    hint: '应用于预览、新阅读副本与导出。',
+    opt: '高亮 · 删除线',
+    latex: '行内与独立公式 · 矩阵 · 化学式',
+    mermaid: '图表',
+    github: '网址自动链接 · 提示块',
+    typora: '前置元数据 · 目录',
+    reset: '重置扩展',
   },
 } as const
 
@@ -38,16 +40,18 @@ export function MarkdownSettings({
   locale,
   disabled,
   update,
+  document,
 }: {
   settings: Settings
   locale: Locale
   disabled: boolean
   update(patch: Partial<Settings>): Promise<void>
+  document: DocumentController | null
 }): React.JSX.Element {
   const text = copy[locale]
   const plugins = settings.markdown ?? defaultMarkdownPlugins
   return (
-    <fieldset className="preference-group markdown-settings" disabled={disabled}>
+    <fieldset className="preference-group markdown-settings">
       <legend>{text.title}</legend>
       <p className="preference-hint">{text.base}</p>
       {markdownPluginNames.map((name) => (
@@ -56,6 +60,7 @@ export function MarkdownSettings({
             <input
               type="checkbox"
               checked={plugins[name]}
+              disabled={disabled}
               aria-describedby={`markdown-${name}-hint`}
               onChange={(event) =>
                 void update({ markdown: { ...plugins, [name]: event.target.checked } })
@@ -71,10 +76,12 @@ export function MarkdownSettings({
       <p className="preference-hint">{text.hint}</p>
       <button
         type="button"
+        disabled={disabled}
         onClick={() => void update({ markdown: { ...defaultMarkdownPlugins } })}
       >
         {text.reset}
       </button>
+      <MarkdownRenderSettings document={document} locale={locale} />
     </fieldset>
   )
 }

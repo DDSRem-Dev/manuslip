@@ -4,7 +4,7 @@ import type { DiagramSyntax } from './diagram'
 import { projectWithHandlers } from './projection-engine'
 
 export { safeImage, safeLink } from './urls'
-export const rendererVersion = 'mdast-hast13-html9/policy8-conventions2'
+export const rendererVersion = 'mdast-hast13-html9/policy10-conventions4'
 export interface RenderOptions {
   plugins?: MarkdownPlugins
   rawHtml: boolean

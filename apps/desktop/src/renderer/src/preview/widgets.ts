@@ -6,6 +6,7 @@ import type { Result } from '../../../shared/contracts'
 import type { DiagramBridge } from '../../../shared/diagram-contracts'
 import { i18next } from '../i18n'
 import { renderDiagramWidget } from './diagram-widget'
+import { renderImageWidget } from './image-widget'
 import { renderMathWidget } from './math-widget'
 import type { WidgetBorrow } from './widget-borrow'
 import { setWidgetState } from './widget-state'
@@ -132,7 +133,7 @@ export function renderWidget(
   for (const table of container.querySelectorAll('table')) {
     const scroll = document.createElement('div')
     scroll.className = 'render-table-scroll'
-    scroll.setAttribute('role', 'region')
+    scroll.setAttribute('role', 'group')
     scroll.setAttribute('aria-label', i18next.t('table'))
     scroll.tabIndex = 0
     table.before(scroll)
@@ -240,98 +241,7 @@ export function renderWidget(
     renderMathWidget(container, block, signal, measure, install, borrow)
     return
   }
-  for (const image of container.querySelectorAll('img')) {
-    image.addEventListener(
-      'load',
-      () => {
-        setWidgetState(image, 'ready')
-        measure()
-      },
-      { signal },
-    )
-    image.addEventListener(
-      'error',
-      () => {
-        setWidgetState(image, 'error')
-        measure()
-      },
-      { signal },
-    )
-    const local = image.getAttribute('data-local-image')
-    const url = local || image.getAttribute('data-remote-image')
-    const loader = local ? loadLocalImage : loadImage
-    setWidgetState(
-      image,
-      url && !loader ? 'blocked' : image.complete && image.naturalWidth > 0 ? 'ready' : 'loading',
-    )
-    if (url && loader) {
-      const originalAlt = image.alt
-      const retry = document.createElement('button')
-      retry.type = 'button'
-      retry.className = 'cm-live-image-retry'
-      retry.textContent = i18next.t('retryImage', { alt: image.alt || i18next.t('image') })
-      retry.hidden = true
-      const errorLabel = document.createElement('span')
-      errorLabel.className = 'cm-live-render-error cm-live-image-error'
-      errorLabel.hidden = true
-      image.after(errorLabel, retry)
-      const failed = (code?: string): void => {
-        if (signal.aborted) return
-        setWidgetState(image, 'error')
-        retry.hidden = false
-        retry.disabled = false
-        errorLabel.hidden = false
-        const key =
-          code === 'file-missing'
-            ? 'imageMissing'
-            : code === 'file-permission'
-              ? 'imageUnreadable'
-              : code === 'workspace-link'
-                ? 'imageLinked'
-                : code
-        errorLabel.textContent =
-          key && i18next.exists(key) ? i18next.t(key) : i18next.t('imageLoadError')
-        measure()
-      }
-      const load = (): void => {
-        if (signal.aborted) return
-        setWidgetState(image, 'loading')
-        let lease: WidgetBorrow | undefined
-        retry.disabled = true
-        let work: Promise<Result<string>>
-        try {
-          lease = borrow?.retain()
-          work = loader(url)
-        } catch {
-          lease?.release()
-          failed()
-          return
-        }
-        void work
-          .then((result) => {
-            if (signal.aborted) return
-            if (result.ok) {
-              image.alt = originalAlt
-              retry.hidden = true
-              errorLabel.hidden = true
-              image.src = result.value
-            } else failed(result.code)
-            measure()
-          })
-          .catch(() => failed())
-          .finally(() => lease?.release())
-      }
-      retry.addEventListener(
-        'click',
-        (event) => {
-          event.stopPropagation()
-          load()
-        },
-        { signal },
-      )
-      image.addEventListener('error', () => failed(), { signal })
-      load()
-    }
-  }
+  for (const image of container.querySelectorAll('img'))
+    renderImageWidget(image, signal, measure, loadImage, loadLocalImage, borrow)
   measure()
 }

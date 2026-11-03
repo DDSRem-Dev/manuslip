@@ -295,6 +295,7 @@ export function App(): React.JSX.Element {
 
   const preferences = (
     <PreferencesPanel
+      activeDocument={activeDocument}
       bootstrap={bootstrap}
       open={preferencesOpen}
       pendingSettings={pendingSettings}

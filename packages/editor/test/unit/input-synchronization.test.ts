@@ -1,5 +1,6 @@
 import type { EditorView } from '@codemirror/view'
 import { expect, it, vi } from 'vitest'
+import { registerEmbeddedEditor } from '../../src/embedded-editor'
 import { SourceInputSynchronization } from '../../src/input-synchronization'
 
 type MeasureRequest = NonNullable<Parameters<EditorView['requestMeasure']>[0]>
@@ -145,4 +146,29 @@ it('settles pending saves when a view unmounts and ignores its late scheduled ca
   await input.flush()
   expect(view.requestMeasure).toHaveBeenCalledOnce()
   input.close()
+})
+
+it('captures a focused table cell only after its composition and both input boundaries complete', async () => {
+  const parent = fixture(),
+    child = fixture()
+  const unregister = registerEmbeddedEditor(
+    parent.view as unknown as EditorView,
+    child.view as unknown as EditorView,
+    child.input,
+  )
+  child.start()
+  const captured = vi.fn()
+  const pending = parent.input.flush().then(captured)
+  expect(parent.view.requestMeasure).not.toHaveBeenCalled()
+  expect(child.view.requestMeasure).not.toHaveBeenCalled()
+  child.end()
+  child.measure()
+  await Promise.resolve()
+  expect(captured).not.toHaveBeenCalled()
+  parent.measure()
+  await pending
+  expect(captured).toHaveBeenCalledOnce()
+  unregister()
+  parent.input.close()
+  child.input.close()
 })

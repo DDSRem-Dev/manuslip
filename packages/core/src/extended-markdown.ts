@@ -49,6 +49,9 @@ function script(marker: number, token: TokenType, mark: TokenType, data: TokenTy
     name: token,
     previous: (code) => code !== marker,
     tokenize(effects, ok, nok) {
+      // Another construct can trigger an attempt despite `previous`. A doubled
+      // delimiter must never fall back to a single-marker script with Opt off.
+      if (this.previous === marker) return nok
       let escaped = false
       let count = 0
       return start

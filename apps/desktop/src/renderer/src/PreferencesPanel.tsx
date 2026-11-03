@@ -1,5 +1,6 @@
 import { type RefObject, useEffect, useRef, useState } from 'react'
 import type { Bootstrap, Locale, Settings, Theme } from '../../shared/contracts'
+import type { DocumentController } from './document'
 import { EditorSettings } from './EditorSettings'
 import { Icon } from './Icons'
 import { i18next } from './i18n'
@@ -20,6 +21,7 @@ const pages = [
 
 export function PreferencesPanel({
   bootstrap,
+  activeDocument,
   open,
   pendingSettings,
   failedSettings,
@@ -33,6 +35,7 @@ export function PreferencesPanel({
   onClose,
 }: {
   bootstrap: Bootstrap
+  activeDocument: DocumentController | null
   open: boolean
   pendingSettings: Settings | null
   failedSettings: Settings | null
@@ -288,6 +291,7 @@ export function PreferencesPanel({
             hidden={Boolean(normalizedQuery) || preferencePage !== 'plugins'}
           >
             <MarkdownSettings
+              document={activeDocument}
               settings={current}
               locale={bootstrap.settings.locale}
               disabled={disabled}

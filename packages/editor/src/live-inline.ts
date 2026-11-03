@@ -8,10 +8,14 @@ import {
   type ViewUpdate,
   WidgetType,
 } from '@codemirror/view'
+import type { SyntaxNode } from '@lezer/common'
 import { semanticLimits } from '@manuslip/core'
 import { decodeString } from 'micromark-util-decode-string'
+import { optMarkdown } from './conventions'
 import { frontmatterEnd } from './frontmatter'
 import { RenderedWidget } from './live-blocks'
+import { caretTouches, editingBlock } from './live-editing'
+import { alignInlineMathPreview } from './live-inline-math'
 import {
   inlineProjection,
   isComposing,
@@ -30,6 +34,12 @@ const inlineFormats: Record<string, { class: string; tagName: string; marker: st
   Emphasis: { class: 'cm-live-emphasis', tagName: 'em', marker: 'EmphasisMark' },
   Strikethrough: { class: 'cm-live-strike', tagName: 'del', marker: 'StrikethroughMark' },
   InlineCode: { class: 'cm-live-code', tagName: 'code', marker: 'CodeMark' },
+}
+
+function formatCaret(state: EditorState, node: SyntaxNode): boolean {
+  for (let current: SyntaxNode | null = node; current; current = current.parent)
+    if (inlineFormats[current.name] && caretTouches(state, current.from, current.to)) return true
+  return false
 }
 
 const taskLifetimes = new WeakMap<HTMLElement, AbortController>()
@@ -97,20 +107,50 @@ class BulletWidget extends WidgetType {
 }
 
 class TextWidget extends WidgetType {
-  constructor(readonly text: string) {
+  constructor(
+    readonly text: string,
+    readonly preview = false,
+  ) {
     super()
   }
   override eq(other: TextWidget): boolean {
-    return this.text === other.text
+    return (
+      this.constructor === other.constructor &&
+      this.text === other.text &&
+      this.preview === other.preview
+    )
   }
   override toDOM(): HTMLElement {
     const span = document.createElement('span')
     // Entity output is text, including decoded angle brackets; never parse it as HTML.
     span.textContent = this.text
+    if (this.preview) {
+      span.className = 'cm-live-source-glyph'
+      span.setAttribute('aria-hidden', 'true')
+    }
     return span
   }
   override ignoreEvent(): boolean {
     return false
+  }
+}
+
+class EmojiWidget extends TextWidget {
+  constructor(
+    text: string,
+    readonly source: string,
+    preview = false,
+  ) {
+    super(text, preview)
+  }
+  override eq(other: EmojiWidget): boolean {
+    return super.eq(other) && this.source === other.source
+  }
+  override toDOM(): HTMLElement {
+    const span = super.toDOM()
+    span.classList.add('md-emoji')
+    span.title = this.source
+    return span
   }
 }
 
@@ -133,9 +173,35 @@ interface InlineState {
 
 function inline(view: EditorView, options: LiveOptions): InlineState {
   const state = view.state
-  if (view.composing || state.field(isComposing))
-    return { decorations: Decoration.none, atomic: Decoration.none }
+  const editing = editingBlock(state)
+  const metadataEnd = state.field(frontmatterEnd)
   const decorations: Range<Decoration>[] = []
+  if (editing?.block.kind === 'inlineMath')
+    decorations.push(
+      Decoration.mark({ class: 'cm-live-inline-math-source' }).range(
+        editing.block.from,
+        editing.block.to,
+      ),
+    )
+  // Style the original editable lines. Metadata never needs an atomic widget or
+  // source-reveal action, and remains stable during composition and selection.
+  if (metadataEnd) {
+    const closing = state.doc.lineAt(metadataEnd).number
+    let lastLine = 0
+    for (const visible of view.visibleRanges) {
+      if (visible.from > metadataEnd) break
+      const first = Math.max(2, lastLine + 1, state.doc.lineAt(visible.from).number)
+      const last = Math.min(closing - 1, state.doc.lineAt(Math.min(metadataEnd, visible.to)).number)
+      for (let number = first; number <= last; number++) {
+        const line = state.doc.line(number)
+        const edge = `${number === 2 ? ' cm-live-frontmatter-start' : ''}${number === closing - 1 ? ' cm-live-frontmatter-end' : ''}`
+        decorations.push(Decoration.line({ class: `cm-live-frontmatter${edge}` }).range(line.from))
+      }
+      lastLine = last
+    }
+  }
+  if (view.composing || state.field(isComposing))
+    return { decorations: Decoration.set(decorations, true), atomic: Decoration.none }
   const hidden: { from: number; to: number }[] = []
   const replace = (from: number, to: number): void => {
     // View plugins must never replace a line break.
@@ -148,12 +214,18 @@ function inline(view: EditorView, options: LiveOptions): InlineState {
   }
   let math = 0
   const model = state.field(liveModel)
-  const blocks = model?.blocks || []
+  const blocks = [...(model?.blocks || [])]
+  if (editing && !blocks.some((block) => block.id === editing.block.id)) blocks.push(editing.block)
+  blocks.sort((a, b) => a.from - b.from || b.to - a.to)
   // Semantic prose widgets own their descendants. Revealing them shows the complete
   // raw source, including syntax that Lezer cannot represent or safely parse inline.
   const sourceBlocks: LiveBlock[] = []
   for (const block of blocks)
-    if (proseProjection(block.kind) && block.from >= (sourceBlocks.at(-1)?.to ?? 0))
+    if (
+      proseProjection(block.kind) &&
+      !(editing && editing.from >= block.from && editing.to <= block.to) &&
+      block.from >= (sourceBlocks.at(-1)?.to ?? 0)
+    )
       sourceBlocks.push(block)
   const inSourceBlock = (from: number, to: number): boolean => {
     let low = 0,
@@ -209,20 +281,39 @@ function inline(view: EditorView, options: LiveOptions): InlineState {
       // An outer widget already renders its nested links, scripts, images and emoji.
       if (block.from < (covered[covered.length - 1]?.to ?? 0)) continue
       seen.add(block.id)
-      covered.push({ from: block.from, to: block.to })
-      decorations.push(
-        Decoration.replace({ widget: new RenderedWidget(block, options, true) }).range(
-          block.from,
-          block.to,
-        ),
+      if (
+        editing &&
+        editing.from <= block.from &&
+        editing.to >= block.to &&
+        block.kind !== 'emoji' &&
+        (editing.block.placement === 'after-document' ||
+          (editing.from === block.from && editing.to === block.to))
       )
+        continue
+      covered.push({ from: block.from, to: block.to })
+      const emoji = block.kind === 'emoji'
+      const widget = emoji
+        ? new EmojiWidget(
+            block.value,
+            state.doc.sliceString(block.from, block.to),
+            caretTouches(state, block.from, block.to),
+          )
+        : new RenderedWidget(block, options, true)
+      if (emoji && caretTouches(state, block.from, block.to)) {
+        decorations.push(
+          Decoration.widget({ widget, side: -1 }).range(block.from),
+          Decoration.mark({ class: 'cm-live-source-hint' }).range(block.from, block.to),
+        )
+        continue
+      }
+      decorations.push(Decoration.replace({ widget }).range(block.from, block.to))
     }
     syntaxTree(state).iterate({
       from: visible.from,
       to: visible.to,
       enter: (node) => {
         const name = node.name
-        if (node.to <= state.field(frontmatterEnd)) return false
+        if (node.to <= metadataEnd) return false
         if (inSourceBlock(node.from, node.to)) return false
         if (['FencedCode', 'CodeBlock'].includes(name)) {
           if (touches(state, node.from, node.to)) {
@@ -238,8 +329,56 @@ function inline(view: EditorView, options: LiveOptions): InlineState {
           }
           return false
         }
-        if (['Table', 'HTMLBlock'].includes(name)) return false
+        if (name === 'Table') {
+          if (touches(state, node.from, node.to)) {
+            const first = state.doc.lineAt(Math.max(node.from, visible.from)).number
+            const last = state.doc.lineAt(Math.min(node.to, visible.to)).number
+            for (let number = first; number <= last; number++)
+              decorations.push(
+                Decoration.line({ class: 'cm-live-source-table' }).range(
+                  state.doc.line(number).from,
+                ),
+              )
+          }
+          return false
+        }
+        if (name === 'HTMLBlock') return false
         if (covered.some((range) => node.from >= range.from && node.to <= range.to)) return false
+        if (name === 'LinkReference') {
+          const last = state.doc.lineAt(Math.min(node.to, visible.to)).number
+          for (
+            let number = state.doc.lineAt(Math.max(node.from, visible.from)).number;
+            number <= last;
+            number++
+          )
+            decorations.push(
+              Decoration.line({ class: 'cm-live-reference-definition' }).range(
+                state.doc.line(number).from,
+              ),
+            )
+          for (let child = node.node.firstChild; child; child = child.nextSibling) {
+            const className =
+              child.name === 'LinkLabel'
+                ? 'cm-live-reference-label'
+                : child.name === 'URL'
+                  ? 'cm-live-reference-url'
+                  : 'cm-live-reference-punctuation'
+            decorations.push(Decoration.mark({ class: className }).range(child.from, child.to))
+            if (child.name === 'LinkLabel' && child.to - child.from > 2) {
+              decorations.push(
+                Decoration.mark({ class: 'cm-live-reference-punctuation' }).range(
+                  child.from,
+                  child.from + 1,
+                ),
+                Decoration.mark({ class: 'cm-live-reference-punctuation' }).range(
+                  child.to - 1,
+                  child.to,
+                ),
+              )
+            }
+          }
+          return false
+        }
         if (/^(ATX|Setext)Heading[1-6]$/.test(name)) {
           const anchor = model?.anchors?.find((anchor) => anchor.from === node.from)?.id
           decorations.push(
@@ -266,21 +405,37 @@ function inline(view: EditorView, options: LiveOptions): InlineState {
               Decoration.line({ class: 'cm-live-quote' }).range(state.doc.line(number).from),
             )
         }
-        if (name === 'Escape' && !selectionTouches(state.selection, node.from, node.to))
-          replace(node.from, node.from + 1)
+        if (name === 'Escape' && !selectionTouches(state.selection, node.from, node.to)) {
+          if (caretTouches(state, node.from, node.to))
+            decorations.push(
+              Decoration.widget({
+                widget: new TextWidget(state.doc.sliceString(node.from + 1, node.to), true),
+                side: -1,
+              }).range(node.from),
+              Decoration.mark({ class: 'cm-live-source-hint' }).range(node.from, node.to),
+            )
+          else replace(node.from, node.from + 1)
+        }
         if (name === 'HardBreak')
           replace(node.from, Math.min(node.to, state.doc.lineAt(node.from).to))
-        if (name === 'Entity' && !selectionTouches(state.selection, node.from, node.to))
-          decorations.push(
-            Decoration.replace({
-              widget: new TextWidget(decodeString(state.doc.sliceString(node.from, node.to))),
-            }).range(node.from, node.to),
-          )
+        if (name === 'Entity' && !selectionTouches(state.selection, node.from, node.to)) {
+          const value = decodeString(state.doc.sliceString(node.from, node.to))
+          if (caretTouches(state, node.from, node.to))
+            decorations.push(
+              Decoration.widget({ widget: new TextWidget(value, true), side: -1 }).range(node.from),
+              Decoration.mark({ class: 'cm-live-source-hint' }).range(node.from, node.to),
+            )
+          else
+            decorations.push(
+              Decoration.replace({ widget: new TextWidget(value) }).range(node.from, node.to),
+            )
+        }
         if (name === 'HorizontalRule' && !selectionTouches(state.selection, node.from, node.to))
           decorations.push(
             Decoration.replace({ widget: new RuleWidget() }).range(node.from, node.to),
           )
-        const format = inlineFormats[name]
+        const format =
+          name === 'Strikethrough' && !state.facet(optMarkdown) ? undefined : inlineFormats[name]
         if (format) {
           const markers = node.node.getChildren(format.marker)
           const opening = markers[0],
@@ -288,8 +443,7 @@ function inline(view: EditorView, options: LiveOptions): InlineState {
           if (opening && closing && opening !== closing) {
             let from = opening.to,
               to = closing.from
-            // Text selections reveal the complete syntax pair, even when only its
-            // body is selected. A collapsed caret keeps the delimiters hidden.
+            // The caret exposes paired punctuation without removing the type style.
             if (name === 'InlineCode') {
               const value = state.doc.sliceString(from, to)
               if (value.startsWith(' ') && value.endsWith(' ') && /[^ ]/.test(value)) {
@@ -297,7 +451,10 @@ function inline(view: EditorView, options: LiveOptions): InlineState {
                 to--
               }
             }
-            if (!selectionTouches(state.selection, node.from, node.to)) {
+            if (
+              !selectionTouches(state.selection, node.from, node.to) &&
+              !formatCaret(state, node.node)
+            ) {
               replace(opening.from, from)
               replace(to, closing.to)
             }
@@ -309,7 +466,11 @@ function inline(view: EditorView, options: LiveOptions): InlineState {
         }
         if (name === 'HeaderMark') {
           const parent = node.node.parent
-          if (parent && !selectionTouches(state.selection, parent.from, parent.to)) {
+          if (
+            parent &&
+            !selectionTouches(state.selection, parent.from, parent.to) &&
+            !caretTouches(state, parent.from, parent.to)
+          ) {
             let from = node.from,
               to = node.to
             const line = state.doc.lineAt(from)
@@ -321,7 +482,12 @@ function inline(view: EditorView, options: LiveOptions): InlineState {
         }
         if (name === 'ListMark' || name === 'QuoteMark') {
           const parent = node.node.parent
-          if (parent && selectionTouches(state.selection, parent.from, parent.to)) return false
+          if (
+            parent &&
+            (selectionTouches(state.selection, parent.from, parent.to) ||
+              caretTouches(state, parent.from, parent.to))
+          )
+            return false
           if (name === 'QuoteMark')
             replace(
               node.from,
@@ -369,7 +535,10 @@ function inline(view: EditorView, options: LiveOptions): InlineState {
   }
   const replacements = merged.map((range) => Decoration.replace({}).range(range.from, range.to))
   const atomic = Decoration.set(
-    [...replacements, ...decorations.filter((range) => range.value.spec.widget)],
+    [
+      ...replacements,
+      ...decorations.filter((range) => range.from < range.to && range.value.spec.widget),
+    ],
     true,
   )
   decorations.push(...replacements)
@@ -385,8 +554,16 @@ export function inlineDecorations(options: LiveOptions): Extension {
         const result = inline(view, options)
         this.decorations = result.decorations
         this.atomic = result.atomic
+        alignInlineMathPreview(view)
       }
       update(update: ViewUpdate): void {
+        if (
+          update.docChanged ||
+          update.geometryChanged ||
+          update.viewportChanged ||
+          editingBlock(update.startState) !== editingBlock(update.state)
+        )
+          alignInlineMathPreview(update.view)
         if (
           update.docChanged ||
           update.selectionSet ||

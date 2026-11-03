@@ -34,6 +34,20 @@ export function openReadingOptions(page: Page): Promise<Locator> {
   return openDisclosure(page, /^(Reading options|阅读选项)$/)
 }
 
+export async function openMarkdownExtensions(page: Page): Promise<Locator> {
+  const dialog = page.locator('.preferences-dialog')
+  if (!(await dialog.evaluate((element) => element.hasAttribute('open'))))
+    await page.getByRole('button', { name: /^(Preferences|偏好设置)$/, exact: true }).click()
+  await expect(dialog).toBeVisible()
+  await dialog.getByRole('button', { name: /^(Plugins|插件)$/, exact: true }).click()
+  const extensions = dialog.getByRole('group', {
+    name: /^(Markdown extensions|Markdown 扩展)$/,
+    exact: true,
+  })
+  await expect(extensions).toBeVisible()
+  return extensions
+}
+
 export async function clickDocumentAction(page: Page, name: string): Promise<void> {
   const panel = await openDocumentActions(page)
   await panel.getByRole('button', { name, exact: true }).click()

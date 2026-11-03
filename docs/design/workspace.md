@@ -47,8 +47,21 @@ preserves source newlines through caret movement, text selection and selection c
 Rendered prose aligns with editable prose without extra per-paragraph controls. Chinese
 language choices use 简体中文 and 繁體中文. Live text selections reveal the affected inline syntax,
 including paired markers for selected body words and original paragraph line breaks.
-Collapsing them restores formatting while keeping source newlines. Carets and ordinary clicks keep
-widgets rendered; Select source explicitly selects their original source range.
+Clicking a rendered block opens a persistent source session without selecting its text.
+Diagrams retain a live preview below their editable source. Inline formulas retain their source
+activation and add an unframed preview row directly below the editing line. Their editable source
+uses a gray surface and mono type, and the preview follows the first source character through
+wrapping, resizing and zoom. Table cells edit independently
+inside the rendered table and share document history and input synchronization. Escape or
+moving outside the active block ends the session; repeated clicks keep it open. Double-click and
+F2 keep table editing in place. Active cells retain their original theme and borders, without
+an active background or underline. Inline syntax appears around the caret with quiet punctuation;
+escapes, entities and emoji show editable source after the rendered character with native caret
+placement. Mermaid and table editors own their activation; these four features do not use a
+generic click-to-source toggle. Unchanged
+blocks remain rendered while semantics refresh. Markdown delimiters use a lighter semantic color
+with readable contrast in both themes, reverting to CanvasText in forced colors. Code uses
+a softly shaded inset; other blocks align with the prose without an enclosing frame.
 Range endpoints stay exclusive, including backward and disjoint selections. Images preserve proportions;
 formulas and whole-word table cells scroll within their accessible regions.
 

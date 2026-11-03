@@ -9,7 +9,8 @@ import { auditPluginInterface } from './plugin-accessibility'
 test('captured reading conventions survive setting changes, layout and export until explicit refresh', async () => {
   const directory = await mkdtemp(resolve('test/artifacts/logs/reading-conventions-'))
   const path = join(directory, 'reading.md')
-  const source = '---\ntitle: YAML_METADATA_PRIVATE\n---\n\n# Hello reader\n\n==Hello== $x^2$.\n'
+  const source =
+    '---\ntitle: YAML_METADATA_PRIVATE\n...\n\n# Hello reader\n\n==Hello== ~~deleted~~ $x^2$.\n'
   await writeFile(path, source)
   const profile = join(directory, 'profile')
   await mkdir(profile)
@@ -73,6 +74,7 @@ test('captured reading conventions survive setting changes, layout and export un
     await expect(page.getByText('Reading copy ready.', { exact: true })).toBeVisible()
     const article = page.locator('.reading-article')
     await expect(article.locator('mark')).toHaveText('你好')
+    await expect(article.locator('del')).toHaveText('deleted')
     await expect(article.getByRole('math')).toHaveCount(1)
     await expect(article).not.toContainText('YAML_METADATA_PRIVATE')
     expect(payloads.join('\n')).not.toContain('YAML_METADATA_PRIVATE')
@@ -89,6 +91,7 @@ test('captured reading conventions survive setting changes, layout and export un
     ).toBeVisible()
     await selectReadingLayout(page, 'interlinear')
     await expect(article.locator('mark')).toHaveCount(2)
+    await expect(article.locator('del')).toHaveCount(2)
     await expect(article.getByRole('math')).toHaveCount(2)
     await expect(article).not.toContainText('YAML_METADATA_PRIVATE')
     const output = join(directory, 'captured.html')
@@ -99,13 +102,15 @@ test('captured reading conventions survive setting changes, layout and export un
     await page.getByRole('button', { name: 'Export this copy', exact: true }).click()
     await expect.poll(() => readFile(output, 'utf8').catch(() => '')).toContain('<mark')
     expect(await readFile(output, 'utf8')).toContain('<svg')
+    expect(await readFile(output, 'utf8')).toContain('<del>deleted</del>')
     expect(await readFile(output, 'utf8')).not.toContain('YAML_METADATA_PRIVATE')
     expect(calls).toBe(requests)
     await page.getByRole('button', { name: 'Refresh translation', exact: true }).click()
     await expect(page.getByText('Reading copy ready.', { exact: true })).toBeVisible()
     await expect(article.locator('mark')).toHaveCount(0)
+    await expect(article.locator('del')).toHaveCount(0)
     await expect(article.getByRole('math')).toHaveCount(0)
-    await expect(article).toContainText('==你好== $x^2$.')
+    await expect(article).toContainText('==你好== ~~deleted~~ $x^2$.')
     await expect(article).toContainText('YAML_METADATA_PRIVATE')
     expect(await readFile(path, 'utf8')).toBe(source)
   } finally {
@@ -137,6 +142,7 @@ test('built-in convention settings update preview and export and persist across 
     page.on('pageerror', (error) => errors.push(error.message))
     let editor = page.getByRole('textbox', { name: 'Markdown source', exact: true })
     await expect(editor.locator('mark')).toHaveText('Highlight')
+    await expect(editor.locator('del')).toHaveText('deleted')
     await expect(editor.getByRole('math')).toHaveCount(1)
     await expect(editor.locator('.cm-live-diagram svg')).toHaveCount(1)
     await expect(editor.locator('.markdown-alert, .markdown-toc')).toHaveCount(0)
@@ -160,6 +166,8 @@ test('built-in convention settings update preview and export and persist across 
     }
     await page.getByRole('button', { name: 'Close preferences', exact: true }).click()
     await expect(editor.locator('mark')).toHaveCount(0)
+    await expect(editor.locator('del')).toHaveCount(0)
+    await expect(editor).toContainText('~~deleted~~')
     await expect(editor.getByRole('math')).toHaveCount(0)
     await expect(editor.locator('.cm-live-diagram svg')).toHaveCount(0)
     await expect(editor.locator('pre > code.language-mermaid')).toContainText('flowchart LR')
@@ -194,6 +202,8 @@ test('built-in convention settings update preview and export and persist across 
     expect(html).not.toContain('YAML_METADATA_PRIVATE')
     expect(html).toContain('markdown-alert-tip')
     expect(html).toContain('==<strong>Highlight</strong>==')
+    expect(html).toContain('~~deleted~~')
+    expect(html).not.toContain('<del>')
     expect(html).toContain('$x^2$')
     expect(html).toContain('flowchart LR')
     expect(html).toContain('id="user-content-start"')
@@ -225,9 +235,11 @@ test('built-in convention settings update preview and export and persist across 
     editor = page.getByRole('textbox', { name: 'Markdown source', exact: true })
     await expect(editor.locator('.markdown-toc')).toBeVisible()
     await expect(editor.locator('mark')).toHaveCount(0)
+    await expect(editor.locator('del')).toHaveCount(0)
     await page.getByRole('button', { name: 'Preferences', exact: true }).click()
     await page.getByRole('button', { name: 'Plugins', exact: true }).click()
-    await page.getByRole('button', { name: 'Reset Markdown plugins', exact: true }).click()
+    await page.getByRole('button', { name: 'Reset extensions', exact: true }).click()
+    await expect(editor.locator('del')).toHaveText('deleted')
     await expect(page.getByRole('checkbox', { name: 'LaTeX', exact: true })).toBeChecked()
     await expect(page.getByRole('checkbox', { name: 'GitHub', exact: true })).not.toBeChecked()
     await page.setViewportSize({ width: 420, height: 900 })
@@ -303,15 +315,20 @@ for (const [locale, theme] of [
     )
     await writeFile(
       path,
-      '# Guide {#guide}\n\n[TOC]\n\n==Highlight==\n\n> [!TIP]\n> Advice.\n\n## 中文标题\n\nEnd',
+      '---\ntitle: "中文 Guide"\nsummary: |\n  ```\n---\n# Guide {#guide}\n\n[TOC]\n\n==Highlight==\n\n> [!TIP]\n> Advice.\n\n## 中文标题\n\nEnd',
     )
     const application = await launchDesktop(profile, [path])
     try {
       const page = await application.firstWindow()
+      await expect(page.locator('.cm-live-frontmatter')).toHaveCount(3)
       await expect(page.locator('.markdown-alert-tip')).toBeVisible()
       await auditPluginInterface(application, page, test.info(), 'conventions')
       await page.emulateMedia({ forcedColors: 'active' })
       await expect(page.locator('mark')).toBeVisible()
+      await expect(page.locator('.cm-live-frontmatter').first()).toHaveCSS(
+        'border-top-style',
+        'solid',
+      )
       await expect(page.locator('.markdown-alert-tip')).toHaveCSS(
         'border-inline-start-style',
         'solid',
@@ -320,15 +337,49 @@ for (const [locale, theme] of [
       await page.emulateMedia({ forcedColors: 'none' })
       await page.getByRole('button', { name: /^(Preferences|偏好设置)$/, exact: true }).click()
       await page.getByRole('button', { name: /^(Plugins|插件)$/, exact: true }).click()
-      await expect(page.locator('#markdown-typora-hint')).toContainText(
-        locale === 'en' ? 'YAML front matter' : 'YAML 前置元数据',
+      await page
+        .getByRole('searchbox', {
+          name: locale === 'en' ? 'Find a setting' : '查找设置',
+          exact: true,
+        })
+        .fill(locale === 'en' ? 'Load remote images' : '远程图片')
+      await page
+        .locator('.preferences-results')
+        .getByRole('button', { name: locale === 'en' ? /^Plugins/ : /^插件/ })
+        .click()
+      await expect(
+        page.getByRole('group', {
+          name: locale === 'en' ? 'Markdown extensions' : 'Markdown 扩展',
+          exact: true,
+        }),
+      ).toBeVisible()
+      await expect(page.locator('#markdown-typora-hint')).toHaveText(
+        locale === 'en' ? 'Front matter · Table of contents' : '前置元数据 · 目录',
+      )
+      await expect(
+        page.getByRole('checkbox', {
+          name: locale === 'en' ? 'Render sanitized HTML' : '渲染经安全过滤的 HTML',
+          exact: true,
+        }),
+      ).toBeEnabled()
+      await expect(
+        page.getByRole('checkbox', {
+          name: locale === 'en' ? 'Load remote images…' : '加载远程图片…',
+          exact: true,
+        }),
+      ).toBeEnabled()
+      await expect(page.locator('#markdown-opt-hint')).toHaveText(
+        locale === 'en' ? 'Highlight · Strikethrough' : '高亮 · 删除线',
       )
       await auditPluginInterface(
         application,
         page,
         test.info(),
         'settings',
-        page.getByRole('checkbox', { name: 'Typora', exact: true }),
+        page.getByRole('checkbox', {
+          name: locale === 'en' ? 'Load remote images…' : '加载远程图片…',
+          exact: true,
+        }),
       )
       await page.getByRole('checkbox', { name: 'Opt', exact: true }).focus()
       await page.keyboard.press('Space')

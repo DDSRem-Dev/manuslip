@@ -142,7 +142,16 @@ export function describeProjectionNode(node: MarkdownNode, options?: RenderOptio
   }
 }
 
-export function applyProjectionPolicy(element: Element): void {
+export function applyProjectionPolicy(element: Element, listStart?: number): void {
+  // Each live definition has its own list wrapper. Preserve the footer's ordinal
+  // in standard HTML so every rendering path keeps its first-reference number.
+  if (
+    listStart &&
+    element.tagName === 'li' &&
+    typeof element.properties.id === 'string' &&
+    element.properties.id.startsWith('user-content-fn-')
+  )
+    element.properties.value = String(listStart)
   if (element.tagName === 'a' && typeof element.properties.href === 'string') {
     const safe = safeLink(element.properties.href)
     if (safe) element.properties.href = safe
@@ -168,7 +177,26 @@ export function projectionOptions(options: RenderOptions, handlers: Handlers = {
   return {
     allowDangerousHtml: options.rawHtml,
     footnoteLabel: options.footnotesLabel,
-    footnoteBackLabel: options.footnoteBackLabel,
+    footnoteBackLabel: (index, reference) =>
+      `${options.footnoteBackLabel} ${index + 1}${reference > 1 ? `-${reference}` : ''}`,
+    footnoteBackContent: (_index, reference) => [
+      {
+        type: 'element',
+        tagName: 'span',
+        properties: { className: ['markdown-icon', 'markdown-icon-backref'], ariaHidden: 'true' },
+        children: [],
+      },
+      ...(reference > 1
+        ? [
+            {
+              type: 'element' as const,
+              tagName: 'sup',
+              properties: {},
+              children: [{ type: 'text' as const, value: String(reference) }],
+            },
+          ]
+        : []),
+    ],
     handlers: {
       ...defListHastHandlers,
       ...extendedInlineHandlers,
@@ -241,7 +269,7 @@ export function projectHast(
   const visit = (node: Nodes, listStart?: number): void => {
     if (node.type === 'element') {
       refreshTableOfContents(node, headingLabels)
-      applyProjectionPolicy(node)
+      applyProjectionPolicy(node, listStart)
     }
     if ('children' in node) {
       let ordinal = 0

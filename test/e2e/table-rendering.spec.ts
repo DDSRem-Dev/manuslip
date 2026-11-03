@@ -68,7 +68,7 @@ for (const locale of ['en', 'zh-CN'] as const) {
       await expect(nested.locator('td').last()).toHaveCSS('text-align', 'right')
       await expect(nested.locator('.md-emoji')).toHaveText('😄')
       const regionName = locale === 'en' ? 'Table' : '表格'
-      await expect(page.getByRole('region', { name: regionName, exact: true })).toHaveCount(3)
+      await expect(page.getByRole('group', { name: regionName, exact: true })).toHaveCount(3)
       const scroll = page.locator('.cm-live-table .render-table-scroll').last()
       for (const width of [1144, 768, 480, 320]) {
         await page.setViewportSize({ width, height: 1000 })
@@ -108,11 +108,14 @@ for (const locale of ['en', 'zh-CN'] as const) {
       await page.screenshot({ path: test.info().outputPath('tables-contrast-rtl.png') })
       await table.evaluate((element) => element.removeAttribute('dir'))
       await page.emulateMedia({ forcedColors: 'none', reducedMotion: 'no-preference' })
-      await page
-        .locator('.cm-live-table')
-        .first()
-        .getByRole('button', { name: locale === 'en' ? 'Edit table' : '编辑表格', exact: true })
-        .click()
+      await table.locator('th').first().click()
+      await page.locator('[data-table-cell-editor]').press('Escape')
+      await page.locator('.cm-live-table').first().focus()
+      await page.locator('.cm-live-table').first().press('F2')
+      await expect(page.locator('[data-table-cell-editor]')).toBeFocused()
+      await expect(page.locator('[data-table-cell-editor]')).toHaveText('Item')
+      await expectAlignment(table)
+      await clickDocumentAction(page, locale === 'en' ? 'Edit table' : '编辑表格')
       const dialog = page.getByRole('dialog', {
         name: locale === 'en' ? 'Edit table' : '编辑表格',
         exact: true,
@@ -203,7 +206,7 @@ test('reading copies and HTML exports retain table alignment on screen and in pr
     const article = page.locator('.reading-article')
     await expectAlignment(article.locator('table').first())
     await expect(article.locator('table').first()).toContainText('就绪')
-    await expect(article.getByRole('region', { name: 'Table', exact: true })).toHaveCount(3)
+    await expect(article.getByRole('group', { name: 'Table', exact: true })).toHaveCount(3)
     for (const layout of ['side-by-side', 'interlinear', 'replace']) {
       await selectReadingLayout(page, layout)
       const tables = article.locator('table').filter({ hasText: '1,240.00' })

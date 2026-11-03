@@ -100,7 +100,6 @@ describe('Markdown feature availability across every plugin combination', () => 
         for (const html of [preview.html, exported.html]) {
           for (const basic of [
             '<table>',
-            '<del>Deleted</del>',
             '<sub>2</sub>',
             '<sup>2</sup>',
             'type="checkbox" checked disabled',
@@ -116,6 +115,8 @@ describe('Markdown feature availability across every plugin combination', () => 
           ])
             expect(html, basic).toContain(basic)
           expect(html.includes('<mark>')).toBe(plugins.opt)
+          expect(html.includes('<del>Deleted</del>')).toBe(plugins.opt)
+          expect(html.includes('~~Deleted~~')).toBe(!plugins.opt)
           expect(html.includes('markdown-alert-note')).toBe(plugins.github)
           expect(html.includes('class="markdown-toc"')).toBe(plugins.typora)
           expect(html.includes('YAML_METADATA_PRIVATE')).toBe(!plugins.typora)

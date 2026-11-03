@@ -1,4 +1,5 @@
 import type { EditorView } from '@codemirror/view'
+import { embeddedInput } from './embedded-editor'
 
 interface InputWait {
   promise: Promise<void>
@@ -27,6 +28,13 @@ export class SourceInputSynchronization {
     if (view && pending) this.#measure(view, pending)
   }
   flush(): Promise<void> {
+    const view = this.#view
+    if (!view) return Promise.resolve()
+    const child = embeddedInput(view)
+    if (child) return child.flush().then(() => this.flushSource())
+    return this.flushSource()
+  }
+  private flushSource(): Promise<void> {
     const view = this.#view
     if (!view) return Promise.resolve()
     if (this.#pending) return this.#pending.promise

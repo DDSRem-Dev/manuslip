@@ -1,5 +1,5 @@
-import { defaultHandlers, type Handlers } from 'mdast-util-to-hast'
 import type { Element, Nodes } from 'hast'
+import { defaultHandlers, type Handlers } from 'mdast-util-to-hast'
 
 /** Generated labels follow the currently rendered headings, including translated
  * copies. The generated TOC itself never becomes provider input.
@@ -38,6 +38,20 @@ export function refreshTableOfContents(
 
 /** Shared identities for ordinary and cooperative convention rendering. */
 export const conventionHandlers: Handlers = {
+  footnoteReference(state, node) {
+    const result = defaultHandlers.footnoteReference(state, node)
+    result.properties.className = ['markdown-footnote-ref']
+    const link = result.children[0]
+    if (link?.type === 'element') {
+      const number = link.children[0]
+      link.properties.ariaLabel = `${state.options.footnoteLabel || 'Footnotes'} ${number?.type === 'text' ? number.value : ''}`
+      link.properties.role = 'doc-noteref'
+      // Live definitions can sit outside the mounted viewport. Give each reference
+      // its own accessible name instead of pointing at an unmounted footer label.
+      delete link.properties.ariaDescribedBy
+    }
+    return result
+  },
   blockquote(state, node) {
     const result = defaultHandlers.blockquote(state, node)
     const alert = node.data?.manuslipAlert
@@ -46,7 +60,18 @@ export const conventionHandlers: Handlers = {
         type: 'element',
         tagName: 'p',
         properties: { className: ['markdown-alert-title'] },
-        children: [{ type: 'text', value: alert[0] + alert.slice(1).toLowerCase() }],
+        children: [
+          {
+            type: 'element',
+            tagName: 'span',
+            properties: {
+              className: ['markdown-icon', `markdown-icon-${alert.toLowerCase()}`],
+              ariaHidden: 'true',
+            },
+            children: [],
+          },
+          { type: 'text', value: alert[0] + alert.slice(1).toLowerCase() },
+        ],
       })
     return result
   },

@@ -2,7 +2,7 @@
 
 The base grammar follows [CommonMark 0.31.2](https://spec.commonmark.org/0.31.2/).
 The desktop defaults to CommonMark with the basic extensions below. Optional
-conventions are isolated behind **Preferences → Plugins → Markdown conventions**.
+extensions are available in **Preferences → Plugins → Markdown extensions**.
 Settings save automatically, survive restart and apply to every document's preview,
 new translated reading copies and export. Existing reading copies retain the
 conventions captured when they were created; refresh them to use changed settings.
@@ -35,11 +35,73 @@ HTML is enabled. Markdown between those tags continues to work; it does not beco
 a collapsible disclosure or an opaque HTML block. Source mode retains the original text.
 
 Live Preview keeps ordinary prose directly editable and preserves source newlines.
-Blocks that need semantic rendering use widgets. A block widget includes its source
-indentation; selecting source reveals the exact Markdown, and collapsing a selection
-restores the rendered block. Source mode, undo and saving preserve the authoritative
+Blocks that need semantic rendering use widgets. Clicking one opens its editable source
+with a caret; it stays open until Escape or the caret leaves. Diagrams and display formulas
+keep a preview below their source while editing. An inline formula keeps its existing source
+activation and adds a preview row immediately below the source line, before the next text line.
+Its editable source has a quiet gray background; the preview aligns with the first source
+character, including after resizing, wrapping and zoom.
+Table cells edit independently inside the rendered table, with Tab/Enter navigation and shared
+document undo. Their backgrounds, borders, colors and alignment stay the same while editing,
+without an active underline. Double-click keeps editing inside the cell; F2 edits a cell in place.
+Source punctuation stays lighter than its formatted text. Escapes, entities
+and emoji show editable source after the character while the caret touches them; their glyphs
+follow native caret placement rather than opening a block source session. Source
+mode, undo, copying and saving preserve the authoritative
 document, including the file's newline convention. Export uses the same semantic
 renderer without changing the source.
+
+## HTML
+
+Enable **Preferences → Plugins → Markdown extensions → Render sanitized HTML** to
+render basic document HTML in the current document.
+This works with every optional Markdown plugin switched off and applies to Live
+Preview, translated reading copies and export. Source mode always shows the authored
+markup; click a rendered HTML block or paragraph to edit its source.
+
+Supported elements include:
+
+- Text formatting: `<b>`, `<strong>`, `<i>`, `<em>`, `<u>`, `<s>`, `<del>`, `<ins>`,
+  `<small>`, `<mark>`, `<sub>` and `<sup>`.
+- Inline semantics: `<abbr title="…">`, `<cite>`, `<q>`, `<dfn>`, `<kbd>`, `<samp>`,
+  `<var>`, `<time datetime="…">`, ruby annotations (`<ruby>`, `<rt>`, `<rp>`),
+  bidirectional text (`<bdi>`, `<bdo>`) and `<wbr>`.
+- Document structure: headings, paragraphs, line breaks, rules, blockquotes, lists,
+  code, links, images, divisions, sections, articles, asides, addresses and figures
+  with `<figcaption>`.
+- HTML tables, including `<caption>`, column groups, header/body/footer rows,
+  spanning cells and `scope`/`headers` relationships. Header references remain
+  connected after ID scoping, including in bilingual reading copies.
+
+Keyboard keys have a quiet outline, annotations and captions use smaller type, and
+ruby readings sit above their base characters. Titles, language and direction are
+preserved. Lists retain `start`, `reversed` and signed item `value` attributes;
+insertions and dates retain `datetime`, and citations retain allowed destinations.
+Scripts, embedded pages, event handlers and document CSS are removed; image sizing
+is the supported inline-style exception described below.
+
+CommonMark distinguishes inline HTML from HTML blocks. Markdown can appear between
+inline tags, such as `Text <b>**bold Markdown**</b> here.` Text inside an HTML block
+stays literal until the CommonMark block ends; for example, `**bold**` inside a
+consecutive `<div>…</div>` block is not parsed as emphasis. Code spans and fences
+always keep HTML literal. See the [HTML block rules](https://spec.commonmark.org/0.31.2/#html-blocks)
+and [raw HTML rules](https://spec.commonmark.org/0.31.2/#raw-html).
+
+## Images
+
+Markdown images keep their natural proportions and fit the available document
+width. Local images resolve relative to the saved document. Remote images load
+after enabling **Load remote images** in **Preferences → Plugins → Markdown
+extensions** and granting permission for the current document.
+
+With **Render sanitized HTML** enabled, `<img>` also retains numeric `width` and
+`height` attributes and safe inline `width`, `height` and `zoom` sizing, including
+Typora's `style="zoom:50%;"`. Other document CSS is discarded. These sizes carry
+through reading and export.
+
+Live Preview and reading show an icon, alt text and a readable status while an
+image loads or is blocked. Failed images provide **Retry**; a successful file read
+still waits for the browser to decode the image. Loaded images have no extra frame.
 
 ## Basic extensions
 
@@ -50,7 +112,6 @@ These remain available with every optional plugin switched off.
 | Tables | Pipe tables with `:---`, `:---:` or `---:` column alignment; escaped pipes and code spans remain literal. |
 | Fenced code | CommonMark backtick and tilde fences, language labels and unfinished blocks. |
 | Footnotes | Named notes (`A note[^id]` and `[^id]: Note body`) and inline notes (`A note^[Note body]`), with shared numbering, rich inline formatting and return links. Named definitions also support multiple paragraphs and repeated references. |
-| Strikethrough | `~~deleted~~`; one tilde is reserved for subscript. |
 | Task lists | `- [ ] Pending` and `- [x] Complete`; toggling a rendered checkbox changes the original marker as one undoable edit. |
 | Smart punctuation | Straight quotes become typographic quotes, apostrophes curl, `--`/`---` become dashes and `...` becomes an ellipsis. Code, math and link destinations remain literal. |
 | Heading attributes | `## Title {#chapter .wide}` assigns an ID and classes to ATX or Setext headings. Invalid or escaped attributes remain text. |
@@ -69,18 +130,23 @@ Inline note bodies appear after the document in Live Preview and in the normal
 footnote area in reading and export. Following a reference scrolls to and focuses
 the displayed note; its return link focuses the original reference. This works
 across unmounted editor viewports and with keyboard activation. Their source remains
-at `^[...]`; choose **Select source** on the note body to edit it. Balanced brackets,
+at `^[...]`; click the note body to open its original source for editing. Balanced brackets,
 escaped closing brackets, code spans, links, inline formulas and soft line breaks
 are supported. Empty or unfinished notes stay literal. Translation handles note
 prose separately while protecting code, math and link destinations.
 Live note definitions use plain document rows. Each named or inline definition has
-a source-edit action; return links also work for references inside another note body.
+direct source editing on click; return links also work for references inside another note body.
+References use compact superscript numbers. Definitions keep their first-reference
+number even when authored in a different order. Reading and export share smaller note
+typography, hanging numbers and return icons, including separate links for repeated
+citations. Live reference definitions keep their original editable text with quieter
+punctuation, emphasized labels and themed destinations.
 
-## Optional plugins
+## Optional extensions
 
-| Plugin | Default | Convention |
+| Extension | Default | Syntax |
 | --- | --- | --- |
-| Opt | On | `==highlighted text==`, including nested emphasis and code. `~~strikethrough~~` belongs to the base grammar and remains available when Opt is off. |
+| Opt | On | `==highlighted text==` and `~~strikethrough~~`, including nested emphasis and code. One tilde is reserved for subscript. Both extensions stay literal with Opt off. |
 | LaTeX | On | Inline and display TeX, math fences and the bundled formula packages described below. |
 | Mermaid | On | Render `mermaid` fences as local diagrams. Disabling it leaves the fence as highlighted code, including inside lists or quotes. |
 | GitHub | Off | GFM autolink literals plus the five GitHub alert/callout types. |
@@ -88,8 +154,8 @@ a source-edit action; return links also work for references inside another note 
 
 Each switch controls its own syntax. A disabled convention remains ordinary
 Markdown; other plugins and the basic extensions continue to work. Code spans,
-fenced blocks and escaped markers do not activate conventions. Reset Markdown
-plugins restores these defaults.
+fenced blocks and escaped markers do not activate conventions. **Reset extensions**
+restores these defaults.
 
 ### LaTeX
 
@@ -137,12 +203,14 @@ An alert begins with its marker on the first line of a blockquote:
 
 Supported markers are `[!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]` and
 `[!CAUTION]`, following [GitHub's alert syntax](https://docs.github.com/en/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax#alerts).
-Each renders with a text title and a theme-aware accent; meaning does not rely on
-color alone. Unknown, escaped or incomplete markers remain ordinary blockquotes.
+Each renders with a distinct Phosphor icon, text title and theme-aware accent in
+preview, reading and export; meaning does not rely on color alone. Exported icons
+work offline. Unknown, escaped or incomplete markers remain ordinary blockquotes.
 
 ### Typora
 
-Place YAML front matter at the very start of the document, between `---` lines:
+Place YAML front matter at the very start of the document, opening with `---` and
+ending with `---` or `...`:
 
 ```markdown
 ---
@@ -154,7 +222,10 @@ tags: [writing, translation]
 # Start writing
 ```
 
-With Typora enabled, this block stays literal and editable in Live Preview. It is
+With Typora enabled, this block appears as a shaded, monospace header that stays
+literal and directly editable in Live Preview. Its delimiters are hidden there and
+visible in Source mode. YAML strings cannot affect the
+Markdown that follows the closing fence, even without a blank line. It is
 excluded from headings, prose word counts, translation requests and rendered reading
 or export content. The source metadata is preserved unchanged. With Typora off, the
 same text follows ordinary Markdown rules. An unclosed block or a fence later in the

@@ -1,5 +1,6 @@
 /** Built-in Markdown plugins. Basic Markdown extensions remain available independently. */
 export interface MarkdownPlugins {
+  /** Highlight and strikethrough. */
   opt: boolean
   latex: boolean
   mermaid: boolean

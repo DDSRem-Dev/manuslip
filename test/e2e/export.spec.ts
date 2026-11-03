@@ -4,7 +4,13 @@ import { join } from 'node:path'
 import { type ElectronApplication, expect, test } from '@playwright/test'
 import { PDFDict, PDFDocument, PDFName, PDFRawStream } from 'pdf-lib'
 import { expectBundledCjk, expectCjkPdf } from './fonts'
-import { clickDocumentAction, contrast, launchDesktop, openDocumentActions } from './helpers'
+import {
+  clickDocumentAction,
+  contrast,
+  launchDesktop,
+  openDocumentActions,
+  openMarkdownExtensions,
+} from './helpers'
 
 const modifier = process.platform === 'darwin' ? 'Meta' : 'Control'
 
@@ -217,7 +223,7 @@ test('export captures the clicked revision while editing continues and preserves
   }
 })
 
-test('an isolated stalled PDF can be cancelled while source editing and saving continue', async () => {
+test('an isolated stalled PDF is cleaned up when its document closes while editing and saving continue', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'manuslip-export-cancel-'))
   const sourcePath = join(directory, 'source.md')
   const source = '# Printable\n\nMath $x^2$.'
@@ -308,13 +314,9 @@ test('an isolated stalled PDF can be cancelled while source editing and saving c
     await editor.pressSequentially('Saved during export')
     await editor.press(`${modifier}+s`)
     await expect.poll(() => readFile(sourcePath, 'utf8')).toContain('Saved during export')
-    const cancel = page.getByRole('button', { name: 'Cancel export', exact: true })
-    await cancel.focus()
-    await cancel.press('Enter')
-    await expect(
-      page.getByText('Export cancelled. Your document is unchanged.', { exact: true }),
-    ).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Document actions', exact: true })).toBeFocused()
+    await expect(page.getByRole('button', { name: 'Cancel export', exact: true })).toHaveCount(0)
+    await expect(editor).toBeFocused()
+    await page.getByRole('button', { name: /^Close.*source\.md/ }).click()
     await expect
       .poll(() =>
         application.evaluate(
@@ -328,7 +330,6 @@ test('an isolated stalled PDF can be cancelled while source editing and saving c
     expect(
       (await readdir(directory)).filter((name) => name.endsWith('.tmp') || name.endsWith('.pdf')),
     ).toEqual([])
-    await expect(editor).toContainText('Saved during export')
     expect(
       await application.evaluate(
         ({ BrowserWindow }, old) =>
@@ -338,9 +339,12 @@ test('an isolated stalled PDF can be cancelled while source editing and saving c
         oldProcess,
       ),
     ).toBe(true)
-    await application.evaluate(() => {
+    await application.evaluate(({ dialog }, path) => {
       process.env.MANUSLIP_EXPORT_PRINT = 'done'
-    })
+      dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] })
+    }, sourcePath)
+    await page.getByRole('button', { name: 'Open file…', exact: true }).first().click()
+    await expect(editor).toContainText('Saved during export')
     await clickDocumentAction(page, 'Export PDF…')
     await expect(page.getByText(`Exported to ${target}`, { exact: true })).toBeVisible()
     expect((await readFile(target)).subarray(0, 5).toString()).toBe('%PDF-')
@@ -420,8 +424,8 @@ test('export sanitizes opted-in HTML and rejects over-limit PDF pages without re
     const page = await application.firstWindow()
     await page.getByRole('button', { name: 'New document', exact: true }).first().click()
     await page.getByRole('button', { name: 'Source', exact: true }).click()
-    await openDocumentActions(page)
-    await page.getByLabel('Render sanitized HTML', { exact: true }).check()
+    const extensions = await openMarkdownExtensions(page)
+    await extensions.getByLabel('Render sanitized HTML', { exact: true }).check()
     await page.keyboard.press('Escape')
     const editor = page.getByRole('textbox', { name: 'Markdown source' })
     await editor.fill(

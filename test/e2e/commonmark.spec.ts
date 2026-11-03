@@ -84,9 +84,10 @@ test('CommonMark code blocks render with exact literal content and optional high
         await expect(code.locator('[class*="tok-"]').first()).toBeVisible()
       await expect(editor.locator('tag, strong')).toHaveCount(0)
       if (index === 2) {
-        await editor.getByRole('button', { name: 'Select source', exact: true }).click()
-        expect(await page.evaluate(() => getSelection()?.toString())).toBe(example.source)
-        await editor.press('ArrowLeft')
+        await code.click()
+        expect(await page.evaluate(() => getSelection()?.toString())).toBe('')
+        await expect(editor.locator('.cm-live-edit-source').first()).toContainText('```js')
+        await editor.press('Escape')
         await expect(code).toHaveCount(1)
       }
       await page.getByRole('button', { name: 'Source', exact: true }).click()
@@ -110,11 +111,14 @@ test('indented code source can be selected, edited, undone, saved and exported w
     const editor = page.getByRole('textbox', { name: 'Markdown source' })
     await page.getByRole('button', { name: 'Live Preview', exact: true }).click()
     await expect(editor.locator('pre > code')).toHaveCount(1)
-    await editor.getByRole('button', { name: 'Select source', exact: true }).click()
+    await editor.locator('pre > code').click()
     const selected = await page.evaluate(() => getSelection()?.toString())
-    expect(selected).toBe('    const message = "<tag> &amp; **literal**";\n      indented\tend')
+    expect(selected).toBe('')
+    await expect(editor.locator('.cm-live-edit-source').first()).toContainText(
+      'const message = "<tag> &amp; **literal**";',
+    )
     await expect(editor.locator('pre > code')).toHaveCount(0)
-    await editor.press('ArrowRight')
+    await editor.press('Escape')
     await expect(editor.locator('pre > code')).toHaveCount(1)
     await page.getByRole('button', { name: 'Source', exact: true }).click()
     await editor.press(`${modifier}+Home`)

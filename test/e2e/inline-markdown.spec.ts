@@ -6,7 +6,7 @@ import { expect, type Locator, test } from '@playwright/test'
 import {
   clickDocumentAction,
   launchDesktop,
-  openDocumentActions,
+  openMarkdownExtensions,
   selectReadingLayout,
 } from './helpers'
 
@@ -127,7 +127,7 @@ test('inline notes, baseline-aligned formulas and literal disclosure tags surviv
 
     await editor.locator('[data-footnote-ref]').first().click()
     await expect(footer.locator('li')).toBeFocused()
-    await footer.getByRole('button', { name: 'Select source', exact: true }).click()
+    await footer.locator('li p').first().click()
     await page.getByRole('button', { name: 'Source', exact: true }).click()
     await expect
       .poll(async () => (await editor.locator('.cm-line').allTextContents()).join('\n'))
@@ -141,8 +141,8 @@ test('inline notes, baseline-aligned formulas and literal disclosure tags surviv
     await expect(footer.locator('strong')).toHaveText('footnote')
     await editor.press(`${modifier}+Home`)
 
-    const actions = await openDocumentActions(page)
-    await actions.getByRole('checkbox', { name: 'Render sanitized HTML', exact: true }).check()
+    const extensions = await openMarkdownExtensions(page)
+    await extensions.getByRole('checkbox', { name: 'Render sanitized HTML', exact: true }).check()
     await page.keyboard.press('Escape')
     await expect(editor.locator('details, summary')).toHaveCount(0)
     await expect(editor).toContainText('<summary>Literal title</summary>')

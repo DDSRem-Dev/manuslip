@@ -27,16 +27,17 @@ Most Markdown editors force a choice: a raw code editor with a detached preview 
 ## Features
 
 **Implementation status:** the desktop app now opens, edits, and safely saves Markdown files.
-CommonMark is the default, with tables, footnotes, strikethrough, task lists, smart
+CommonMark is the default, with tables, footnotes, task lists, smart
 punctuation, heading attributes and scripts. Preferences → Plugins provides independent
 Opt, LaTeX, Mermaid, GitHub and Typora switches; Opt, LaTeX and Mermaid start enabled.
+Opt controls highlight and strikethrough together.
 Typora adds YAML front matter and linked `[TOC]` tables of contents.
 See the [convention guide and examples](docs/guides/commonmark.md) and [LaTeX gallery](docs/examples/latex.md).
 Inline footnotes use `^[Note body]`; formulas follow the surrounding text baseline. Document
 `<details>` and `<summary>` tags remain literal, including with HTML opt-in.
 Manuslip syntax also supports `~subscript~`, `^superscript^` (without spaces) and offline
-`:smile:` shortcodes, plus definition lists (`Term` followed by `: Description`) in Live Preview, translated reading and export; `~~strikethrough~~`
-and strict CommonMark remain available. See the [syntax decisions](docs/adr/006-extended-markdown.md).
+`:smile:` shortcodes, plus definition lists (`Term` followed by `: Description`) in Live Preview, translated reading and export.
+See the [syntax decisions](docs/adr/006-extended-markdown.md).
 
 CommonMark support includes indented/tabbed code, backtick and tilde fences (including unfinished
 fences), nested blocks, and ordered lists with either marker style. Code stays literal and uses
@@ -75,9 +76,10 @@ preservation, explicit save/discard, and API-key readiness guidance. Unsubmitted
 leaving Translation; saved translations remain accessible through Load cached without a key.
 The footer's word count opens compact document statistics and file details. Document actions
 groups utility tools separately; plugin commands appear only for installed, enabled plugins.
-Choose Edit table beside a Live table, or in Document actions with the caret inside a table.
-The dialog stages cell, row, column and alignment changes, then applies them as one undoable
-source edit. Cancel leaves the document unchanged. See [table editing](docs/adr/007-visual-tables.md)
+Click a Live table cell to edit its Markdown directly, keeping the table's theme and borders.
+Double-click keeps native text selection; F2 starts editing a cell in place. For structural
+changes, choose Edit table in Document actions with the caret inside a table. That dialog
+stages changes and applies them as one undoable source edit. See [table editing](docs/adr/007-visual-tables.md)
 for keyboard navigation, source preservation and visual-editor limits.
 Document appearance adds per-document fonts, text size, line spacing and writing width, plus
 explicit local CSS import for Live Preview, reading and HTML/PDF export. Reset and Source stay

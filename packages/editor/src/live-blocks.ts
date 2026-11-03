@@ -1,5 +1,8 @@
 import { type EditorState, type Range, StateField } from '@codemirror/state'
 import { Decoration, type DecorationSet, EditorView, WidgetType } from '@codemirror/view'
+import { mountDiagramEditing } from './live-diagram'
+import { editingBlock } from './live-editing'
+import { activateRendered } from './live-interactions'
 import { preserveProseLineBreaks } from './live-line-breaks'
 import {
   blockSourceRange,
@@ -9,10 +12,10 @@ import {
   type LiveOptions,
   liveModel,
   proseProjection,
-  revealSource,
 } from './live-model'
 import { proseNavigation, revealProse } from './live-navigation'
 import { rangeTouches } from './live-selection'
+import { LiveTable } from './live-table'
 import { taskCheckboxes } from './live-task-changes'
 import { mountTaskControls } from './live-tasks'
 
@@ -20,7 +23,7 @@ import { mountTaskControls } from './live-tasks'
 // belongs to that DOM, so whichever widget finally destroys it must close the renderer.
 const widgetLifetimes = new WeakMap<
   HTMLElement,
-  { controller: AbortController; widget: RenderedWidget }
+  { controller: AbortController; widget: RenderedWidget; table?: LiveTable }
 >()
 
 export class RenderedWidget extends WidgetType {
@@ -29,6 +32,7 @@ export class RenderedWidget extends WidgetType {
     private readonly options: LiveOptions,
     readonly inline = false,
     private readonly readOnly = false,
+    private readonly preview = false,
   ) {
     super()
   }
@@ -36,6 +40,8 @@ export class RenderedWidget extends WidgetType {
     return (
       this.block.id === other.block.id &&
       this.block.kind === other.block.kind &&
+      (this.block.kind !== 'table' ||
+        (this.block.from === other.block.from && this.block.to === other.block.to)) &&
       this.block.html === other.block.html &&
       this.block.syntax === other.block.syntax &&
       this.block.value === other.block.value &&
@@ -43,6 +49,7 @@ export class RenderedWidget extends WidgetType {
       this.block.listStart === other.block.listStart &&
       this.inline === other.inline &&
       this.readOnly === other.readOnly &&
+      this.preview === other.preview &&
       this.options === other.options
     )
   }
@@ -53,6 +60,7 @@ export class RenderedWidget extends WidgetType {
       : `cm-live-block cm-live-${this.block.kind}`
     container.dataset.occurrence = this.block.id
     container.dataset.kind = this.block.kind
+    if (this.preview) container.classList.add('cm-live-edit-preview')
     if (this.block.placement) container.dataset.placement = this.block.placement
     container.setAttribute('contenteditable', 'false')
     const lifetime = new AbortController()
@@ -61,49 +69,72 @@ export class RenderedWidget extends WidgetType {
       this.inline ? 'span' : this.block.kind === 'footnoteDefinition' ? 'ol' : 'div',
     )
     content.className = 'cm-live-rendered'
+    if (this.block.kind === 'footnoteDefinition') content.classList.add('markdown-footnote-list')
     if (this.block.kind === 'footnoteDefinition' && this.block.listStart)
       content.setAttribute('start', String(this.block.listStart))
     container.append(content)
+    if (this.preview)
+      container.addEventListener(
+        'mousedown',
+        (event) => {
+          if (
+            event instanceof MouseEvent &&
+            event.button === 0 &&
+            !(event.target instanceof Element && event.target.closest('button, input, a[href]'))
+          ) {
+            event.preventDefault()
+            event.stopPropagation()
+          }
+        },
+        { signal: lifetime.signal },
+      )
     if (
       !this.inline &&
       (!proseProjection(this.block.kind) || this.block.kind === 'footnoteDefinition')
     ) {
-      if (this.block.kind === 'table' && this.options.editTable && this.options.editTableLabel) {
-        const table = document.createElement('button')
-        table.type = 'button'
-        table.className = 'cm-live-source-button cm-live-table-button'
-        table.textContent = this.options.editTableLabel()
-        table.addEventListener(
-          'click',
-          (event) => {
-            event.stopPropagation()
-            this.options.editTable?.(this.block)
-          },
-          { signal: lifetime.signal },
-        )
-        container.append(table)
-      }
-      const source = document.createElement('button')
-      source.type = 'button'
-      source.className = 'cm-live-source-button'
-      source.textContent = this.options.sourceLabel()
-      source.addEventListener(
-        'click',
-        (event) => {
-          event.stopPropagation()
-          revealSource(view, container)
-        },
-        { signal: lifetime.signal },
+      container.tabIndex = 0
+      container.setAttribute('aria-description', this.options.sourceLabel())
+      container.setAttribute(
+        'aria-keyshortcuts',
+        this.block.kind === 'table' ? 'Enter F2' : 'Enter',
       )
-      container.append(source)
     }
+    container.addEventListener(
+      'keydown',
+      (event) => {
+        if (
+          !(event instanceof KeyboardEvent) ||
+          event.target !== container ||
+          this.block.kind === 'table' ||
+          this.block.kind === 'diagram' ||
+          view.composing ||
+          view.state.field(isComposing)
+        )
+          return
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          event.stopPropagation()
+          activateRendered(view, container)
+        }
+      },
+      { signal: lifetime.signal },
+    )
     const openLink = this.options.openLink
     container.addEventListener(
       'click',
       (event) => {
-        if (event.defaultPrevented || !view.dom.contains(container)) return
-        event.preventDefault()
-        const anchor = event.target instanceof Element ? event.target.closest('a[href]') : null
+        if (
+          event.defaultPrevented ||
+          !view.dom.contains(container) ||
+          view.composing ||
+          view.state.field(isComposing) ||
+          !(event.target instanceof Element) ||
+          event.target.closest(
+            'button, input, select, textarea, label, .cm-live-cell-active .cm-editor',
+          )
+        )
+          return
+        const anchor = event.target.closest('a[href]')
         if (
           anchor &&
           event instanceof MouseEvent &&
@@ -112,24 +143,44 @@ export class RenderedWidget extends WidgetType {
             anchor.closest('.markdown-toc') ||
             anchor.hasAttribute('data-footnote-ref') ||
             anchor.hasAttribute('data-footnote-backref'))
-        )
+        ) {
+          event.preventDefault()
           openLink(anchor.getAttribute('href') || '')
-        else if (
-          this.inline &&
-          !anchor &&
-          event.target instanceof Element &&
-          !event.target
-            .closest('button, input, select, textarea, label, [tabindex]')
-            ?.closest('.cm-live-inline-widget')
-        )
-          revealSource(view, container)
+        } else if (
+          event instanceof MouseEvent &&
+          event.button === 0 &&
+          !event.shiftKey &&
+          !event.ctrlKey &&
+          !event.metaKey &&
+          !event.altKey &&
+          this.block.kind !== 'table' &&
+          this.block.kind !== 'diagram' &&
+          !event.target.matches('.render-table-scroll, [data-math-scroll]')
+        ) {
+          event.preventDefault()
+          activateRendered(view, container, event)
+        }
       },
       { signal: lifetime.signal },
     )
+    if (this.block.kind === 'diagram')
+      mountDiagramEditing(container, view, this.block, lifetime.signal)
     try {
-      this.options.render(content, this.block, lifetime.signal, () => {
-        if (!lifetime.signal.aborted) view.requestMeasure()
-      })
+      if (this.block.kind === 'table') {
+        const table = new LiveTable(
+          container,
+          content,
+          view,
+          this.block,
+          this.options,
+          lifetime.signal,
+        )
+        const mounted = widgetLifetimes.get(container)
+        if (mounted) mounted.table = table
+      } else
+        this.options.render(content, this.block, lifetime.signal, () => {
+          if (!lifetime.signal.aborted) view.requestMeasure()
+        })
       if (proseProjection(this.block.kind)) preserveProseLineBreaks(content)
       if (proseProjection(this.block.kind))
         mountTaskControls(content, this.block, view, this.options.taskLabel(), lifetime.signal)
@@ -143,6 +194,12 @@ export class RenderedWidget extends WidgetType {
   override updateDOM(dom: HTMLElement, view: EditorView): boolean {
     const mounted = widgetLifetimes.get(dom)
     const previous = mounted?.widget
+    if (mounted?.table && previous?.options === this.options && this.block.kind === 'table') {
+      dom.dataset.occurrence = this.block.id
+      mounted.widget = this
+      mounted.table.update(this.block)
+      return true
+    }
     if (
       !mounted ||
       !previous ||
@@ -175,11 +232,13 @@ export class RenderedWidget extends WidgetType {
   }
   override ignoreEvent(event: Event): boolean {
     if (!(event.target instanceof Element)) return false
-    const control = event.target.closest('button, input, select, textarea, label, [tabindex]')
-    // Native controls retain their own focus. Text and pointer selections belong to
-    // CodeMirror, so a selected widget can reveal its original source range.
+    const control = event.target.closest('button, input, select, textarea, label')
+    // Cell editors own input and composition. The parent editor still owns their
+    // source and history; it must not interpret the same native event a second time.
     return (
+      Boolean(event.target.closest('.cm-live-table :is(th, td)')) ||
       Boolean(control?.closest('.cm-live-block, .cm-live-inline-widget')) ||
+      (event instanceof KeyboardEvent && Boolean(event.target.closest('[tabindex]'))) ||
       Boolean(
         event.target.closest(
           'a[data-footnote-ref], a[data-footnote-backref], .markdown-toc a[href]',
@@ -206,9 +265,14 @@ interface BlockState {
 
 function active(state: EditorState, all: DecorationSet): Set<string> {
   const selected = new Set<string>()
+  const editing = editingBlock(state)
   for (const selection of state.selection.ranges)
     all.between(selection.from, selection.to, (start, end, decoration) => {
-      if (!decoration.spec.virtual && rangeTouches(selection, start, end))
+      if (
+        !decoration.spec.virtual &&
+        !(editing?.block.kind === 'table' && start === editing.from && end === editing.to) &&
+        rangeTouches(selection, start, end)
+      )
         selected.add(decoration.spec.occurrence as string)
     })
   return selected
@@ -219,7 +283,15 @@ function build(state: EditorState, options: LiveOptions): BlockState {
   const byId = new Map<string, Range<Decoration>>()
   let renderedEnd = 0
   let footer = 0
-  for (const block of state.field(liveModel)?.blocks || []) {
+  const editing = editingBlock(state)
+  const blocks = [...(state.field(liveModel)?.blocks || [])]
+  if (
+    editing &&
+    !blocks.some((block) => block.kind === editing.block.kind && block.from === editing.block.from)
+  )
+    blocks.push(editing.block)
+  blocks.sort((a, b) => a.from - b.from || b.to - a.to)
+  for (const block of blocks) {
     if (
       block.kind === 'footnoteDefinition' &&
       block.placement === 'after-document' &&
@@ -259,6 +331,36 @@ function build(state: EditorState, options: LiveOptions): BlockState {
         !['table', 'code', 'diagram', 'math', 'html'].includes(block.kind))
     )
       continue
+    if (
+      editing &&
+      ((block.from === editing.block.from && block.kind === editing.block.kind) ||
+        (proseProjection(block.kind) && editing.from >= block.from && editing.to <= block.to)) &&
+      block.kind !== 'table'
+    ) {
+      if (['code', 'diagram', 'math', 'html'].includes(block.kind)) {
+        const first = state.doc.lineAt(source.from).number
+        const last = state.doc.lineAt(source.to).number
+        for (let number = first; number <= last; number++)
+          ranges.push(
+            Decoration.line({
+              class: `cm-live-edit-source${number === first ? ' cm-live-edit-start' : ''}${number === last ? ' cm-live-edit-end' : ''}`,
+              virtual: true,
+            }).range(state.doc.line(number).from),
+          )
+      }
+      if (block.kind === 'diagram' || block.kind === 'math')
+        ranges.push(
+          Decoration.widget({
+            block: true,
+            side: 1,
+            widget: new RenderedWidget(block, options, false, state.readOnly, true),
+            occurrence: block.id,
+            virtual: true,
+          }).range(source.to),
+        )
+      renderedEnd = source.to
+      continue
+    }
     const range = Decoration.replace({
       block: !inline,
       widget: new RenderedWidget(
@@ -273,6 +375,15 @@ function build(state: EditorState, options: LiveOptions): BlockState {
     renderedEnd = source.to
     byId.set(block.id, range)
   }
+  if (editing?.block.kind === 'inlineMath')
+    ranges.push(
+      Decoration.widget({
+        block: true,
+        side: 1,
+        widget: new RenderedWidget(editing.block, options, false, state.readOnly, true),
+        virtual: true,
+      }).range(state.doc.lineAt(editing.to).to),
+    )
   const all = Decoration.set(ranges, true)
   const selected = active(state, all)
   return {
@@ -294,6 +405,7 @@ export function blockDecorations(options: LiveOptions): StateField<BlockState> {
       if (
         transaction.startState.field(liveModel) !== transaction.state.field(liveModel) ||
         transaction.startState.field(isComposing) !== transaction.state.field(isComposing) ||
+        editingBlock(transaction.startState) !== editingBlock(transaction.state) ||
         transaction.startState.readOnly !== transaction.state.readOnly
       )
         return build(transaction.state, options)

@@ -1,6 +1,7 @@
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
 import { languages } from '@codemirror/language-data'
 import { semanticLimits } from '@manuslip/core'
+import { frontmatterSyntax } from './frontmatter-syntax'
 
 // Lezer finishes an entire inline leaf in one non-interruptible parse step. Keep
 // pathological paragraphs out of that main-thread loop. The semantic worker
@@ -60,3 +61,5 @@ export const editorSyntax = markdown({
     ],
   },
 })
+
+export const sourceSyntax = frontmatterSyntax(editorSyntax)

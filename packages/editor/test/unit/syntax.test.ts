@@ -1,3 +1,4 @@
+import { ensureSyntaxTree } from '@codemirror/language'
 import { parseMarkdown } from '@manuslip/core'
 import { describe, expect, it } from 'vitest'
 import { frontmatterEnd, yamlFrontmatter } from '../../src/frontmatter'
@@ -12,8 +13,12 @@ import { editorSyntax, maxEditorInlineLength } from '../../src/syntax'
 
 describe('bounded editor inline syntax', () => {
   it('keeps closed frontmatter literal and recognizes edits that close or remove it', () => {
-    for (const fence of ['---', '+++']) {
-      const source = `${fence}\ntitle: **literal**\n${fence}\n\n# Actual heading`
+    for (const [opening, closing] of [
+      ['---', '---'],
+      ['---', '...'],
+      ['+++', '+++'],
+    ]) {
+      const source = `${opening}\ntitle: **literal**\n${closing}\n\n# Actual heading`
       let state = createSourceState(source, { extensions: [yamlFrontmatter.of(true)] })
       const end = source.indexOf('\n\n')
       expect(state.field(frontmatterEnd)).toBe(end)
@@ -21,7 +26,7 @@ describe('bounded editor inline syntax', () => {
       expect(state.field(frontmatterEnd)).toBe(end)
       state = state.update({ changes: { from: end - 3, to: end } }).state
       expect(state.field(frontmatterEnd)).toBe(0)
-      state = state.update({ changes: { from: end - 3, insert: fence } }).state
+      state = state.update({ changes: { from: end - 3, insert: closing } }).state
       expect(state.field(frontmatterEnd)).toBe(end)
     }
     expect(
@@ -59,6 +64,78 @@ describe('bounded editor inline syntax', () => {
     expect(createSourceState('---\ntitle: **literal**\n---').field(frontmatterEnd)).toBe(0)
     const source = '+++\ntitle = "**literal**"\n+++'
     expect(createSourceState(source).field(frontmatterEnd)).toBe(source.length)
+  })
+  it.each(
+    ['\n', '\r\n'].flatMap((newline) => ['---', '...'].map((closing) => ({ newline, closing }))),
+  )(
+    'isolates YAML strings from following Markdown: $closing with $newline',
+    ({ newline, closing }) => {
+      const source = [
+        '--- \t',
+        'title: "**literal**"',
+        'summary: |',
+        '  ```',
+        '  <div>',
+        `${closing} \t`,
+        '# Actual heading',
+        '',
+        '**Body** and `code`.',
+      ].join(newline)
+      const state = createSourceState(source, { extensions: [yamlFrontmatter.of(true)] })
+      const tree = ensureSyntaxTree(state, state.doc.length, 100)
+      expect(tree).not.toBeNull()
+      const nodes: { name: string; from: number; to: number }[] = []
+      tree?.iterate({ enter: ({ name, from, to }) => void nodes.push({ name, from, to }) })
+      const text = state.doc.toString()
+      expect(
+        nodes.filter((node) => node.name === 'ATXHeading1').map((node) => node.from),
+        tree?.toString(),
+      ).toEqual([text.indexOf('# Actual heading')])
+      expect(
+        nodes.filter((node) => node.name === 'StrongEmphasis').map((node) => node.from),
+      ).toEqual([text.indexOf('**Body**')])
+      expect(nodes.some((node) => node.name === 'InlineCode')).toBe(true)
+      expect(nodes.some((node) => node.name === 'FencedCode' || node.name === 'HTMLBlock')).toBe(
+        false,
+      )
+    },
+  )
+  it('keeps non-ASCII fence suffixes literal, matching semantic front matter', () => {
+    const source = '---\ntitle: **Markdown**\n---\u00a0\n\n# Heading'
+    const state = createSourceState(source, { extensions: [yamlFrontmatter.of(true)] })
+    expect(state.field(frontmatterEnd)).toBe(0)
+  })
+  it.each(['---\n---', '---\ntitle: Test\n---', '---\n---\n'])(
+    'parses metadata with an empty body: %j',
+    (source) => {
+      const state = createSourceState(source, { extensions: [yamlFrontmatter.of(true)] })
+      const tree = ensureSyntaxTree(state, state.doc.length, 100)
+      expect(tree).not.toBeNull()
+      expect(tree?.length).toBe(state.doc.length)
+      expect(tree?.toString()).not.toMatch(/HorizontalRule|SetextHeading/)
+    },
+  )
+  it('updates YAML and body syntax through edits and undo', () => {
+    const source = '---\nsummary: |\n  ```\n---\n# Heading\n\n**Body**'
+    let state = createSourceState(source, { extensions: [yamlFrontmatter.of(true)] })
+    const parsed = () => ensureSyntaxTree(state, state.doc.length, 100)?.toString()
+    expect(parsed()).toContain('ATXHeading1')
+    state = state.update({ changes: { from: state.doc.length, insert: ' and `code`' } }).state
+    expect(parsed()).toContain('InlineCode')
+    state = state.update({
+      changes: { from: source.indexOf('summary:'), insert: 'title: Test\n' },
+    }).state
+    expect(parsed()).toContain('ATXHeading1')
+    expect(parsed()).toContain('InlineCode')
+    const edited = state.doc.toString()
+    const closing = state.doc.line(5)
+    state = state.update({ changes: { from: closing.from, to: closing.to } }).state
+    expect(parsed()).toContain('FencedCode')
+    expect(parsed()).not.toContain('ATXHeading1')
+    expect(undo({ state, dispatch: (transaction) => (state = transaction.state) })).toBe(true)
+    expect(state.doc.toString()).toBe(edited)
+    expect(parsed()).toContain('ATXHeading1')
+    expect(parsed()).toContain('StrongEmphasis')
   })
   it('retains ordinary inline parsing and surrounding block structure', () => {
     const source = `# Heading\n\n${'x'.repeat(maxEditorInlineLength)} **large**\n\n**ordinary** and \`code\`\n`

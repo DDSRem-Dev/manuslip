@@ -10,6 +10,7 @@ import {
   clickDocumentAction,
   launchDesktop,
   openDocumentActions,
+  openMarkdownExtensions,
   openReadingOptions,
   selectReadingLayout,
 } from './helpers'
@@ -88,8 +89,8 @@ test('bilingual blocks align, preserve scroll anchors and export both languages 
   try {
     const page = await application.firstWindow()
     await expect(page.locator('.cm-content')).toContainText('Hello reader')
-    await openDocumentActions(page)
-    await page.getByRole('checkbox', { name: 'Render sanitized HTML', exact: true }).check()
+    const extensions = await openMarkdownExtensions(page)
+    await extensions.getByRole('checkbox', { name: 'Render sanitized HTML', exact: true }).check()
     await page.keyboard.press('Escape')
     const png = await application.evaluate(({ nativeImage }) =>
       nativeImage
@@ -286,6 +287,7 @@ test('bilingual blocks align, preserve scroll anchors and export both languages 
     expect(targetHtml).not.toContain('class="reading-original"')
     await selectReadingLayout(page, 'side-by-side')
     await page.getByRole('button', { name: 'Preferences', exact: true }).click()
+    await page.getByRole('button', { name: 'General', exact: true }).click()
     await page.locator('#theme').selectOption('dark')
     await page.keyboard.press('Escape')
     await page.locator('.reading-pane').evaluate((element) => {

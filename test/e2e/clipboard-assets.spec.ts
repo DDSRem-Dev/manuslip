@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { type ElectronApplication, expect, test } from '@playwright/test'
-import { clickDocumentAction, contrast, launchDesktop } from './helpers'
+import { clickDocumentAction, contrast, launchDesktop, openMarkdownExtensions } from './helpers'
 
 const modifier = process.platform === 'darwin' ? 'Meta' : 'Control'
 async function htmlClipboard(
@@ -169,7 +169,9 @@ test('native image paste handles cancelled Save As, unique imports, undo retenti
         ),
       )
       .toBe(true)
-    expect(await page.getByLabel('Load remote images…').isChecked()).toBe(false)
+    const extensions = await openMarkdownExtensions(page)
+    await expect(extensions.getByLabel('Load remote images…')).not.toBeChecked()
+    await page.keyboard.press('Escape')
     await page.screenshot({ path: test.info().outputPath('clipboard-local-images.png') })
   } finally {
     await cleanup(application, directory)
@@ -183,7 +185,7 @@ test('local image failures expose retry while traversal, SVG and ambient network
   const path = join(documentDirectory, 'local.md')
   await writeFile(
     path,
-    '# Local assets\n\n![Missing](missing.png)\n\n![Outside](../outside.png)\n\n![Vector](unsafe.svg)\n\nEnd',
+    '# Local assets\n\n![Missing](missing.png)\n\n![Outside](../outside.png)\n\n![Vector](unsafe.svg)\n\n![Remote](https://example.invalid/image.png)\n\nEnd',
   )
   await writeFile(
     join(documentDirectory, 'unsafe.svg'),
@@ -202,6 +204,12 @@ test('local image failures expose retry while traversal, SVG and ambient network
     await expect(missingRetry).toBeVisible()
     await expect(page.getByRole('button', { name: 'Retry Outside', exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Retry Vector', exact: true })).toBeVisible()
+    await expect(page.locator('.cm-image[data-render-state="blocked"]')).toContainText(
+      'Remote image blocked',
+    )
+    await expect(
+      page.locator('.cm-image[data-render-state="error"]').first().locator('.markdown-icon'),
+    ).toBeVisible()
     await writeFile(join(documentDirectory, 'missing.png'), png)
     await missingRetry.click()
     const image = page.locator('img[data-local-image="missing.png"]')
@@ -220,6 +228,7 @@ test('local image failures expose retry while traversal, SVG and ambient network
       await page.getByLabel('Appearance', { exact: true }).selectOption(theme)
       await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
       await page.getByRole('button', { name: 'Close preferences' }).click()
+      await expect(page.locator('.preferences-dialog')).toBeHidden()
       const retry = page.getByRole('button', { name: 'Retry Outside', exact: true })
       const colors = await retry.evaluate((button) => ({
         foreground: getComputedStyle(button).color,
@@ -239,6 +248,7 @@ test('local image failures expose retry while traversal, SVG and ambient network
     await page.getByRole('button', { name: 'Preferences', exact: true }).click()
     await page.getByLabel('Interface language').selectOption('zh-CN')
     await page.getByRole('button', { name: '关闭偏好设置' }).click()
+    await expect(page.locator('.preferences-dialog')).toBeHidden()
     await expect(page.getByRole('button', { name: '重试加载Outside', exact: true })).toBeVisible()
     await expect(page.getByText('正在更新预览…', { exact: true })).toHaveCount(0)
     await page.setViewportSize({ width: 320, height: 850 })

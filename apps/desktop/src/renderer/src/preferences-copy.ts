@@ -11,7 +11,7 @@ export const preferencesCopy = {
     translation: 'Translation',
     translationHint: 'Providers, languages, API keys and offline cache.',
     plugins: 'Plugins',
-    pluginsHint: 'Markdown conventions, installed extensions and their permissions.',
+    pluginsHint: 'Markdown extensions, local plugins and permissions.',
     appScope: 'App preferences apply to every document.',
     saveHint: 'App preferences save automatically.',
     source: 'Markdown source',
@@ -41,7 +41,7 @@ export const preferencesCopy = {
     translation: '翻译',
     translationHint: '翻译服务、语言、API 密钥与离线缓存。',
     plugins: '插件',
-    pluginsHint: 'Markdown 约定、已安装的扩展及其权限。',
+    pluginsHint: 'Markdown 扩展、本地插件与权限。',
     appScope: '应用偏好设置适用于所有文档。',
     saveHint: '应用偏好设置会自动保存。',
     source: 'Markdown 源码',
@@ -68,5 +68,5 @@ export const preferenceKeywords = {
   translation:
     'translate provider openai ollama deepl source target language glossary formality temperature tokens key api cache offline reading layout default side by side interlinear 翻译 服务 语言 术语表 语气 密钥 缓存 离线 阅读 布局 默认 对照',
   plugins:
-    'plugin extension install permission markdown commonmark opt latex math formula mermaid diagram github autolink alert callout typora toc yaml front matter frontmatter metadata highlight strike superscript subscript heading punctuation table footnote 插件 扩展 安装 权限 公式 数学 图表 提示 目录 元数据 前置 高亮 删除线 标题 标点 表格 脚注 上标 下标',
+    'plugin extension install permission markdown commonmark opt latex math formula mermaid diagram github autolink alert callout typora toc yaml front matter frontmatter metadata highlight strike superscript subscript heading punctuation table footnote html sanitized safe render rendering image images remote load 插件 扩展 安装 权限 公式 数学 图表 提示 目录 元数据 前置 高亮 删除线 标题 标点 表格 脚注 上标 下标 安全 安全过滤 过滤 渲染 远程 远程图片 图片 加载 加载远程图片',
 } as const

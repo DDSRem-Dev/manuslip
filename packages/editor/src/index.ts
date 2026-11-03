@@ -26,7 +26,7 @@ import { sourceHighlightStyle } from './highlight'
 import { changedByteLength, documentBytes, limitRejected, maxDocumentBytes } from './limits'
 import { defaultEditorPreferences, type EditorPreferences } from './preferences'
 import { textSelection } from './selection'
-import { editorSyntax } from './syntax'
+import { sourceSyntax } from './syntax'
 
 export { isolateHistory, redo, selectAll, undo } from '@codemirror/commands'
 export { getSearchQuery, openSearchPanel, SearchQuery } from '@codemirror/search'
@@ -56,6 +56,8 @@ export function selectionInCode(state: EditorState): boolean {
   })
 }
 export { highlightCode } from './code-widget'
+export { optMarkdown } from './conventions'
+export { activeEmbeddedEditor } from './embedded-editor'
 export { yamlFrontmatter } from './frontmatter'
 export { SourceInputSynchronization } from './input-synchronization'
 export { documentBytes, limitRejected, maxDocumentBytes } from './limits'
@@ -98,7 +100,7 @@ function sourceExtensions(options: SourceEditorOptions): Extension[] {
     crosshairCursor(),
     highlightActiveLine(),
     highlightSelectionMatches(),
-    editorSyntax,
+    sourceSyntax,
     frontmatterEnd,
     documentBytes,
     EditorState.transactionFilter.of((transaction) => {

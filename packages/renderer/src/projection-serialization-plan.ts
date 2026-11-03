@@ -24,6 +24,7 @@ interface SerializationFrame {
   own: number
   escapes: number
   at: number
+  ordinal: number
   units: number
   childrenUnits: number
   peak: number
@@ -73,7 +74,7 @@ export function* planProjectionSerialization(
   descriptions: ProjectionDescriptions,
   options: RenderOptions,
   limits: Pick<ProjectionLimits, 'nodes' | 'depth'>,
-  policy?: (element: Element) => void,
+  policy?: (element: Element, listStart?: number) => void,
 ): Generator<void, Readonly<ProjectionSerializationPlan>> {
   const plan: ProjectionSerializationPlan = {
     nodes: 0,
@@ -107,7 +108,12 @@ export function* planProjectionSerialization(
             progress.reset()
             yield
           }
-          policy(node)
+          const parent = frames[depth - 1]
+          const ordinal =
+            node.tagName === 'li' && parent?.node.type === 'element' && parent.node.tagName === 'ol'
+              ? ++parent.ordinal
+              : undefined
+          policy(node, ordinal)
           if (url) {
             progress.reset()
             yield
@@ -160,6 +166,7 @@ export function* planProjectionSerialization(
           frame.own = own
           frame.escapes = escapes
           frame.at = 0
+          frame.ordinal = 0
           frame.units = own
           frame.childrenUnits = 0
           frame.peak = peak
@@ -170,6 +177,7 @@ export function* planProjectionSerialization(
             own,
             escapes,
             at: 0,
+            ordinal: 0,
             units: own,
             childrenUnits: 0,
             peak,

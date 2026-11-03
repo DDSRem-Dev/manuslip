@@ -7,6 +7,23 @@ import { renderMarkdown } from '../../src/index'
 const options = { rawHtml: false, footnotesLabel: 'Footnotes', footnoteBackLabel: 'Back' }
 
 describe('document inline footnote rendering', () => {
+  it('keeps named definition numbers in first-reference order without inline notes', () => {
+    const source = 'First[^b], next[^a], and repeated[^b].\n\n[^a]: Alpha\n\n[^b]: Bravo'
+    const root = parseDocumentMarkdown(source).root
+    const preview = renderMarkdown(root, options)
+    const definitions = preview.blocks.filter((block) => block.kind === 'footnoteDefinition')
+    expect(definitions[0]?.html).toContain('value="2"')
+    expect(definitions[1]?.html).toContain('value="1"')
+    for (const html of [preview.html, renderExport(root, options).html]) {
+      expect(html).toContain('aria-label="Footnotes 1" role="doc-noteref"')
+      expect(html).toContain('aria-label="Back 1-2"')
+      expect(html).toContain('class="markdown-icon markdown-icon-backref" aria-hidden="true"')
+      expect(html).not.toContain('aria-describedby="footnote-label"')
+      for (const [, href] of html.matchAll(/href="#([^"]+)"/g))
+        expect(html).toContain(`id="${href}"`)
+    }
+  })
+
   it('numbers inline and named notes together with distinct, editable projections', () => {
     const source = 'Start^[**First** $x^2$] and named[^n], then^[Second].\n\n[^n]: Named'
     const root = parseDocumentMarkdown(source).root

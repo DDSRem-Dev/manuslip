@@ -1,5 +1,5 @@
 import { type EditorState, StateEffect, StateField } from '@codemirror/state'
-import type { EditorView } from '@codemirror/view'
+import { mapUnchangedBlocks } from './live-model-changes'
 import { preserveTaskToggle } from './live-task-changes'
 
 export interface LiveBlock {
@@ -43,8 +43,6 @@ export function proseProjection(kind: string): boolean {
 export interface LiveOptions {
   sourceLabel(): string
   taskLabel(): string
-  editTableLabel?(): string
-  editTable?(block: LiveBlock): void
   render(container: HTMLElement, block: LiveBlock, signal: AbortSignal, measure: () => void): void
   openLink(url: string): void
 }
@@ -53,7 +51,8 @@ export const composingEffect = StateEffect.define<boolean>()
 export const liveModel = StateField.define<LiveModel | null>({
   create: () => null,
   update: (model, transaction) => {
-    if (transaction.docChanged) model = model && preserveTaskToggle(model, transaction)
+    if (transaction.docChanged && model)
+      model = preserveTaskToggle(model, transaction) ?? mapUnchangedBlocks(model, transaction)
     for (const effect of transaction.effects) if (effect.is(setLiveModel)) model = effect.value
     return model
   },
@@ -80,22 +79,4 @@ export function blockSourceRange(
   if (block.kind === 'defList' && last.from === block.to) return { from: first.from, to: block.to }
   if (!/^[ \t]*$/.test(state.doc.sliceString(block.to, last.to))) return undefined
   return { from: first.from, to: last.to }
-}
-
-export function revealSource(view: EditorView, dom: HTMLElement): void {
-  const block = view.state
-    .field(liveModel)
-    ?.blocks.find((block) => block.id === dom.dataset.occurrence)
-  if (!block) return
-  if (block.placement === 'after-document') {
-    view.dispatch({ selection: { anchor: block.from - 1, head: block.to }, scrollIntoView: true })
-    view.focus()
-    return
-  }
-  const range = !inlineProjection(block.kind) && blockSourceRange(view.state, block)
-  view.dispatch({
-    selection: { anchor: range ? range.from : block.from, head: range ? range.to : block.to },
-    scrollIntoView: true,
-  })
-  view.focus()
 }

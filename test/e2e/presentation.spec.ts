@@ -160,7 +160,7 @@ test('reading presentations and images retain each bilingual layout without new 
     const view = await created
     await expect(view.locator('body')).toHaveClass(/presentation/)
     await expect(view.locator('#document')).toContainText('你好')
-    await page.getByRole('button', { name: 'Close presentation', exact: true }).click()
+    await clickDocumentAction(page, 'Close presentation')
     await expect.poll(() => view.isClosed()).toBe(true)
     expect(requests).toBe(completed)
     expect(await readFile(path, 'utf8')).toBe(edited)

@@ -25,7 +25,7 @@ describe('configured Markdown rendering', () => {
     })
     for (const fragment of [
       '<table>',
-      '<del>old</del>',
+      '~~old~~',
       'align="right"',
       'type="checkbox" checked disabled',
       '<sub>2</sub>',
@@ -36,7 +36,7 @@ describe('configured Markdown rendering', () => {
     ])
       expect(html).toContain(fragment)
   })
-  it('renders highlights and typography with exact source ranges', () => {
+  it('renders Opt formatting and typography with exact source ranges', () => {
     const source = '==**Hello** and `a==b`==\n\n"Quoted" -- isn\'t it...'
     const result = render(source)
     expect(result.html).toContain('<mark><strong>Hello</strong> and <code>a==b</code></mark>')
@@ -49,6 +49,10 @@ describe('configured Markdown rendering', () => {
     expect(render('==marked==', { ...defaultMarkdownPlugins, opt: false }).html).toBe(
       '<p>==marked==</p>',
     )
+    expect(render('~~**deleted**~~').html).toBe('<p><del><strong>deleted</strong></del></p>')
+    expect(render('~~**deleted**~~', { ...defaultMarkdownPlugins, opt: false }).html).toBe(
+      '<p>~~<strong>deleted</strong>~~</p>',
+    )
   })
   it.each(['NOTE', 'TIP', 'IMPORTANT', 'WARNING', 'CAUTION'])(
     'renders the %s GitHub alert with block contents intact',
@@ -57,6 +61,15 @@ describe('configured Markdown rendering', () => {
       const result = render(source, { ...defaultMarkdownPlugins, github: true })
       expect(result.html).toContain(`class="markdown-alert markdown-alert-${name.toLowerCase()}"`)
       expect(result.html).toContain('markdown-alert-title')
+      expect(result.html).toContain(
+        `class="markdown-icon markdown-icon-${name.toLowerCase()}" aria-hidden="true"`,
+      )
+      expect(
+        renderExport(
+          parseDocumentMarkdown(source, { ...defaultMarkdownPlugins, github: true }).root,
+          options,
+        ).html,
+      ).toContain(`markdown-icon-${name.toLowerCase()}`)
       expect(result.html).toContain('<strong>Hello</strong>')
       expect(result.html).toContain('<li>body</li>')
       expect(result.html).toContain('const answer = 42')

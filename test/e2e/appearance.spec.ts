@@ -5,7 +5,7 @@ import { join, resolve, sep } from 'node:path'
 import type { TranslationSettings } from '@manuslip/translate'
 import { type ElectronApplication, expect, type Page, test } from '@playwright/test'
 import axe from 'axe-core'
-import { clickDocumentAction, contrast, launchDesktop } from './helpers'
+import { clickDocumentAction, launchDesktop } from './helpers'
 
 const modifier = process.platform === 'darwin' ? 'Meta' : 'Control'
 const original =
@@ -192,14 +192,7 @@ for (const locale of ['en', 'zh-CN'] as const) {
         locale === 'en' ? 'rgb(49, 93, 68)' : 'rgb(184, 216, 167)',
       )
       await expect(page.locator('.cm-live-heading-1 span').last()).toHaveCSS('font-weight', '400')
-      await expect(page.locator('.cm-live-table .cm-live-source-button').first()).toHaveCSS(
-        'font-size',
-        '13px',
-      )
-      await expect(page.locator('.cm-live-table .cm-live-source-button').first()).toHaveCSS(
-        'line-height',
-        '19.5px',
-      )
+      await expect(page.locator('.cm-live-table button')).toHaveCount(0)
       await audit(page, 'appearance-live')
       const configuration: TranslationSettings = {
         provider: {
@@ -336,20 +329,13 @@ test('appearance first-save and Save As keep local styles, while failed storage 
     await dialog.getByRole('button', { name: 'Import CSS…', exact: true }).click()
     await expect(dialog.getByText('unreadable.css', { exact: true })).toBeVisible()
     await dialog.getByRole('button', { name: 'Close', exact: true }).click()
-    const sourceButton = page.locator('.cm-live-table .cm-live-source-button').last()
-    await expect(sourceButton).toBeVisible()
-    const trusted = await sourceButton.evaluate((element) => {
-      const style = getComputedStyle(element)
-      return {
-        color: style.color,
-        background: style.backgroundColor,
-        font: style.fontSize,
-        leading: style.lineHeight,
-      }
-    })
-    expect(trusted.font).toBe('13px')
-    expect(trusted.leading).toBe('19.5px')
-    expect(contrast(trusted.color, trusted.background)).toBeGreaterThanOrEqual(4.5)
+    const table = page.locator('.cm-live-table').last()
+    await expect(table).toBeVisible()
+    await expect(table.locator('button')).toHaveCount(0)
+    await table.focus()
+    await table.press('Enter')
+    await expect(editor).toBeFocused()
+    await expect.poll(() => page.evaluate(() => getSelection()?.toString())).toContain('| A | B |')
     await clickDocumentAction(page, 'Document appearance')
     const backup = `${storePath}.fixture-backup`
     await rename(storePath, backup)

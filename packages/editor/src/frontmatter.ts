@@ -11,7 +11,8 @@ function metadataEnd(doc: Text, yaml: boolean): number {
   if (!fence || (fence === '---' && !yaml)) return 0
   let offset = doc.line(1).to + 1
   for (const line of doc.iterLines(2)) {
-    if (line.trimEnd() === fence) return offset + line.length
+    const closing = line.replace(/[\t ]+$/, '')
+    if (closing === fence || (fence === '---' && closing === '...')) return offset + line.length
     offset += line.length + 1
   }
   // An unclosed opening fence is ordinary Markdown, matching the semantic parser.

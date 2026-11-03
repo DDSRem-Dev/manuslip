@@ -1,91 +1,38 @@
 # Manuslip documentation
 
-Documents available at this revision, grouped by purpose.
+Start with the [project overview](../../README.md) or [contribution guide](../../CONTRIBUTING.md).
+Run development and test commands from the repository root.
 
-- [README.md](../../README.md)
-- [README.zh-CN.md](../../README.zh-CN.md)
-- [CONTRIBUTING.md](../../CONTRIBUTING.md)
-- [CODE_OF_CONDUCT.md](../../CODE_OF_CONDUCT.md)
-- [SECURITY.md](../../SECURITY.md)
+| Area | Documents |
+| --- | --- |
+| Using Manuslip | [Markdown conventions](../guides/commonmark.md), [local command plugins](../guides/plugins.md), [file sync](../guides/sync.md), [LaTeX gallery](../examples/latex.md), [Markdown sample](../examples/markdown-conventions.md) |
+| Product and design | [Desktop product](../product/desktop.md), [desktop design](../design/desktop.md), [workspace design](../design/workspace.md) |
+| Development | [Dependency compatibility](../development/dependencies.md), [application icons](../development/application-icons.md), [fonts](../development/fonts.md), [native Linux fonts](../development/native-fonts.md), [offline dictionaries](../development/offline-dictionaries.md), [distribution](../development/distribution.md) |
+| Testing | [Test layout and commands](../testing/testing.md), [benchmark methods and evidence](../testing/benchmarks.md), [CommonMark fixtures](../testing/commonmark-fixtures.md) |
+| Architecture | [Decision records](../adr/), [translation](../architecture/translation.md), [semantic native construction](../architecture/semantic-native-construction.md), [worker failure handling](../architecture/semantic-worker-failures.md) |
+| Reviews | [Feature availability](../reviews/feature-availability-review.md), [accessibility](../reviews/accessibility-review.md), [interface](../reviews/interface-review.md), [renderer polish](../reviews/renderer-polish-review.md), [tables](../reviews/table-rendering-review.md), [navigation](../reviews/navigation-review.md) |
+| Dependency patches | [Definition lists](../patches/definition-list.md), [micromark edit map](../patches/micromark-edit-map.md), [micromark replay](../patches/micromark-replay.md), [parser lifetimes](../patches/parser-lifetimes.md), [unist traversal](../patches/unist-visit.md) |
+| Validation history | [Chronological implementation and validation record](../validation/implementation-history.md), [repository layout validation](../validation/repository-layout.md), [commit-by-commit history reorganization](../validation/history-reorganization.md) |
 
-## Adr
+See the [repository layout policy](../development/repository-layout.md) for placement rules.
 
-- [001 initial implementation plan](../adr/001-initial-implementation-plan.md)
-- [002 implementation plan](../adr/002-implementation-plan.md)
-- [003 semantic snapshot packing](../adr/003-semantic-snapshot-packing.md)
-- [004 preload contract dependencies](../adr/004-preload-contract-dependencies.md)
-- [005 writing modes](../adr/005-writing-modes.md)
-- [006 extended markdown](../adr/006-extended-markdown.md)
-- [007 visual tables](../adr/007-visual-tables.md)
-- [008 document appearance](../adr/008-document-appearance.md)
-- [009 presentation image export](../adr/009-presentation-image-export.md)
-- [010 optional pandoc](../adr/010-optional-pandoc.md)
-- [011 local command plugins](../adr/011-local-command-plugins.md)
-- [012 explicit file sync](../adr/012-explicit-file-sync.md)
-- [013 local distribution](../adr/013-local-distribution.md)
+## Where to put documentation
 
-## Architecture
+Put substantive documentation in `docs/<topic>/` with a lowercase kebab-case filename.
+Use `guides/` for user instructions, `development/` for contributor workflows, `testing/`
+for test methods, `architecture/` and `adr/` for engineering decisions, `design/` and
+`product/` for product specifications, `reviews/` for findings, `patches/` for dependency
+patch provenance, and `validation/` for dated evidence. Keep examples in `examples/`.
+Link new documents from this index or another relevant guide.
 
-- [semantic native construction](../architecture/semantic-native-construction.md)
-- [semantic worker failures](../architecture/semantic-worker-failures.md)
-- [translation](../architecture/translation.md)
+The root READMEs, `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, and GitHub's
+pull request template retain their standard discovery names. Upstream licenses and notices
+remain beside their assets. Screenshots and machine reports belong in test artifact
+directories; link them from prose when they help explain a result.
 
-## Design
+Record validation submissions chronologically and distinguish observed results from
+remaining acceptance work. Earlier results in the history describe the revision and
+platform tested at that time; use the testing guide for current commands and paths.
 
-- [desktop](../design/desktop.md)
-- [workspace](../design/workspace.md)
-
-## Development
-
-- [application icons](../development/application-icons.md)
-- [dependencies](../development/dependencies.md)
-- [distribution](../development/distribution.md)
-- [fonts](../development/fonts.md)
-- [native fonts](../development/native-fonts.md)
-- [offline dictionaries](../development/offline-dictionaries.md)
-- [repository layout](../development/repository-layout.md)
-
-## Examples
-
-- [latex](../examples/latex.md)
-- [markdown conventions](../examples/markdown-conventions.md)
-
-## Guides
-
-- [commonmark](../guides/commonmark.md)
-- [plugins](../guides/plugins.md)
-- [sync](../guides/sync.md)
-
-## Patches
-
-- [definition list](../patches/definition-list.md)
-- [micromark edit map](../patches/micromark-edit-map.md)
-- [micromark replay](../patches/micromark-replay.md)
-- [parser lifetimes](../patches/parser-lifetimes.md)
-- [unist visit](../patches/unist-visit.md)
-
-## Product
-
-- [desktop](../product/desktop.md)
-
-## Reviews
-
-- [accessibility review](../reviews/accessibility-review.md)
-- [feature availability review](../reviews/feature-availability-review.md)
-- [interface review](../reviews/interface-review.md)
-- [navigation review](../reviews/navigation-review.md)
-- [renderer polish review](../reviews/renderer-polish-review.md)
-- [table rendering review](../reviews/table-rendering-review.md)
-
-## Testing
-
-- [benchmarks](../testing/benchmarks.md)
-- [commonmark fixtures](../testing/commonmark-fixtures.md)
-- [testing](../testing/testing.md)
-
-## Validation
-
-- [implementation history](../validation/implementation-history.md)
-
-Use lowercase kebab-case filenames inside the topic directories. Community entry points
-keep their conventional names. Each historical revision links only documents present there.
+`npm run check:layout` checks documentation placement, local Markdown links, test
+placement, obsolete root output directories, and stray UUID metadata in source directories.

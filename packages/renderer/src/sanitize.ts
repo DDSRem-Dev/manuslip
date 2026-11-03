@@ -1,4 +1,5 @@
 import createDOMPurify, { type Config, type WindowLike } from 'dompurify'
+import { imageSizingStyle } from './image-layout'
 import { localImagePath, safeImage, safeLink } from './urls'
 
 const tags = [
@@ -14,9 +15,27 @@ const tags = [
   'h5',
   'h6',
   'strong',
+  'b',
   'em',
+  'i',
+  'u',
+  'small',
+  'ins',
   'del',
   's',
+  'abbr',
+  'cite',
+  'q',
+  'dfn',
+  'samp',
+  'var',
+  'ruby',
+  'rt',
+  'rp',
+  'bdi',
+  'bdo',
+  'wbr',
+  'time',
   'code',
   'pre',
   'blockquote',
@@ -24,6 +43,9 @@ const tags = [
   'ol',
   'li',
   'table',
+  'caption',
+  'colgroup',
+  'col',
   'thead',
   'tbody',
   'tfoot',
@@ -36,6 +58,11 @@ const tags = [
   'sup',
   'sub',
   'section',
+  'article',
+  'aside',
+  'address',
+  'figure',
+  'figcaption',
   'nav',
   'dl',
   'dt',
@@ -50,10 +77,20 @@ const attributes = [
   'src',
   'alt',
   'title',
+  'width',
+  'height',
+  'style',
   'colspan',
   'rowspan',
+  'span',
+  'scope',
+  'headers',
   'align',
   'start',
+  'reversed',
+  'value',
+  'cite',
+  'datetime',
   'type',
   'checked',
   'disabled',
@@ -142,7 +179,7 @@ export function scopeReadingReferences(container: ParentNode): void {
       }
     for (const cell of cells)
       for (const element of cell.querySelectorAll(
-        '[href], [aria-describedby], [aria-labelledby]',
+        '[href], [aria-describedby], [aria-labelledby], [headers]',
       )) {
         const href = element.getAttribute('href')
         if (href?.startsWith('#')) {
@@ -151,7 +188,7 @@ export function scopeReadingReferences(container: ParentNode): void {
             if (target) element.setAttribute('href', `#${target}`)
           } catch {}
         }
-        for (const attribute of ['aria-describedby', 'aria-labelledby']) {
+        for (const attribute of ['aria-describedby', 'aria-labelledby', 'headers']) {
           const value = element.getAttribute(attribute)
           if (value)
             element.setAttribute(
@@ -183,6 +220,22 @@ export function createSanitizer(window: WindowLike): {
   }
   let svg = false
   purifier.addHook('uponSanitizeAttribute', (node, event) => {
+    if (!svg && event.attrName === 'style') {
+      event.attrValue = node.nodeName === 'IMG' ? imageSizingStyle(event.attrValue) : ''
+      if (!event.attrValue) event.keepAttr = false
+    }
+    if (!svg && event.attrName === 'value') {
+      if (node.tagName !== 'LI' || !/^-?[0-9]{1,6}$/.test(event.attrValue)) event.keepAttr = false
+    }
+    if (!svg && ['width', 'height'].includes(event.attrName)) {
+      if (
+        node.nodeName !== 'IMG' ||
+        !/^\d{1,5}$/.test(event.attrValue) ||
+        Number(event.attrValue) > 32768 ||
+        Number(event.attrValue) === 0
+      )
+        event.keepAttr = false
+    }
     if (
       svg &&
       ['fill', 'stroke'].includes(event.attrName) &&
@@ -204,6 +257,7 @@ export function createSanitizer(window: WindowLike): {
       if (svg ? !/^#[a-z0-9_-]+$/i.test(event.attrValue) : !safeLink(event.attrValue))
         event.keepAttr = false
     }
+    if (!svg && event.attrName === 'cite' && !safeLink(event.attrValue)) event.keepAttr = false
     if (event.attrName === 'data-remote-image' && !safeLink(event.attrValue)?.startsWith('https:'))
       event.keepAttr = false
     if (event.attrName === 'data-local-image' && !localImagePath(event.attrValue))
@@ -215,7 +269,25 @@ export function createSanitizer(window: WindowLike): {
     ALLOW_DATA_ATTR: false,
     // The hook validates the dormant image reference. Alignment, list starts and
     // language/type metadata must survive the restrictive navigation URI policy.
-    ADD_URI_SAFE_ATTR: ['data-local-image', 'type', 'lang', 'dir', 'start', 'align'],
+    ADD_URI_SAFE_ATTR: [
+      'data-local-image',
+      'type',
+      'lang',
+      'dir',
+      'start',
+      'value',
+      'align',
+      'width',
+      'height',
+      'style',
+      'headers',
+      'datetime',
+      'colspan',
+      'rowspan',
+      'span',
+      'scope',
+      'reversed',
+    ],
     RETURN_DOM_FRAGMENT: true,
     SANITIZE_NAMED_PROPS: true,
     ALLOWED_URI_REGEXP: /^(?:https:|manuslip-asset:|data:image\/|#)/i,
@@ -395,8 +467,10 @@ export function createSanitizer(window: WindowLike): {
           anchor.setAttribute('href', `#${named(id)}`)
         } catch {}
       }
-      for (const element of fragment.querySelectorAll('[aria-describedby], [aria-labelledby]'))
-        for (const attribute of ['aria-describedby', 'aria-labelledby']) {
+      for (const element of fragment.querySelectorAll(
+        '[aria-describedby], [aria-labelledby], [headers]',
+      ))
+        for (const attribute of ['aria-describedby', 'aria-labelledby', 'headers']) {
           const value = element.getAttribute(attribute)
           if (value) element.setAttribute(attribute, value.split(/\s+/).map(named).join(' '))
         }

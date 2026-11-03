@@ -224,31 +224,6 @@ export function DocumentWorkspace({
       </button>
     </fieldset>
   )
-  const previewOptions = (
-    <fieldset className="toolbar-command-group">
-      <legend>{t('previewOptions')}</legend>
-      <label className="preview-html">
-        <input
-          type="checkbox"
-          checked={status.rawHtml}
-          onChange={(event) => {
-            document.preview.setRawHtml(event.target.checked)
-            document.reading?.refreshRendering()
-          }}
-        />
-        {t('renderHtml')}
-      </label>
-      <label className="preview-images">
-        <input
-          type="checkbox"
-          checked={status.remoteImages}
-          disabled={status.imagePermissionBusy}
-          onChange={(event) => void document.preview.setRemoteImages(event.target.checked)}
-        />
-        {t('remoteImages')}
-      </label>
-    </fieldset>
-  )
   const modes = (
     <fieldset className="preview-toolbar" aria-label={t('editorMode')}>
       <button
@@ -388,7 +363,6 @@ export function DocumentWorkspace({
             revision={status.revision}
             reading={reading.visible}
             readingReady={'projection' in reading && Boolean(reading.projection)}
-            options={previewOptions}
             toolbar={toolbar}
           >
             {fileActions}
@@ -399,7 +373,6 @@ export function DocumentWorkspace({
             <ToolbarDisclosure label={t('documentCommands')}>
               {fileActions}
               {utilityTools}
-              {previewOptions}
             </ToolbarDisclosure>,
           )
         )}

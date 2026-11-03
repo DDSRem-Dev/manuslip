@@ -16,7 +16,7 @@ export function taskCheckboxes(html: string): { html: string; checked: boolean[]
 
 /** A task's checked character changes neither source positions nor Markdown layout.
  * Keep the presentation current locally while the authoritative worker catches up.
- * Every other edit still invalidates the semantic model immediately.
+ * Other edits discard the affected projections and map untouched blocks.
  */
 export function preserveTaskToggle(model: LiveModel, transaction: Transaction): LiveModel | null {
   const tree = syntaxTree(transaction.startState)

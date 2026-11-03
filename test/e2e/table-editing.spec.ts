@@ -150,11 +150,13 @@ for (const locale of ['en', 'zh-CN'] as const) {
       await expect(dialog).not.toBeVisible()
       await editor.press(`${modifier}+End`)
       await page.getByRole('button', { name: names.live, exact: true }).click()
-      await page
-        .locator('.cm-live-table')
-        .getByRole('button', { name: names.edit, exact: true })
-        .click()
+      await page.locator('.cm-live-table').focus()
+      await page.locator('.cm-live-table').press('F2')
       await expect(page.locator('.cm-live-table')).toBeVisible()
+      await expect(page.locator('[data-table-cell-editor]')).toBeFocused()
+      await expect(page.locator('[data-table-cell-editor]')).toHaveText('Name')
+      await expect(dialog).not.toBeVisible()
+      await clickDocumentAction(page, names.edit)
       await expect(input(0, 1)).toBeFocused()
       await input(0, 1).press(`${modifier}+1`)
       await expect(page.getByRole('button', { name: names.live, exact: true })).toHaveAttribute(

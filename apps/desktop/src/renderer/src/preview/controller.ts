@@ -18,6 +18,7 @@ import {
   livePreview,
   navigateLiveAnchor,
   OccurrenceTracker,
+  optMarkdown,
   setLiveModel,
   type Transaction,
   type TransactionSpec,
@@ -109,7 +110,6 @@ interface DocumentAccess {
     release(): void
   }
   openLink(url: string): void
-  editTable?(at: number): void
   images?: ImageBridge
   assets?: AssetBridge
   diagrams?: DiagramBridge
@@ -123,10 +123,6 @@ export class DocumentPreview {
   private readonly options = {
     sourceLabel: () => i18next.t('revealSource'),
     taskLabel: () => i18next.t('toggleTask'),
-    editTableLabel: () => i18next.t('editTable'),
-    editTable: (block: Parameters<NonNullable<LiveOptions['editTable']>>[0]) => {
-      this.document.editTable?.(block.from)
-    },
     render: (...args: Parameters<LiveOptions['render']>): void => {
       const images = this.document.images
       const assets = this.document.assets
@@ -231,7 +227,7 @@ export class DocumentPreview {
       liveModel,
       isComposing,
       this.mode.of([]),
-      this.metadata.of(yamlFrontmatter.of(this.plugins.typora)),
+      this.metadata.of([yamlFrontmatter.of(this.plugins.typora), optMarkdown.of(this.plugins.opt)]),
     ]
   }
 
@@ -280,6 +276,7 @@ export class DocumentPreview {
     this.currentMode = mode
     if (mode === 'source') this.activeOwned = null
     const effects = [this.mode.reconfigure(mode === 'live' ? livePreview(this.options) : [])]
+    if (mode === 'source') effects.push(setLiveModel.of(null))
     const scroll = this.document.view()?.scrollSnapshot()
     if (scroll) effects.push(scroll)
     this.document.dispatch({ effects })
@@ -394,7 +391,10 @@ export class DocumentPreview {
     this.document.dispatch({
       effects: [
         setLiveModel.of(null),
-        this.metadata.reconfigure(yamlFrontmatter.of(this.plugins.typora)),
+        this.metadata.reconfigure([
+          yamlFrontmatter.of(this.plugins.typora),
+          optMarkdown.of(this.plugins.opt),
+        ]),
       ],
     })
     if (this.viewing && (this.currentMode === 'live' || this.navigation)) this.activate()

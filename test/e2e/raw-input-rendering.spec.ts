@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { type ElectronApplication, expect, type Page, test } from '@playwright/test'
-import { launchDesktop, openDocumentActions } from './helpers'
+import { launchDesktop, openMarkdownExtensions } from './helpers'
 
 const modifier = process.platform === 'darwin' ? 'Meta' : 'Control'
 
@@ -246,8 +246,8 @@ test('inline HTML renders only when enabled and never changes the raw source', a
   await documentFixture(source, async (page, _application, path) => {
     await page.getByRole('button', { name: 'Live Preview', exact: true }).click()
     await expect(page.locator('.cm-content mark, .cm-content kbd')).toHaveCount(0)
-    await openDocumentActions(page)
-    await page.getByLabel('Render sanitized HTML').check()
+    const extensions = await openMarkdownExtensions(page)
+    await extensions.getByLabel('Render sanitized HTML').check()
     await page.keyboard.press('Escape')
     await expect(page.locator('.cm-content mark')).toHaveText('highlight')
     await expect(page.locator('.cm-content kbd')).toHaveText('Esc')
@@ -271,6 +271,7 @@ test('Typora toggles YAML metadata without changing its editable source', async 
       await expect(page.locator('.cm-live-heading')).toHaveCount(enabled ? 1 : 2)
       await expect(page.locator('.cm-live-strong')).toHaveCount(enabled ? 0 : 1)
       await expect(page.locator('.cm-live-rule')).toHaveCount(enabled ? 0 : 1)
+      await expect(page.locator('.cm-live-frontmatter')).toHaveCount(enabled ? 1 : 0)
       if (enabled) await expect(page.locator('.cm-content')).toContainText('title: **literal**')
     }
     await expect(page.locator('dialog[open]')).toHaveCount(0)
@@ -283,3 +284,73 @@ test('Typora toggles YAML metadata without changing its editable source', async 
     await saved(page, path, source)
   })
 })
+
+for (const closing of ['---', '...']) {
+  test(`YAML header ending with ${closing} stays editable without consuming following Markdown`, async () => {
+    const title = 'title: "**literal**"'
+    const metadata = [title, 'summary: |', '  ```', '  <div>']
+    const source = [
+      '--- \t',
+      ...metadata,
+      `${closing} \t`,
+      '# Actual heading',
+      '',
+      '**Body** and `code`.',
+      '',
+      'End',
+    ].join('\n')
+    await documentFixture(source, async (page, _application, path) => {
+      await page.getByRole('button', { name: 'Preferences', exact: true }).click()
+      await page.getByRole('button', { name: 'Plugins', exact: true }).click()
+      await page.getByRole('checkbox', { name: 'Typora', exact: true }).check()
+      await expect(page.getByText('Preferences saved', { exact: true })).toBeVisible()
+      await page.getByRole('button', { name: 'Close preferences', exact: true }).click()
+      await page.getByRole('button', { name: 'Live Preview', exact: true }).click()
+      const header = page.locator('.cm-live-frontmatter')
+      await expect(header).toHaveText(metadata)
+      await expect(header.first()).toHaveCSS('font-size', '15px')
+      await expect(header.first()).toHaveCSS('border-top-style', 'solid')
+      await expect(header.last()).toHaveCSS('border-bottom-style', 'solid')
+      await expect(page.locator('.cm-live-heading')).toHaveText('Actual heading')
+      await expect(page.locator('.cm-live-strong')).toHaveText('Body')
+      await expect(page.locator('.cm-live-code')).toHaveText('code')
+      const editor = page.getByRole('textbox', { name: 'Markdown source' })
+      await expect(editor).not.toContainText('---')
+      await expect(editor).not.toContainText('...')
+      await page.screenshot({
+        path: test.info().outputPath('yaml-header.png'),
+        animations: 'disabled',
+      })
+
+      await header.first().click()
+      await editor.press('End')
+      await page.keyboard.insertText(' # edited')
+      await expect(header.first()).toHaveText(`${title} # edited`)
+      await saved(page, path, source.replace(title, `${title} # edited`))
+      await editor.press(`${modifier}+z`)
+      await expect(header).toHaveText(metadata)
+
+      // Source mode exposes both fences; editing and undo keep the same document.
+      await page.getByRole('button', { name: 'Source', exact: true }).click()
+      await expect(page.locator('.cm-content > .cm-line')).toHaveText(source.split('\n'))
+      await page
+        .locator('.cm-content > .cm-line')
+        .nth(metadata.length + 1)
+        .click()
+      await editor.press('Home')
+      await editor.press('Shift+End')
+      await editor.press('Backspace')
+      await page.getByRole('button', { name: 'Live Preview', exact: true }).click()
+      await expect(header).toHaveCount(0)
+      await saved(page, path, source.replace(`\n${closing} \t\n#`, '\n\n#'))
+      await editor.press(`${modifier}+z`)
+      await expect(header).toHaveText(metadata)
+      await expect(page.locator('.cm-live-heading')).toHaveText('Actual heading')
+      await expect(page.locator('.cm-live-strong')).toHaveText('Body')
+      await page.getByRole('button', { name: 'Source', exact: true }).click()
+      await expect(header).toHaveCount(0)
+      await expect(page.locator('.cm-content > .cm-line')).toHaveText(source.split('\n'))
+      await saved(page, path, source)
+    })
+  })
+}

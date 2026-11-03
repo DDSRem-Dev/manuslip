@@ -92,7 +92,9 @@ describe('task marker edits while semantics are pending', () => {
       const { state } = fixture(task)
       const from = state.doc.toString().indexOf(target) + 1
       const next = state.update({ changes: { from, to: from + 1, insert } }).state
-      expect(next.field(liveModel)).toBeNull()
+      const affected = modelBlockAt(state, from)
+      expect(next.field(liveModel)?.blocks.some((block) => block.id === affected?.id)).toBe(false)
+      expect(next.field(liveModel)?.blocks.some((block) => block.kind === 'table')).toBe(true)
     },
   )
 
@@ -105,6 +107,12 @@ describe('task marker edits while semantics are pending', () => {
         { from: from + 4, to: from + 5, insert: 'a' },
       ],
     }).state
-    expect(next.field(liveModel)).toBeNull()
+    expect(
+      next.field(liveModel)?.blocks.some((block) => block.id === modelBlockAt(state, from)?.id),
+    ).toBe(false)
   })
 })
+
+function modelBlockAt(state: EditorState, at: number) {
+  return state.field(liveModel)?.blocks.find((block) => block.from <= at && block.to > at)
+}

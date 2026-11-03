@@ -51,8 +51,8 @@ test('document and reading actions preserve keyboard access, native shortcuts an
     await expect(actions).toBeFocused()
 
     await openDocumentActions(page)
-    await panel.getByLabel('Render sanitized HTML', { exact: true }).check()
-    await expect(panel).toBeVisible()
+    await expect(panel.getByLabel('Render sanitized HTML', { exact: true })).toHaveCount(0)
+    await expect(panel.getByLabel('Load remote images…', { exact: true })).toHaveCount(0)
     await page.keyboard.press('Escape')
     await expect(actions).toBeFocused()
     // Pointer dismissal must leave the intended outside target focused.
@@ -99,7 +99,7 @@ test('document and reading actions preserve keyboard access, native shortcuts an
       'aria-pressed',
       'true',
     )
-    expect(await page.locator('[popover]:popover-open').count()).toBe(0)
+    await expect(page.locator('.toolbar-popover:popover-open')).toHaveCount(0)
     await expect(editor).toBeFocused()
     await page.keyboard.press(`${modifier}+3`)
     await openDocumentActions(page)

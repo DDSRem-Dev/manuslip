@@ -18,8 +18,20 @@ export const sourceHighlightStyle = HighlightStyle.define([
   { tag: tags.strong, color: 'var(--text)' },
   { tag: tags.strikethrough, color: 'var(--muted)' },
   { tag: tags.link, color: 'var(--accent)' },
+  { tag: tags.processingInstruction, color: 'var(--syntax-marker)' },
   { tag: [tags.url, tags.meta, tags.punctuation, tags.bracket], color: 'var(--muted)' },
 ])
 
-// Live decorations own prose formatting. Keep syntax highlighting for exposed code.
-export const codeHighlightStyle = HighlightStyle.define(codeStyles)
+// Live decorations own prose formatting. Keep Markdown delimiters quiet and
+// preserve syntax colors for exposed code.
+export const codeHighlightStyle = HighlightStyle.define([
+  ...codeStyles,
+  { tag: tags.processingInstruction, class: 'cm-live-markup' },
+])
+
+export const cellHighlightStyle = HighlightStyle.define([
+  { tag: tags.strong, fontWeight: '600' },
+  { tag: tags.emphasis, fontStyle: 'italic' },
+  { tag: tags.strikethrough, textDecoration: 'line-through' },
+  { tag: tags.link, textDecoration: 'underline', color: 'var(--accent)' },
+])

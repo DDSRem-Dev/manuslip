@@ -69,7 +69,7 @@ export function renderDiagramWidget(
         container.setAttribute('aria-label', i18next.t('diagramLabel'))
         if (restoreFocus) {
           const target =
-            container.parentElement?.querySelector<HTMLElement>('.cm-live-source-button') ??
+            container.closest<HTMLElement>('.cm-live-block') ??
             container.closest<HTMLElement>('.reading-article')
           target?.focus({ preventScroll: true })
         }
