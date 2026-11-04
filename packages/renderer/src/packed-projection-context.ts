@@ -12,6 +12,7 @@ import { invalidPackedSemantic } from '../../core/src/packing-validation-read'
 import type { PackedPath } from '../../core/src/packing-view'
 import { PackedWordBuffer } from '../../core/src/packing-word-buffer'
 import type { PackedWork } from '../../core/src/packing-work'
+import { readingBudgets } from '../../core/src/reading-limits'
 import type { CollectedProjectionContext } from './collected-projection-context'
 import type { ProjectionLimits } from './fragment-projection-context'
 import {
@@ -105,7 +106,7 @@ function* contextSteps(
       throw new Error('Invalid packed projection context limits')
   if (
     limits.retained > semanticLimits.rendererBytes ||
-    limits.staging > semanticLimits.messageBytes ||
+    limits.staging > readingBudgets.workspace ||
     limits.nodes > semanticLimits.blocks * 16 ||
     limits.depth < 1 ||
     limits.depth > 128

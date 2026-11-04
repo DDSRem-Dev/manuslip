@@ -1,3 +1,4 @@
+import { readingBudgets } from '@manuslip/core/reading-limits'
 import type { Root as HastRoot } from 'hast'
 import { toHtml } from 'hast-util-to-html'
 import type { Nodes, RootContent } from 'mdast'
@@ -11,7 +12,6 @@ import {
   ProjectionSequence,
 } from './projection-sequence'
 import type { ReadingOptions, ReadingProjection } from './reading'
-import { readingJsonBytes } from './reading-bytes'
 import { ReadingDecoration } from './reading-decoration'
 import {
   expandReadingIndex,
@@ -211,7 +211,7 @@ export class ReadingSequence {
             },
           )
           let index = data.dictionary.get(html)
-          const bytes = data.bytes + 64 + (index === undefined ? 128 + html.length * 4 : 0)
+          const bytes = data.bytes + 64 + (index === undefined ? 128 + html.length * 2 : 0)
           data.reserve(bytes)
           data.bytes = bytes
           if (index === undefined) {
@@ -244,10 +244,10 @@ export class ReadingSequence {
       }
       if (data.reading.layout !== 'replace') {
         result.indexed = data.rows
-        const overhead = readingJsonBytes({ ...result, indexed: undefined }) * 2
+        const overhead = readingProjectionBytes({ ...result, indexed: undefined })
         let expanded = overhead + data.wrapper.length * 2
         for (let row = 0; row < data.rows.order.length; row++)
-          expanded += (readingJsonBytes(readingRowHtml(result, row)) - 2) * 2
+          expanded += readingRowHtml(result, row).length * 2
         const indexed =
           !data.raw &&
           data.reading.indexAboveBytes !== undefined &&
@@ -299,7 +299,7 @@ export class ReadingSequence {
         rows.push('</div>')
         result.html = rows.join('')
       }
-      if (readingProjectionBytes(result) > 8 * 1024 * 1024)
+      if (readingProjectionBytes(result) > readingBudgets.projection)
         throw new Error('translation-view-limit')
       return result
     } finally {

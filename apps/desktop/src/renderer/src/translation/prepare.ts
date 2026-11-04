@@ -20,7 +20,7 @@ export async function prepareReading(
   engine: ReadingEngine,
   captured: ReadingCapture,
   source: string,
-  settings: TranslationSettings,
+  settings: TranslationSettings | null,
   signal: AbortSignal,
   runtime?: SliceRuntime,
 ): Promise<ReadingValue> {

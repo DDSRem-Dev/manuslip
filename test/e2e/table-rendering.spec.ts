@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { join, resolve } from 'node:path'
 import { expect, type Locator, test } from '@playwright/test'
-import { clickDocumentAction, launchDesktop, selectReadingLayout } from './helpers'
+import { clickDocumentAction, launchDesktop, selectReadingLayout, waitForReading } from './helpers'
 
 const source = `# Table rendering
 
@@ -202,7 +202,7 @@ test('reading copies and HTML exports retain table alignment on screen and in pr
     )
     await page.getByRole('button', { name: 'Translated preview', exact: true }).click()
     await page.getByRole('button', { name: 'Translate', exact: true }).click()
-    await expect(page.getByText('Reading copy ready.', { exact: true })).toBeVisible()
+    await waitForReading(page)
     const article = page.locator('.reading-article')
     await expectAlignment(article.locator('table').first())
     await expect(article.locator('table').first()).toContainText('就绪')

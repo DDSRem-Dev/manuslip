@@ -1,9 +1,13 @@
+import { readingBudgets } from '@manuslip/core/reading-limits'
 import { utf8Bytes } from '@manuslip/core/text'
 import type { ReadingLayout } from '@manuslip/renderer/reading'
 import { translationLimits } from '@manuslip/translate/transport'
 import { record } from './file-contracts'
 
-export const readingExportLimits = { request: 8 * 1024 * 1024, outputs: 4 * 1024 * 1024 } as const
+export const readingExportLimits = {
+  request: readingBudgets.exportRequest,
+  outputs: readingBudgets.outputs,
+} as const
 export interface ReadingExport {
   schema: 'mdast-reading/v1'
   layout: ReadingLayout

@@ -12,6 +12,7 @@ import { packValue } from '../../../../../../../packages/core/src/packing'
 import { PackedSession } from '../../../../../../../packages/core/src/packing-session'
 import { PackedSource } from '../../../../../../../packages/core/src/packing-source'
 import examples from '../../../../../../../packages/core/test/fixtures/commonmark-0.31.2/spec.json'
+import * as cacheHash from '../../../../../../../packages/translate/src/cache-hash'
 import type { SliceRuntime } from '../../../../../src/renderer/src/semantics/sliced-work'
 import { CompactReadingBlocks } from '../../../../../src/renderer/src/translation/compact-blocks'
 import { ReadingProcessor } from '../../../../../src/renderer/src/translation/engine'
@@ -97,6 +98,45 @@ function scheduler() {
   }
   return { runtime, queued, drain }
 }
+it.each(['native', 'packed'] as const)(
+  'renders a %s source preview without translation settings or request keys',
+  async (kind) => {
+    const processor = new ReadingProcessor()
+    try {
+      let wire: unknown
+      await processor.respond(
+        kind === 'packed'
+          ? { ...operation(), settings: null }
+          : { kind: 'prepare', root: parseMarkdown(source).root, source, settings: null },
+        1,
+        (response) => {
+          wire = structuredClone(response.value)
+        },
+      )
+      const prepared = decodeReadingValue(wire)
+      if (prepared.kind !== 'prepared') throw new Error('Not prepared')
+      expect(prepared.units.length).toBeGreaterThan(0)
+      expect(prepared.units.every((unit) => unit.key === null)).toBe(true)
+      const rendered = await processor.execute({ kind: 'render', outputs: [], options })
+      if (rendered.kind !== 'rendered') throw new Error('Not rendered')
+      expect(rendered.projection.html).toContain('Hello 世界</h1>')
+      expect(rendered.projection.html).toContain('<em>world</em>')
+      expect(rendered.projection.html).toContain('<code>PRIVATE_CODE</code>')
+      expect(rendered.projection.html).toContain('https://private.invalid/')
+      expect(rendered.projection.html).toContain('<table>')
+      expect(rendered.projection.html).toContain('Hello footnote.')
+      expect(rendered.projection.slots.map((slot) => slot.source)).toEqual([
+        'x^2',
+        'graph LR; A --> B',
+      ])
+      expect(rendered.projection.blocks?.find((block) => block.kind === 'heading')?.from).toBe(
+        source.indexOf('# Hello'),
+      )
+    } finally {
+      processor.clear()
+    }
+  },
+)
 it.each(['manuslip', 'commonmark'] as const)(
   'validates and expands the complete %s root, positions and private bindings in the worker',
   (syntax) => {
@@ -401,8 +441,8 @@ it.each(['prepare', 'prepare-packed'] as const)(
     const gate = new Promise<void>((resolve) => {
       resume = resolve
     })
-    const digest = crypto.subtle.digest.bind(crypto.subtle)
-    const spy = vi.spyOn(crypto.subtle, 'digest').mockImplementationOnce(async (...args) => {
+    const digest = cacheHash.murmurHash128
+    const spy = vi.spyOn(cacheHash, 'murmurHash128').mockImplementationOnce(async (...args) => {
       await gate
       return digest(...args)
     })

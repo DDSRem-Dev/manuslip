@@ -2,6 +2,7 @@ import { utf8Bytes } from '@manuslip/core/text'
 import {
   capabilitiesFor,
   deepLMetadataEndpoint,
+  isTranslationKey,
   normalizeTranslationSettings,
   type ProviderCapabilities,
   parseTranslationPayload,
@@ -156,8 +157,7 @@ export function parseCredentialRequest(value: unknown): CredentialRequest {
   }
 }
 function context(input: Record<string, unknown>) {
-  if (typeof input.unitKey !== 'string' || !/^[a-f0-9]{64}$/.test(input.unitKey))
-    throw new Error('translation-invalid')
+  if (!isTranslationKey(input.unitKey)) throw new Error('translation-invalid')
   return {
     requestId: parseId(input.requestId),
     documentId: parseId(input.documentId),

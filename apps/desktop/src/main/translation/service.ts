@@ -2,6 +2,7 @@ import {
   deepLMetadataEndpoint,
   type ProviderLanguage,
   type TranslationSettings,
+  translationSettingsIdentity,
   translationSettingsKey,
   translationUnitKey,
   validateTranslation,
@@ -34,6 +35,7 @@ interface Job {
   identity: string
   request: TranslationRequest
   settings: TranslationSettings
+  scope: string
   controller: AbortController
   subscribers: Set<Subscriber>
   timer: ReturnType<typeof setTimeout>
@@ -146,8 +148,8 @@ export class TranslationService {
       await this.configuration.load()
       if (
         this.configuration.current &&
-        (await translationSettingsKey(this.configuration.current, providerCapabilities)) ===
-          (await translationSettingsKey(settings, providerCapabilities))
+        translationSettingsIdentity(this.configuration.current, providerCapabilities) ===
+          translationSettingsIdentity(settings, providerCapabilities)
       )
         return this.state()
       this.settingsRevision++
@@ -244,7 +246,8 @@ export class TranslationService {
     )
     if (!this.current(subscriber)) throw new TranslationFailure('translation-stale')
     if (key !== request.unitKey) throw new TranslationFailure('translation-invalid')
-    const identity = `${request.network}:${key}`
+    const scope = translationSettingsIdentity(settings, providerCapabilities)
+    const identity = JSON.stringify([request.network, key, scope, request.payload])
     let job = this.jobs.get(identity)
     if (!job) {
       if (this.waiting.length >= transportLimits.waiting)
@@ -254,6 +257,7 @@ export class TranslationService {
         identity,
         request,
         settings: structuredClone(settings),
+        scope,
         controller,
         subscribers: new Set(),
         running: false,
@@ -302,7 +306,12 @@ export class TranslationService {
   }
   private async run(job: Job): Promise<void> {
     const payload = JSON.stringify(job.request.payload)
-    const cached = await this.cache.request({ kind: 'get', key: job.request.unitKey, payload })
+    const cached = await this.cache.request({
+      kind: 'get',
+      key: job.request.unitKey,
+      scope: job.scope,
+      payload,
+    })
     if (!this.valid(job)) return
     let output = cached.output
     if (output !== null) {
@@ -336,7 +345,13 @@ export class TranslationService {
         throw new TranslationFailure('translation-response')
       }
       // No await between the generation check and posting the write. Clear is ordered after it.
-      await this.cache.request({ kind: 'put', key: job.request.unitKey, payload, output })
+      await this.cache.request({
+        kind: 'put',
+        key: job.request.unitKey,
+        scope: job.scope,
+        payload,
+        output,
+      })
       if (!this.valid(job)) return
     }
     for (const subscriber of job.subscribers) {

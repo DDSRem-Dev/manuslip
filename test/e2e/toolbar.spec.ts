@@ -103,7 +103,10 @@ test('document and reading actions preserve keyboard access, native shortcuts an
     await expect(editor).toBeFocused()
     await page.keyboard.press(`${modifier}+3`)
     await openDocumentActions(page)
-    await openReadingOptions(page)
+    // Keyboard activation switches native popovers even when their menus overlap.
+    await options.focus()
+    await page.keyboard.press('Enter')
+    await expect(page.getByRole('group', { name: 'Reading options', exact: true })).toBeVisible()
     await expect(panel).toBeHidden()
     await page.getByRole('button', { name: 'Translation settings', exact: true }).click()
     const preferences = page.getByRole('dialog', { name: 'Preferences', exact: true })
@@ -112,7 +115,7 @@ test('document and reading actions preserve keyboard access, native shortcuts an
     await expect(preferences).toBeHidden()
     await expect(options).toBeFocused()
     await clickDocumentAction(page, 'Export reading HTML…')
-    await expect(page.getByRole('alert')).toContainText('Choose Translate or Load cached')
+    await expect(page.getByRole('alert')).toContainText('Choose Translate before exporting')
     await expect(panel).toBeHidden()
     await expect(page.getByRole('alert')).toBeVisible()
 
@@ -160,6 +163,11 @@ test('toolbar disclosures fit translated, mirrored and zoomed layouts and longer
         true,
       )
       if (panel) {
+        await panel.evaluate(async (element) => {
+          await Promise.all(
+            element.getAnimations({ subtree: true }).map((animation) => animation.finished),
+          )
+        })
         expect(
           await panel.evaluate((element) => element.scrollWidth <= element.clientWidth + 1),
         ).toBe(true)

@@ -10,6 +10,7 @@ import { isPackedSource, type PackedIdentity, PackedSource, sameIdentity } from 
 import { PackedValue } from './packing-value'
 import { PackedWork } from './packing-work'
 import type { PackedWorkspaceBudget } from './packing-workspace'
+import { readingBudgets } from './reading-limits'
 
 export interface PackedSessionLimits {
   bytes: number
@@ -90,7 +91,7 @@ export class PackedSession {
       limits.retained < ownerBytes ||
       limits.retained > semanticLimits.rendererBytes ||
       limits.staging < 1024 ||
-      limits.staging > semanticLimits.messageBytes ||
+      limits.staging > readingBudgets.workspace ||
       limits.captures > 256 ||
       limits.readers > 256
     )

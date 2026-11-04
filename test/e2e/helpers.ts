@@ -34,6 +34,11 @@ export function openReadingOptions(page: Page): Promise<Locator> {
   return openDisclosure(page, /^(Reading options|阅读选项)$/)
 }
 
+export async function waitForReading(page: Page): Promise<void> {
+  await expect(page.locator('.reading-article')).toBeVisible()
+  await expect(page.locator('.reading-primary-actions button.primary')).toBeEnabled()
+}
+
 export async function openMarkdownExtensions(page: Page): Promise<Locator> {
   const dialog = page.locator('.preferences-dialog')
   if (!(await dialog.evaluate((element) => element.hasAttribute('open'))))

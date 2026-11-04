@@ -5,7 +5,7 @@ import { join, resolve, sep } from 'node:path'
 import type { TranslationSettings } from '@manuslip/translate'
 import { type ElectronApplication, expect, type Page, test } from '@playwright/test'
 import axe from 'axe-core'
-import { clickDocumentAction, launchDesktop, selectReadingLayout } from './helpers'
+import { clickDocumentAction, launchDesktop, selectReadingLayout, waitForReading } from './helpers'
 
 const modifier = process.platform === 'darwin' ? 'Meta' : 'Control'
 async function stop(application: ElectronApplication): Promise<void> {
@@ -74,7 +74,7 @@ test('reading presentations and images retain each bilingual layout without new 
     ).toMatchObject({ ok: true })
     await page.getByRole('button', { name: 'Translated preview', exact: true }).click()
     await page.getByRole('button', { name: 'Translate', exact: true }).click()
-    await expect(page.getByText('Reading copy ready.', { exact: true })).toBeVisible()
+    await waitForReading(page)
     const completed = requests
     expect(completed).toBeGreaterThan(0)
     for (const layout of ['replace', 'side-by-side', 'interlinear']) {

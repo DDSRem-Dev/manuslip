@@ -87,10 +87,12 @@ export class PackedTranslationPlan {
   /** Project separately admitted exact native blocks without retaining native bindings.
    * Metadata/source borrowing, reconstruction scratch and cancellation share this pin.
    * The inspector owns native conversion/output admission in addition to these limits.
+   * borrowOutputs requires the caller to keep every resolved immutable string charged
+   * to the same capture's session until this inspector finishes.
    */
   inspectProjection(
     resolve: (unit: PackedTranslationOccurrence) => unknown,
-    limits: { retained: number; staging: number },
+    limits: { retained: number; staging: number; borrowOutputs?: true },
     inspect: (projection: PackedTranslationProjection) => Generator<void>,
   ): PackedWork<void> {
     const data = this.#current()
@@ -115,6 +117,7 @@ export class PackedTranslationPlan {
                 throw new Error('Packed translation projection exceeds workspace limit')
               workspace.resize(retained + staging, staging)
             },
+            budget.borrowOutputs,
           )
           yield* inspect(projection)
         } finally {

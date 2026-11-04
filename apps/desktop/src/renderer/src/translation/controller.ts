@@ -1,9 +1,10 @@
-import { messageSize, semanticLimits } from '@manuslip/core'
+import { semanticLimits } from '@manuslip/core'
 import {
   defaultMarkdownPlugins,
   type MarkdownPlugins,
   markdownPluginNames,
 } from '@manuslip/core/conventions'
+import { readingBudgets } from '@manuslip/core/reading-limits'
 import { type EditorState, OccurrenceTracker, type Text, type Transaction } from '@manuslip/editor'
 import type { RenderOptions } from '@manuslip/renderer'
 import {
@@ -14,6 +15,7 @@ import {
 } from '@manuslip/renderer/reading'
 import { validateTranslation } from '@manuslip/translate'
 import { createStore } from 'zustand/vanilla'
+import { readingJsonBytes } from '../../../../../../packages/renderer/src/reading-bytes'
 import type { ReadingExport } from '../../../shared/reading-export'
 import type {
   TranslationBridge,
@@ -23,12 +25,21 @@ import type {
 import { i18next } from '../i18n'
 import { ReadingWorker } from './browser'
 import { readingCopy } from './copy'
+import { defaultTranslationTarget } from './languages'
 import { prepareReading, type ReadingCapture } from './prepare'
 import { sharedReadingPrepared } from './prepared-wire'
-import { type ReadingEngine, type ReadingUnit, readingLimits } from './protocol'
+import {
+  type ReadingEngine,
+  type ReadingOperation,
+  type ReadingUnit,
+  readingLimits,
+  readingOperationBytes,
+} from './protocol'
+import { TranslationQueue } from './queue'
 
 export interface ReadingStatus {
   visible: boolean
+  navigation: { from: number } | null
   phase: 'idle' | 'preparing' | 'translating' | 'ready' | 'cancelled' | 'error'
   stale: boolean
   revision: number | null
@@ -58,14 +69,19 @@ interface Pending {
   request: TranslationRequest
   ids: Set<string>
 }
+interface TranslationGroup {
+  key: string
+  units: ReadingUnit[]
+}
 /** Owns immutable derived data only. It never dispatches an editor transaction. */
 export class DocumentReading {
   readonly store = createStore<ReadingStatus>(() => ({
     visible: false,
+    navigation: null,
     phase: 'idle',
     stale: false,
     revision: null,
-    target: '',
+    target: defaultTranslationTarget,
     total: 0,
     completed: 0,
     failed: 0,
@@ -87,7 +103,9 @@ export class DocumentReading {
   private source: Text | null = null
   private plugins: MarkdownPlugins = defaultMarkdownPlugins
   private units: ReadingUnit[] = []
-  private groups = new Map<string, ReadingUnit[]>()
+  private readonly groups = new Map<string, TranslationGroup>()
+  private readonly requests = new TranslationQueue<TranslationGroup>()
+  private readonly buffer = new TranslationQueue<TranslationGroup>()
   private readonly outputs = new Map<string, string>()
   private readonly errors = new Map<string, string>()
   private readonly misses = new Set<string>()
@@ -100,10 +118,12 @@ export class DocumentReading {
   private outputBytes = 0
   private renderBusy = false
   private renderAgain = false
+  private renderDirty = false
   private renderTimer: ReturnType<typeof setTimeout> | null = null
   private progressTimer: ReturnType<typeof setTimeout> | null = null
   private enabled = false
   private network = false
+  private restoring = false
   private layoutCustomized = false
   private allowed: Set<string> | null = null
   private disposed = false
@@ -120,7 +140,7 @@ export class DocumentReading {
     this.unsubscribe ??= this.bridge.onTranslationChanged(() => {
       void this.metadata()
     })
-    if (this.store.getState().visible) void this.metadata()
+    if (this.store.getState().visible) void this.run(false, 'restore')
   }
   async metadata(): Promise<TranslationState | null> {
     if (this.disposed || !this.active) return null
@@ -142,7 +162,7 @@ export class DocumentReading {
         this.release()
       this.store.setState({
         configuration: result.value,
-        target: result.value.settings?.targetLanguage ?? '',
+        target: result.value.settings?.targetLanguage ?? defaultTranslationTarget,
       })
       return result.value
     } catch {
@@ -155,8 +175,13 @@ export class DocumentReading {
     }
   }
   show(visible: boolean): void {
+    const opening = visible && !this.store.getState().visible
     this.store.setState({ visible })
-    if (visible && !this.store.getState().configuration) void this.metadata()
+    if (opening) void this.run(false, 'restore')
+    else if (!visible && this.restoring) this.release()
+  }
+  revealHeading(from: number): void {
+    this.store.setState({ navigation: { from } })
   }
   changed(transactions: readonly Transaction[]): void {
     if (!transactions.some((transaction) => transaction.docChanged)) return
@@ -165,7 +190,8 @@ export class DocumentReading {
         this.occurrences.map(transaction.changes)
         this.blockOccurrences.map(transaction.changes)
       }
-    if (this.source) this.store.setState({ stale: true })
+    if (this.restoring) this.release()
+    else if (this.source) this.store.setState({ stale: true })
     // Freeze the captured projection, even if provider responses for its old source arrive.
   }
   private matchingConventions(): boolean {
@@ -193,7 +219,7 @@ export class DocumentReading {
       if (result.ok)
         this.store.setState({
           configuration: result.value,
-          target: result.value.settings?.targetLanguage ?? '',
+          target: result.value.settings?.targetLanguage ?? defaultTranslationTarget,
         })
       else this.store.setState({ error: result.code ?? 'translation-settings' })
     } catch {
@@ -201,9 +227,15 @@ export class DocumentReading {
     }
   }
   async start(network: boolean, failedOnly = false): Promise<void> {
+    await this.run(network, failedOnly ? 'retry' : 'translate')
+  }
+  private async run(network: boolean, mode: 'translate' | 'retry' | 'restore'): Promise<void> {
+    const restore = mode === 'restore'
+    const status = this.store.getState()
     if (this.disposed || !this.active || this.store.getState().phase === 'preparing') return
+    if (restore && (!status.visible || status.phase !== 'idle' || status.projection)) return
     if (this.document.composing()) {
-      this.store.setState({ error: 'translation-composing' })
+      if (!restore) this.store.setState({ error: 'translation-composing' })
       return
     }
     this.store.setState({ visible: true })
@@ -212,12 +244,14 @@ export class DocumentReading {
     const metadata = await this.metadata()
     if (this.disposed || !this.active) return
     if (!metadata) return
+    if (restore && (!this.store.getState().visible || this.store.getState().phase !== 'idle'))
+      return
     if (!metadata.settings) {
-      this.store.setState({ error: 'translation-not-configured' })
+      if (!restore) this.store.setState({ error: 'translation-not-configured' })
       return
     }
     if (revision !== this.document.revision() || text !== this.document.state().doc) {
-      this.store.setState({ error: 'translation-capture-changed' })
+      if (!restore) this.store.setState({ error: 'translation-capture-changed' })
       return
     }
     const reusable =
@@ -226,11 +260,12 @@ export class DocumentReading {
       this.matchingConventions() &&
       this.store.getState().revision === revision &&
       !this.store.getState().stale
-    if (failedOnly && !reusable) {
+    if (mode === 'retry' && !reusable) {
       this.store.setState({ error: 'translation-refresh-first' })
       return
     }
     this.enabled = false
+    this.restoring = restore
     if (!reusable) {
       const generation = ++this.generation
       this.captureAbort?.abort()
@@ -292,13 +327,6 @@ export class DocumentReading {
             to: block.to,
             hash: block.hash,
           }))
-        this.groups = new Map()
-        for (const unit of this.units)
-          if (unit.key) {
-            const group = this.groups.get(unit.key) ?? []
-            group.push(unit)
-            this.groups.set(unit.key, group)
-          }
         this.semanticBytes = Math.max(this.semanticBytes, snapshot.retainedBytes)
         this.descriptorBytes = sharedReadingPrepared({
           kind: 'prepared',
@@ -309,6 +337,7 @@ export class DocumentReading {
         this.plugins = { ...(snapshot.plugins ?? defaultMarkdownPlugins) }
         this.errors.clear()
         this.misses.clear()
+        this.resetWork()
         for (const key of this.outputs.keys())
           if (!this.groups.has(key)) {
             this.outputBytes -= (this.outputs.get(key)?.length ?? 0) * 2
@@ -319,7 +348,7 @@ export class DocumentReading {
           throw new Error('translation-view-limit')
         for (const [key, pending] of this.pending) {
           const current = this.groups.get(key)
-          if (!current?.some((unit) => pending.ids.has(unit.occurrenceId)))
+          if (!current?.units.some((unit) => pending.ids.has(unit.occurrenceId)))
             this.cancelPending(key, pending)
         }
         this.store.setState({
@@ -328,22 +357,44 @@ export class DocumentReading {
           projection: null,
           error: null,
         })
-        await this.render(generation)
+        if (!restore) await this.render(generation)
         if (generation !== this.generation || this.disposed) return
       } catch (error) {
         if (generation === this.generation && !this.disposed) this.failed(error)
         return
       }
-    }
+    } else this.resetWork()
     if (this.disposed) return
-    this.allowed = failedOnly ? new Set(this.errors.keys()) : null
+    this.allowed = mode === 'retry' ? new Set(this.errors.keys()) : null
     this.errors.clear()
-    if (!failedOnly) this.misses.clear()
+    if (mode !== 'retry') this.misses.clear()
     this.enabled = true
     this.network = network
     this.store.setState({ phase: 'translating', error: null })
     this.progress(true)
     this.pump()
+  }
+  private resetWork(): void {
+    this.clearWork()
+    for (const unit of this.units) {
+      if (!unit.key) continue
+      // Completed text is retained once for reuse/export; its request payload can expire.
+      if (this.outputs.has(unit.key)) unit.payload = null
+      if (this.sent.has(unit.key)) continue
+      let group = this.groups.get(unit.key)
+      if (!group) {
+        group = { key: unit.key, units: [] }
+        this.groups.set(unit.key, group)
+      }
+      group.units.push(unit)
+    }
+    this.requests.reset(this.groups.values())
+    this.buffer.reset(this.groups.values())
+  }
+  private clearWork(): void {
+    this.requests.clear()
+    this.buffer.clear()
+    this.groups.clear()
   }
   private fits(projectionBytes: number): boolean {
     return (
@@ -353,10 +404,17 @@ export class DocumentReading {
   }
   private pump(): void {
     if (!this.enabled || this.disposed || !this.engine) return
+    // Opening restores a complete saved copy. A miss leaves new work behind Translate.
+    if (this.restoring && (this.misses.size || this.errors.size || this.store.getState().stale)) {
+      this.release()
+      return
+    }
     const state = this.store.getState().configuration
     if (!state?.settings) return
-    for (const [key, units] of this.groups) {
-      if (this.pending.size >= 2) break
+    while (this.pending.size < readingLimits.requests) {
+      const group = this.requests.take()
+      if (!group) break
+      const { key, units } = group
       if (this.allowed && !this.allowed.has(key)) continue
       if (
         this.outputs.has(key) ||
@@ -423,10 +481,10 @@ export class DocumentReading {
             return
           }
           this.outputs.set(key, value.output)
+          for (const unit of this.groups.get(key)?.units ?? []) unit.payload = null
           this.outputBytes += bytes
           if (value.cached) this.cached.add(key)
           this.store.setState({ configuration: { ...configuration, cache: value.cache } })
-          this.scheduleRender()
         })
         .catch(() => {
           if (this.pending.get(key) === pending) this.errors.set(key, 'translation-response')
@@ -436,10 +494,16 @@ export class DocumentReading {
           this.pending.delete(key)
           this.progress()
           this.pump()
+          this.scheduleRender()
         })
     }
     if (!this.pending.size) {
       this.enabled = false
+      if (this.restoring && !this.outputs.size) {
+        this.release()
+        return
+      }
+      this.restoring = false
       this.store.setState({ phase: 'ready' })
       this.progress(true)
       this.scheduleRender(true)
@@ -475,7 +539,7 @@ export class DocumentReading {
     } else this.progressTimer = setTimeout(apply, readingLimits.progressMs)
   }
   private scheduleRender(immediate = false): void {
-    if (this.store.getState().phase === 'preparing' || !this.engine) return
+    if (this.restoring || this.store.getState().phase === 'preparing' || !this.engine) return
     if (this.renderTimer) {
       if (!immediate) return
       clearTimeout(this.renderTimer)
@@ -492,26 +556,56 @@ export class DocumentReading {
     )
   }
   private async render(generation: number): Promise<void> {
+    if (this.restoring) return
     if (this.renderBusy) {
       this.renderAgain = true
       return
     }
     const engine = this.engine
     if (!engine) return
+    const outputs: { key: string; output: string }[] = []
+    // Requests run concurrently. Publish only the settled prefix in source order.
+    const status = this.store.getState()
+    const copy = readingCopy[i18next.language === 'zh-CN' ? 'zh-CN' : 'en']
+    const operation: Extract<ReadingOperation, { kind: 'render' }> = {
+      kind: 'render',
+      outputs,
+      options: { ...this.document.options(), plugins: this.plugins },
+      layout: status.layout,
+      blocks: this.blocks,
+      labels: { original: copy.original, translation: copy.translation },
+    }
+    let bytes = readingOperationBytes(operation) + 1024
+    while (this.buffer.first) {
+      const { key } = this.buffer.first
+      const output = this.outputs.get(key)
+      if (output === undefined) {
+        if (
+          !this.errors.has(key) &&
+          !this.misses.has(key) &&
+          status.phase !== 'cancelled' &&
+          status.phase !== 'ready'
+        )
+          break
+      } else if (!this.sent.has(key)) {
+        const entry = { key, output }
+        const size = readingJsonBytes(entry) + 1
+        if (bytes + size > readingLimits.message) {
+          if (!outputs.length) throw new Error('translation-view-limit')
+          this.renderAgain = true
+          break
+        }
+        outputs.push(entry)
+        bytes += size
+      }
+      this.buffer.take()
+      this.groups.delete(key)
+    }
+    if (!outputs.length && !this.renderDirty && status.projection?.layout === status.layout) return
     this.renderBusy = true
-    const outputs = [...this.outputs]
-      .filter(([key]) => !this.sent.has(key))
-      .map(([key, output]) => ({ key, output }))
+    this.renderDirty = false
     try {
-      const copy = readingCopy[i18next.language === 'zh-CN' ? 'zh-CN' : 'en']
-      const result = await engine.request({
-        kind: 'render',
-        outputs,
-        options: { ...this.document.options(), plugins: this.plugins },
-        layout: this.store.getState().layout,
-        blocks: this.blocks,
-        labels: { original: copy.original, translation: copy.translation },
-      })
+      const result = await engine.request(operation)
       if (generation !== this.generation || this.disposed) return
       if (result.kind !== 'rendered' || !this.fits(readingProjectionBytes(result.projection)))
         throw new Error('translation-view-limit')
@@ -530,6 +624,7 @@ export class DocumentReading {
     }
   }
   refreshRendering(): void {
+    this.renderDirty = true
     this.scheduleRender(true)
   }
   setLayout(layout: ReadingLayout): void {
@@ -559,7 +654,7 @@ export class DocumentReading {
     if (!this.source || status.revision === null || !settings || !status.projection)
       throw new Error('export-reading-empty')
     const units = this.units.flatMap((unit, index) => {
-      const output = unit.key ? this.outputs.get(unit.key) : undefined
+      const output = unit.key && this.sent.has(unit.key) ? this.outputs.get(unit.key) : undefined
       return output === undefined ? [] : [{ index, output }]
     })
     const snapshot = {
@@ -578,7 +673,11 @@ export class DocumentReading {
         confirmed: false,
       },
     }
-    if (messageSize(snapshot) > readingLimits.message) throw new Error('export-limit')
+    if (
+      units.reduce((bytes, unit) => bytes + unit.output.length * 2, 0) > readingBudgets.outputs ||
+      readingJsonBytes(snapshot) > readingBudgets.exportRequest
+    )
+      throw new Error('export-limit')
     return snapshot
   }
   /** New source semantics share the allowance with an older, visibly stale reading copy. */
@@ -595,7 +694,12 @@ export class DocumentReading {
     void this.bridge.cancelTranslation(pending.request.requestId).catch(() => {})
   }
   cancel(): void {
+    if (this.restoring) {
+      this.release()
+      return
+    }
     this.enabled = false
+    this.requests.clear()
     this.captureAbort?.abort()
     this.captureAbort = null
     for (const [key, pending] of this.pending) this.cancelPending(key, pending)
@@ -604,6 +708,7 @@ export class DocumentReading {
       this.engine?.dispose()
       this.engine = null
       this.renderBusy = false
+      this.clearWork()
     }
     this.store.setState({ phase: 'cancelled', error: null })
     this.progress(true)
@@ -611,9 +716,11 @@ export class DocumentReading {
   }
   private failed(error: unknown): void {
     this.enabled = false
+    this.restoring = false
     for (const [key, pending] of this.pending) this.cancelPending(key, pending)
     this.engine?.dispose()
     this.engine = null
+    this.clearWork()
     this.clearTimers()
     this.renderBusy = false
     this.store.setState({
@@ -632,6 +739,7 @@ export class DocumentReading {
   }
   private release(): void {
     this.enabled = false
+    this.restoring = false
     this.allowed = null
     this.generation++
     this.captureAbort?.abort()
@@ -643,14 +751,14 @@ export class DocumentReading {
     this.source = null
     this.units = []
     this.blocks = []
-    this.groups.clear()
+    this.clearWork()
     this.outputs.clear()
     this.errors.clear()
     this.misses.clear()
     this.cached.clear()
     this.sent.clear()
     this.outputBytes = this.descriptorBytes = this.semanticBytes = 0
-    this.renderBusy = this.renderAgain = false
+    this.renderBusy = this.renderAgain = this.renderDirty = false
     this.store.setState({
       phase: 'idle',
       stale: false,

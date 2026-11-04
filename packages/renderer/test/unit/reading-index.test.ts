@@ -59,6 +59,14 @@ it('shares exact row values with distinct anchors and preserves complete native 
   expect(expanded.match(/Repeated/g)).toHaveLength(4)
   expect(readingProjectionBytes(value)).toBeGreaterThan(4096)
 })
+it('counts HTML as retained UTF-16 and still charges unexpected metadata', () => {
+  const ascii = { html: 'x'.repeat(1000), slots: [] }
+  expect(readingProjectionBytes({ ...ascii, html: '界'.repeat(1000) })).toBe(
+    readingProjectionBytes(ascii),
+  )
+  const extended = { ...ascii, extra: 'x'.repeat(1000) }
+  expect(readingProjectionBytes(extended)).toBeGreaterThan(readingProjectionBytes(ascii) + 2000)
+})
 it.each([
   'reference',
   'anchor',

@@ -18,7 +18,8 @@
     "./conventions": "./src/convention-style.ts",
     "./raster": "./src/raster.ts",
     "./slides": "./src/slide-groups.ts",
-    "./reading": "./src/reading.ts"
+    "./reading": "./src/reading.ts",
+    "./reading-bytes": "./src/reading-bytes.ts"
   },
   "dependencies": {
     "@manuslip/core": "0.1.0",

@@ -112,7 +112,7 @@ it('hashes every output-affecting descriptor and settings field, and excludes re
     expect(await translationSettingsKey({ ...settings, ...patch }, fixtureCapabilities)).not.toBe(
       key,
     )
-  expect(key).toMatch(/^[a-f0-9]{64}$/)
+  expect(key).toMatch(/^[a-f0-9]{32}$/)
   const source =
     'Read `private-one` and [label](https://private-one.example).\n\nRead `private-two` and [label](https://private-two.example).'
   const extracted = extractTranslation(parseMarkdown(source).root, source)

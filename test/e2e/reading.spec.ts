@@ -7,11 +7,11 @@ import type { TranslationSettings } from '@manuslip/translate'
 import { type ElectronApplication, expect, test } from '@playwright/test'
 import { expectBundledCjk } from './fonts'
 import {
-  clickReadingAction,
   contrast,
   launchDesktop,
   openReadingOptions,
   selectReadingLayout,
+  waitForReading,
 } from './helpers'
 
 const modifier = process.platform === 'darwin' ? 'Meta' : 'Control'
@@ -50,6 +50,82 @@ function answer(reply: ServerResponse, content: string) {
     }),
   )
 }
+test('concurrent translation renders buffered responses in order and keeps its toolbar visible', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'manuslip-reading-order-'))
+  const path = join(directory, 'reading.md')
+  const source = ['First', 'Second', 'Third', 'Fourth']
+    .map((name) => `${name} paragraph. ${'Source text. '.repeat(80)}`)
+    .join('\n\n')
+  await writeFile(path, source)
+  const waiting: ServerResponse[] = []
+  const server = createServer(async (incoming, reply) => {
+    for await (const _chunk of incoming) {
+      /* Drain the request while allowing responses to finish in any order. */
+    }
+    waiting.push(reply)
+  })
+  server.listen(0, '127.0.0.1')
+  await once(server, 'listening')
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('No server')
+  const application = await launchDesktop(join(directory, 'profile'), [path])
+  try {
+    const page = await application.firstWindow()
+    await expect(page.locator('.cm-content')).toContainText('First paragraph.')
+    await page.evaluate(
+      (value) => window.manuslip.configureTranslation(value),
+      settings(`http://127.0.0.1:${address.port}/chat`),
+    )
+    await page.getByRole('button', { name: 'Translated preview', exact: true }).click()
+    await expect(page.getByLabel('Read in', { exact: true })).toHaveValue('zh-CN')
+    expect(waiting).toHaveLength(0)
+    await expect(page.getByRole('button', { name: 'Load cached', exact: true })).toHaveCount(0)
+    await page.getByRole('button', { name: 'Translate', exact: true }).click()
+    await expect.poll(() => waiting.length).toBe(2)
+    const article = page.locator('.reading-article')
+    const translations = ['第一段。', '第二段。', '第三段。'].map(
+      (text) => `${text}${'正文内容。'.repeat(120)}`,
+    )
+    answer(waiting[1] as ServerResponse, translations[1] as string)
+    await expect.poll(() => waiting.length).toBe(3)
+    await expect(page.getByText('1 of 4 prose units translated · 0 cached')).toBeVisible()
+    await expect(article).not.toContainText('第二段。')
+    answer(waiting[2] as ServerResponse, translations[2] as string)
+    await expect.poll(() => waiting.length).toBe(4)
+    await expect(page.getByText('2 of 4 prose units translated · 0 cached')).toBeVisible()
+    await expect(article).not.toContainText('第三段。')
+    answer(waiting[0] as ServerResponse, translations[0] as string)
+    await expect(article).toContainText('第三段。')
+    const text = (await article.textContent()) ?? ''
+    expect(text.indexOf('第一段。')).toBeLessThan(text.indexOf('第二段。'))
+    expect(text.indexOf('第二段。')).toBeLessThan(text.indexOf('第三段。'))
+    await page.locator('.reading-pane').evaluate((element) => {
+      element.scrollTop = 600
+    })
+    await expect(
+      page.getByRole('button', { name: 'Cancel translation', exact: true }),
+    ).toBeInViewport({
+      ratio: 1,
+    })
+    const toolbar = await page.locator('.reading-controls').boundingBox()
+    const pane = await page.locator('.reading-pane').boundingBox()
+    expect(Math.abs((toolbar?.y ?? -1) - (pane?.y ?? -100))).toBeLessThanOrEqual(1)
+    await page.screenshot({ path: test.info().outputPath('reading-ordered-sticky-toolbar.png') })
+    await page.getByRole('button', { name: 'Cancel translation', exact: true }).click()
+    answer(waiting[3] as ServerResponse, 'LATE')
+    await expect(
+      page.getByText('Translation cancelled. Completed translations are kept.'),
+    ).toBeVisible()
+    await expect(article).toContainText('第三段。')
+    await expect(article).not.toContainText('LATE')
+    expect(await readFile(path, 'utf8')).toBe(source)
+  } finally {
+    await stop(application)
+    server.closeAllConnections()
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })
+  }
+})
 test('translated reading preserves structure, private bindings, source history, cache and explicit refresh', async () => {
   test.setTimeout(45_000)
   const directory = await mkdtemp(join(tmpdir(), 'manuslip-reading-'))
@@ -97,8 +173,10 @@ test('translated reading preserves structure, private bindings, source history, 
       Worker.prototype.postMessage = new Proxy(Worker.prototype.postMessage, {
         apply(target, worker, args) {
           const operation = args[0]?.operation as
-            | { kind?: string; payload?: ArrayBuffer }
+            | { kind?: string; payload?: ArrayBuffer; settings?: unknown }
             | undefined
+          // The local Markdown preview has no translation request payloads.
+          if (operation?.settings === null) return Reflect.apply(target, worker, args)
           if (operation?.kind === 'prepare') {
             probe.native++
             probe.bytes += new TextEncoder().encode(JSON.stringify(operation)).byteLength
@@ -139,14 +217,10 @@ test('translated reading preserves structure, private bindings, source history, 
       ),
     ).toMatchObject({ ok: true })
     await page.getByRole('button', { name: 'Translated preview', exact: true }).click()
-    await expect(
-      page.getByText('Choose Translate or Load cached to create a read-only copy.', {
-        exact: true,
-      }),
-    ).toBeVisible()
+    await waitForReading(page)
     expect(received).toHaveLength(0)
     await page.getByRole('button', { name: 'Translate', exact: true }).click()
-    await expect(page.getByText('Reading copy ready.', { exact: true })).toBeVisible()
+    await waitForReading(page)
     const transfer = await page.evaluate(
       () =>
         (
@@ -168,10 +242,10 @@ test('translated reading preserves structure, private bindings, source history, 
     // Configurable document conventions use the native semantic path so their
     // heading, callout and inline metadata survive into the reading worker.
     expect(transfer.packed).toBe(0)
-    expect(transfer.native).toBe(1)
+    expect(transfer.native).toBe(2)
     expect(transfer.detached).toBe(transfer.packed)
     expect(transfer.bytes).toBeGreaterThan(4)
-    expect(transfer.shared).toBe(1)
+    expect(transfer.shared).toBe(2)
     expect(transfer.units).toBeGreaterThan(transfer.payloads)
     expect(transfer.payloads).toBeGreaterThan(0)
     expect(transfer.responseBytes).toBeLessThan(8 * 1024 * 1024)
@@ -228,8 +302,8 @@ test('translated reading preserves structure, private bindings, source history, 
     console.log('Reading worker clone probe during layout renders:', JSON.stringify(cloneProbe))
     await page.screenshot({ path: test.info().outputPath('reading-structure.png') })
     const calls = received.length
-    await clickReadingAction(page, 'Load cached')
-    await expect(page.getByText('Reading copy ready.', { exact: true })).toBeVisible()
+    await page.getByRole('button', { name: 'Translate', exact: true }).click()
+    await waitForReading(page)
     expect(received).toHaveLength(calls)
     // Source history contains only the user's edit, never translated content.
     await page.keyboard.press(`${modifier}+1`)
@@ -248,7 +322,7 @@ test('translated reading preserves structure, private bindings, source history, 
     await page.screenshot({ path: test.info().outputPath('reading-stale.png') })
     await page.getByRole('button', { name: 'Refresh translation', exact: true }).click()
     await expect(article).toContainText('你好 added paragraph.')
-    await expect(page.getByText('Reading copy ready.', { exact: true })).toBeVisible()
+    await waitForReading(page)
     expect(received).toHaveLength(calls + 1)
     await page.keyboard.press(`${modifier}+1`)
     await page.locator('.cm-content').focus()
@@ -263,11 +337,16 @@ test('translated reading preserves structure, private bindings, source history, 
     page = await application.firstWindow()
     await expect(page.locator('.cm-content')).toContainText('Hello world')
     await page.getByRole('button', { name: 'Translated preview', exact: true }).click()
-    await clickReadingAction(page, 'Load cached')
     await expect(
       page.locator('.reading-article').getByRole('heading', { name: '你好 世界', exact: true }),
     ).toBeVisible()
-    await expect(page.getByText('Reading copy ready.', { exact: true })).toBeVisible()
+    await waitForReading(page)
+    await expect(page.getByRole('button', { name: 'Translate', exact: true })).toBeEnabled()
+    await expect(page.getByRole('button', { name: 'Translate', exact: true })).not.toBeFocused()
+    await page.getByRole('button', { name: 'New document', exact: true }).first().click()
+    await page.getByRole('tab', { name: 'reading.md', exact: true }).click()
+    await expect(page.locator('.reading-article')).toContainText('你好 世界')
+    await waitForReading(page)
     expect(received).toHaveLength(calls + 1)
   } finally {
     await stop(application)
@@ -371,10 +450,8 @@ test('reading shows partial failure and retry, rejects cancelled work and langua
     }
     // Changing the target resets the derived copy without making requests.
     await page.getByLabel('Read in', { exact: true }).selectOption('ja')
-    await expect(page.locator('.reading-placeholder')).toContainText(
-      'Choose Translate or Load cached',
-    )
-    await expect(page.locator('.reading-article')).toBeHidden()
+    await waitForReading(page)
+    await expect(page.locator('.reading-article')).toContainText('Hello first.')
     expect(received).toHaveLength(count + 1)
     hold = true
     await page.getByRole('button', { name: 'Translate', exact: true }).click()
@@ -383,10 +460,8 @@ test('reading shows partial failure and retry, rejects cancelled work and langua
     await page.getByRole('button', { name: 'New document', exact: true }).first().click()
     await page.getByRole('tab', { name: 'reading.md', exact: true }).click()
     for (const pending of waiting) answer(pending.reply, `LATE ${pending.text}`)
-    await expect(page.locator('.reading-placeholder')).toContainText(
-      'Choose Translate or Load cached',
-    )
-    await expect(page.locator('.reading-article')).toBeHidden()
+    await waitForReading(page)
+    await expect(page.locator('.reading-article')).toContainText('Hello first.')
     await expect(page.locator('.reading-article')).not.toContainText('LATE')
     const afterSwitch = received.length
     await page.getByRole('button', { name: 'Translate', exact: true }).click()
@@ -419,13 +494,14 @@ test('reading shows partial failure and retry, rejects cancelled work and langua
       BrowserWindow.getAllWindows()[0]?.webContents.setZoomFactor(2),
     )
     await openReadingOptions(page)
-    await page.getByRole('button', { name: '载入缓存', exact: true }).scrollIntoViewIfNeeded()
-    await expect(page.getByRole('button', { name: '载入缓存', exact: true })).toBeInViewport({
+    await page.getByLabel('阅读布局', { exact: true }).scrollIntoViewIfNeeded()
+    await expect(page.getByLabel('阅读布局', { exact: true })).toBeInViewport({
       ratio: 1,
     })
-    await clickReadingAction(page, '载入缓存')
+    await page.getByLabel('阅读布局', { exact: true }).selectOption('interlinear')
+    await page.keyboard.press('Escape')
     await expect(
-      page.locator('.reading-article').getByRole('heading', { name: 'Hello world', exact: true }),
+      page.locator('.reading-original').getByRole('heading', { name: 'Hello world', exact: true }),
     ).toBeVisible()
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     await page.screenshot({ path: test.info().outputPath('reading-zoom-chinese.png') })

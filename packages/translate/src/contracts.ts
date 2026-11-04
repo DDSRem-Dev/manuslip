@@ -1,4 +1,5 @@
 import type { Nodes, Root, SourceRange } from '@manuslip/core'
+import { readingBudgets } from '@manuslip/core/reading-limits'
 
 export const extractionVersion = 'mdast-prose-tokens/v3-deflist1'
 export const reconstructionVersion = 'mdast-text-only/v3-deflist1'
@@ -9,7 +10,8 @@ export const translationLimits = {
   payload: 64 * 1024,
   output: 256 * 1024,
   plan: 16 * 1024 * 1024,
-  reconstructed: 16 * 1024 * 1024,
+  // A 16 MiB UTF-16 buffer can contain 24 MiB of UTF-8 CJK text.
+  reconstructed: readingBudgets.reconstructed,
   endpoint: 8192,
   options: 32,
   optionValue: 2048,

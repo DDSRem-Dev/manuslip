@@ -1,4 +1,5 @@
 import type { TranslationSettings as Settings } from '@manuslip/translate'
+import { defaultTranslationTarget } from './languages'
 
 export const translationEndpoints = {
   'openai-compatible': 'https://api.openai.com/v1/chat/completions',
@@ -15,7 +16,7 @@ export const emptyTranslationSettings: Settings = {
     options: {},
   },
   sourceLanguage: 'auto',
-  targetLanguage: 'zh-CN',
+  targetLanguage: defaultTranslationTarget,
   glossary: [],
   formality: 'default',
   promptVersion: 'prose-translation/v1',

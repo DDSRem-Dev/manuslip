@@ -615,7 +615,7 @@ describe('bounded packed snapshot sessions', () => {
       { retained: 0 },
       { retained: 65 * MiB },
       { staging: 0 },
-      { staging: 9 * MiB },
+      { staging: 33 * MiB },
       { captures: 257 },
       { readers: 257 },
     ])

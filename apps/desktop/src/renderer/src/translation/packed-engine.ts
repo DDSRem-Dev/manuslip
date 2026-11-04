@@ -1,4 +1,5 @@
 import { sourceHash } from '@manuslip/core'
+import { readingBudgets } from '@manuslip/core/reading-limits'
 import { rendererVersion } from '@manuslip/renderer'
 import { type ReadingBlock, readingProjectionBytes } from '@manuslip/renderer/reading'
 import {
@@ -31,7 +32,13 @@ import {
 } from './protocol'
 
 const MiB = 1024 * 1024
-const limits = { retained: 24 * MiB, metadata: 8 * MiB, staging: 8 * MiB, nodes: 800000, depth: 64 }
+const limits = {
+  retained: 48 * MiB,
+  metadata: 8 * MiB,
+  staging: readingBudgets.workspace,
+  nodes: 800000,
+  depth: 64,
+}
 const hashScratch = 2 * MiB
 type Prepare = Extract<ReadingOperation, { kind: 'prepare-packed' }>
 type Render = Extract<ReadingOperation, { kind: 'render' }>
@@ -43,7 +50,7 @@ type Render = Extract<ReadingOperation, { kind: 'render' }>
 export class PackedReadingProcessor {
   private readonly owner = new PackedSession({
     retained: readingLimits.worker,
-    staging: readingLimits.message,
+    staging: limits.staging,
     bytes: readingLimits.message,
     captures: 8,
     readers: 160,
@@ -56,6 +63,7 @@ export class PackedReadingProcessor {
   private readonly payloads = new Map<string, TranslationPayload>()
   private readonly outputs = new Map<string, string>()
   private outputBytes = 4096
+  private outputTextBytes = 0
   private retained: PackedWorkspace | undefined
   private records: PackedWorkspace | undefined
   private input: PackedWorkspace | undefined
@@ -121,12 +129,14 @@ export class PackedReadingProcessor {
       this.observe()
       const blocks = this.readBlocks()
       this.blocks = new CompactReadingBlocks(blocks, store)
-      const keys = await prepareCanonicalTranslation(
-        plan,
-        operation.settings,
-        capabilitiesFor(operation.settings.provider.adapter),
-        () => this.active(),
-      ).then((prepared) => prepared.keys)
+      const keys = operation.settings
+        ? await prepareCanonicalTranslation(
+            plan,
+            operation.settings,
+            capabilitiesFor(operation.settings.provider.adapter),
+            () => this.active(),
+          ).then((prepared) => prepared.keys)
+        : new Map<TranslationPayload, string>()
       this.active()
       this.keys = keys
       for (const [payload, key] of keys) this.payloads.set(key, payload)
@@ -137,11 +147,11 @@ export class PackedReadingProcessor {
         to: unit.to,
         hash: sourceHash(operation.source.slice(unit.from, unit.to)),
         key: unit.payload ? (keys.get(unit.payload) ?? null) : null,
-        payload: unit.payload,
+        payload: operation.settings ? unit.payload : null,
       }))
       this.settings = {
-        sourceLanguage: operation.settings.sourceLanguage,
-        targetLanguage: operation.settings.targetLanguage,
+        sourceLanguage: operation.settings?.sourceLanguage ?? 'auto',
+        targetLanguage: operation.settings?.targetLanguage ?? '',
       }
       const value = { kind: 'prepared' as const, units, blocks }
       // Validate the actual complete descriptor representation under its existing cap.
@@ -223,6 +233,11 @@ export class PackedReadingProcessor {
         this.observe()
         try {
           validateTranslation(payload, entry.output)
+          const textBytes =
+            this.outputTextBytes +
+            entry.output.length * 2 -
+            (this.outputs.get(entry.key)?.length ?? 0) * 2
+          if (textBytes > readingLimits.outputs) throw new Error('translation-view-limit')
           const next =
             this.outputBytes +
             (this.outputs.has(entry.key) ? 0 : 512) +
@@ -231,16 +246,25 @@ export class PackedReadingProcessor {
           this.retained.resize(store + next, 0)
           this.outputs.set(entry.key, entry.output)
           this.outputBytes = next
+          this.outputTextBytes = textBytes
         } finally {
           this.retained.resize(store + this.outputBytes, 0)
         }
       }
+      // Validated strings now belong to outputs; the request borrows those same
+      // strings rather than retaining a second backing store during projection.
+      this.input.resize(
+        65536 +
+          readingJsonBytes({ ...operation, outputs: [], blocks: undefined }) * 2 +
+          (operation.blocks?.length ?? blocks.count) * 768,
+        0,
+      )
       let value: ReadingValue | undefined
       const processor = this
       finishPackedSteps(
         plan.inspectProjection(
           (unit) => this.outputs.get(unit.payload ? (this.keys.get(unit.payload) ?? '') : ''),
-          limits,
+          { ...limits, borrowOutputs: true },
           function* (projected) {
             const translated = new Set(
               plan.units
@@ -260,7 +284,7 @@ export class PackedReadingProcessor {
                 sourceLanguage: settings.sourceLanguage,
                 targetLanguage: settings.targetLanguage,
                 labels: operation.labels ?? { original: 'Original', translation: 'Translation' },
-                indexAboveBytes: readingLimits.projection,
+                indexAboveBytes: readingLimits.message,
               },
               limits,
               projected,
@@ -297,7 +321,10 @@ export class PackedReadingProcessor {
       const shared = value.kind === 'prepared' ? this.preparedWire : undefined
       if (value.kind === 'prepared' && !shared) throw new Error('translation-view-worker')
       const response = { sequence, value: shared?.value ?? (value as ReadingWireValue) }
-      if (readingJsonBytes(response) > readingLimits.message)
+      if (
+        readingJsonBytes(response) >
+        (value.kind === 'rendered' ? readingLimits.response : readingLimits.message)
+      )
         throw new Error('translation-view-limit')
       const bytes =
         4096 +

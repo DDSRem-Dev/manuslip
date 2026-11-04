@@ -9,6 +9,7 @@ import {
   launchDesktop,
   openMarkdownExtensions,
   selectReadingLayout,
+  waitForReading,
 } from './helpers'
 
 const modifier = process.platform === 'darwin' ? 'Meta' : 'Control'
@@ -228,7 +229,7 @@ for (const theme of ['light', 'dark'] as const) {
       )
       await page.getByRole('button', { name: 'Translated preview', exact: true }).click()
       await page.getByRole('button', { name: 'Translate', exact: true }).click()
-      await expect(page.getByText('Reading copy ready.', { exact: true })).toBeVisible()
+      await waitForReading(page)
       await selectReadingLayout(page, 'side-by-side')
       const article = page.locator('.reading-article')
       await basicHtml(article.locator('.reading-original'))

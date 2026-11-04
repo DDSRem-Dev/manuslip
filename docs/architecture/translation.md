@@ -21,11 +21,41 @@ diagram, frontmatter, HTML and definition blocks stay outside translation. Human
 Markdown link/reference labels translate; destinations, titles and reference identifiers stay
 local. Image alt text and raw HTML bodies currently remain unchanged.
 
-`prepareTranslation(plan, settings, capabilities)` computes canonical SHA-256 unit keys and
+`prepareTranslation(plan, settings, capabilities)` computes canonical MurmurHash3 x86 128-bit unit keys and
 deduplicates equivalent work. Each job contains only a key and `TranslationPayload`. **Never
 send a plan, unit, root or binding to a provider.** Protected values stay in each occurrence's
 binding map, so `Use alpha()` and `Use beta()` can share work when the calls are inline code,
 without reconstructing the wrong call. Provider/cache payload parsing rejects unknown fields.
+
+Translation hashes index derived data; they do not authenticate it. Main recomputes unit keys,
+and cache hits require exact canonical settings and payload equality plus output validation.
+Job admission also compares those complete values, and preparation rejects different payloads
+that collide within a plan. Credential bindings continue to use SHA-256 independently.
+
+The translated view retains up to 16 MiB of output within a 64 MiB shared snapshot budget;
+its reading worker also has a 64 MiB ownership budget. Requests use bounded 8 MiB batches;
+complete responses have a separate 64 MiB wire ceiling and a 32 MiB retained projection ceiling.
+Large bilingual projections use indexed rows. Retained output/projection strings count UTF-16
+bytes, while wire/HTML sizes count UTF-8. Reading export accepts the same 16 MiB output budget,
+with 64 MiB request/HTML ceilings and 24 MiB UTF-8 reconstruction for CJK text.
+
+The dedicated SQLite cache worker uses schema 2, with a 256 MiB logical-data budget,
+320 MiB database ceiling and 50,000 entries. Entries expire 30 days after a successful write;
+reads coalesce LRU updates into bounded batches without extending expiration. Metadata flushes
+run on a one-second idle timer, before eviction and on close; payload writes remain fully synced.
+Expired rows are removed on lookup and
+in indexed batches during cache activity. The legacy SHA-256 cache is rebuilt on upgrade
+because stored hashes do not contain enough settings information to safely rekey entries.
+
+SQLite uses WAL with `synchronous=FULL`, automatic checkpoints, reused prepared statements,
+and atomic replacement/eviction transactions. WAL and shared-memory sidecars receive the same
+file checks as the database. A 32 MiB WAL threshold triggers a truncating checkpoint; a pinned
+reader that prevents it pauses writes while preserving reads and the WAL for recovery. Logical
+and physical page pressure both evict old entries before insertion; full/busy writes roll back
+without closing the healthy connection, allowing later requests and clearing to recover. The
+database, sidecars and corruption quarantine share a 384 MiB footprint budget. Clearing the
+cache checkpoints before deleting its files. Storage failures leave translation available
+in memory and report the cache as unavailable.
 
 `reconstructTranslation(plan, outputsByOccurrence)` validates complete outputs before admission.
 Each token must occur exactly once, with its original parent and balanced formatting pair.

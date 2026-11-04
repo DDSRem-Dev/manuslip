@@ -4,7 +4,13 @@ import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { type ElectronApplication, expect, test } from '@playwright/test'
-import { clickDocumentAction, contrast, launchDesktop, selectReadingLayout } from './helpers'
+import {
+  clickDocumentAction,
+  contrast,
+  launchDesktop,
+  selectReadingLayout,
+  waitForReading,
+} from './helpers'
 
 async function stop(application: ElectronApplication) {
   await application
@@ -153,7 +159,7 @@ test('DeepL settings discover native capabilities explicitly, translate private 
     await page.getByRole('button', { name: 'Translated preview', exact: true }).click()
     expect(requests).toHaveLength(1)
     await page.getByRole('button', { name: 'Translate', exact: true }).click()
-    await expect(page.getByText('Reading copy ready.', { exact: true })).toBeVisible()
+    await waitForReading(page)
     const article = page.locator('.reading-article')
     await expect(
       article.getByRole('heading', { name: 'Guten Tag Welt', exact: true }),
@@ -201,14 +207,11 @@ test('DeepL settings discover native capabilities explicitly, translate private 
     page = await application.firstWindow()
     await expect(page.locator('.cm-content')).toContainText('Hello world')
     await page.getByRole('button', { name: 'Translated preview', exact: true }).click()
-    await expect(
-      page.getByRole('heading', { name: 'Add a DeepL API key', exact: true }),
-    ).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Translate', exact: true })).toBeDisabled()
-    await page.getByRole('button', { name: 'Load cached', exact: true }).click()
     await expect(page.locator('.reading-article')).toContainText('Guten Tag Welt')
-    await expect(page.getByText('Reading copy ready.', { exact: true })).toBeVisible()
-    await expect(page.locator('.reading-article')).toBeFocused()
+    await waitForReading(page)
+    await expect(page.getByRole('button', { name: 'Translate', exact: true })).toBeEnabled()
+    await expect(page.getByRole('button', { name: 'Translate', exact: true })).not.toBeFocused()
+    expect(requests).toHaveLength(3)
     expect(await page.evaluate(() => window.manuslip.translationState())).toMatchObject({
       ok: true,
       value: { credential: 'none' },
@@ -315,10 +318,8 @@ test('DeepL quota failures retain source, report an actionable error and retry o
     expect(configured.ok).toBe(true)
     expect(metadata + translations).toBe(0)
     await page.getByRole('button', { name: 'Translated preview', exact: true }).click()
-    await expect(page.getByRole('button', { name: 'Translate', exact: true })).toBeDisabled()
-    await expect(
-      page.getByRole('heading', { name: 'Add a DeepL API key', exact: true }),
-    ).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Translate', exact: true })).toBeEnabled()
+    await expect(page.getByRole('button', { name: 'Add API key', exact: true })).toBeVisible()
     await expect(page.getByLabel('Read in', { exact: true })).toContainText('German')
     await page.getByRole('button', { name: 'Choose languages', exact: true }).click()
     await expect(
@@ -370,7 +371,7 @@ test('DeepL quota failures retain source, report an actionable error and retry o
     quota = false
     await page.getByRole('button', { name: 'Retry failed', exact: true }).focus()
     await page.keyboard.press('Enter')
-    await expect(page.getByText('Reading copy ready.', { exact: true })).toBeVisible()
+    await waitForReading(page)
     await expect(page.getByRole('button', { name: 'Translate', exact: true })).toBeFocused()
     await expect(page.locator('.reading-article')).toContainText('Guten Tag quota')
     expect(translations).toBe(3)

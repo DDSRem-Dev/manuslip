@@ -9,6 +9,7 @@ import type { DocumentReading } from './translation/controller'
 import { readingCopy } from './translation/copy'
 import { languageName, translationLanguages } from './translation/languages'
 import type { ConfigureTranslation } from './translation/settings-navigation'
+import { useSourcePreview } from './translation/source-preview'
 import { mountReading } from './translation/surface'
 import { ReadingViewport } from './translation/viewport'
 import { useDocumentStatus } from './use-document-status'
@@ -47,9 +48,16 @@ export function ReadingPreview({
     })
   }
   const busy = status.phase === 'preparing' || status.phase === 'translating'
+  const sourcePreview = useSourcePreview(
+    document,
+    status.visible && !status.projection,
+    !busy,
+    source.revision,
+  )
+  const projection = status.projection ?? sourcePreview.projection
+  const revealed = useRef<typeof status.navigation>(null)
   const wasBusy = useRef(false)
   const returnFocus = useRef(false)
-  const readAfterLoad = useRef(false)
   const copy = readingCopy[locale === 'zh-CN' ? 'zh-CN' : 'en']
   useLayoutEffect(() => {
     if (!status.visible)
@@ -70,7 +78,7 @@ export function ReadingPreview({
   }, [])
   useLayoutEffect(() => {
     if (!article.current || !status.visible) return
-    if (!status.projection) {
+    if (!projection) {
       article.current.textContent = ''
       viewport.current?.reset()
       return
@@ -79,7 +87,7 @@ export function ReadingPreview({
     try {
       unmount = mountReading(
         article.current,
-        status.projection,
+        projection,
         source.info.id,
         source.remoteImages,
         window.manuslip,
@@ -95,7 +103,30 @@ export function ReadingPreview({
       viewport.current?.capture()
       unmount()
     }
-  }, [status.projection, status.visible, source.info.id, source.remoteImages, reading])
+  }, [projection, status.visible, source.info.id, source.remoteImages, reading])
+  useLayoutEffect(() => {
+    const request = status.navigation
+    if (!status.visible || !request || request === revealed.current) return
+    if (status.projection && status.revision !== source.revision) return
+    const block = projection?.blocks?.find(
+      (block) => block.from <= request.from && block.to > request.from,
+    )
+    if (!block) return
+    let headingIndex = 0
+    for (const heading of document.store.getState().outline) {
+      if (heading.from >= request.from) break
+      if (heading.from >= block.from) headingIndex++
+    }
+    if (viewport.current?.reveal(block.id, headingIndex)) revealed.current = request
+  }, [
+    status.navigation,
+    status.visible,
+    status.projection,
+    status.revision,
+    source.revision,
+    projection,
+    document,
+  ])
   useLayoutEffect(() => {
     const working = busy || pendingActions > 0
     if (wasBusy.current && !working) {
@@ -104,13 +135,10 @@ export function ReadingPreview({
         (window.document.activeElement === window.document.body ||
           actions.current?.contains(window.document.activeElement))
       ) {
-        if (readAfterLoad.current && status.phase === 'ready' && !status.projection) return
-        if (readAfterLoad.current && status.projection) article.current?.focus()
-        else if (translate.current && !translate.current.disabled) translate.current.focus()
+        if (translate.current && !translate.current.disabled) translate.current.focus()
         else {
           const pane = article.current?.parentElement
           const next =
-            pane?.querySelector<HTMLButtonElement>('.reading-placeholder button:not(:disabled)') ??
             pane?.querySelector<HTMLButtonElement>('.reading-recovery button:not(:disabled)') ??
             actions.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')
           next?.focus()
@@ -119,22 +147,20 @@ export function ReadingPreview({
       returnFocus.current = false
     }
     wasBusy.current = working
-  }, [busy, pendingActions, status.phase, status.projection])
+  }, [busy, pendingActions])
   const waitFor = (operation: Promise<unknown>): void => {
     setPendingActions((count) => count + 1)
     void operation.finally(() => setPendingActions((count) => count - 1))
   }
-  const run = (network: boolean, failedOnly = false): void => {
+  const run = (failedOnly = false): void => {
     const active = window.document.activeElement
     returnFocus.current = Boolean(
-      actions.current?.contains(active) || active?.closest('.reading-placeholder'),
+      actions.current?.contains(active) || active?.closest('.reading-recovery'),
     )
-    readAfterLoad.current = !network
-    waitFor(reading.start(network, failedOnly))
+    waitFor(reading.start(!needsKey, failedOnly))
   }
   const reload = (): void => {
     returnFocus.current = true
-    readAfterLoad.current = false
     waitFor(reading.metadata())
   }
   const error =
@@ -190,63 +216,62 @@ export function ReadingPreview({
     >
       <div className="reading-controls">
         <div className="reading-actions" ref={actions}>
-          {configured && (
-            <div className="reading-primary-actions">
-              <div className="toolbar-field">
-                <label htmlFor="reading-language">{copy.target}</label>
-                <select
-                  id="reading-language"
-                  ref={language}
-                  value={status.target}
-                  disabled={
-                    busy ||
-                    settingsBusy ||
-                    !languages.length ||
-                    status.configuration?.configuration === 'read-only'
-                  }
-                  onChange={(event) => void reading.target(event.target.value)}
-                >
-                  {!languages.includes(status.target) && (
-                    <option value={status.target}>{languageName(status.target, locale)}</option>
-                  )}
-                  {languages.map((language) => (
-                    <option key={language} value={language}>
-                      {languageName(language, locale)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              {!languages.length && (
-                <button type="button" onClick={() => configure('languages')}>
-                  {copy.languages}
-                </button>
-              )}
+          <div className="reading-primary-actions">
+            <div className="toolbar-field">
+              <label htmlFor="reading-language">{copy.target}</label>
+              <select
+                id="reading-language"
+                ref={language}
+                value={status.target}
+                disabled={
+                  busy ||
+                  settingsBusy ||
+                  !configured ||
+                  !languages.length ||
+                  status.configuration?.configuration === 'read-only'
+                }
+                onChange={(event) => void reading.target(event.target.value)}
+              >
+                {!languages.includes(status.target) && (
+                  <option value={status.target}>{languageName(status.target, locale)}</option>
+                )}
+                {languages.map((language) => (
+                  <option key={language} value={language}>
+                    {languageName(language, locale)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {!languages.length && (
+              <button type="button" onClick={() => configure('languages')}>
+                {copy.languages}
+              </button>
+            )}
+            <button
+              ref={translate}
+              className="primary"
+              type="button"
+              disabled={busy || settingsBusy || source.composing}
+              onClick={() => (configured ? run() : configure())}
+            >
+              <Icon name={status.stale ? 'refresh' : 'translate'} size={16} />
+              {status.stale ? copy.refresh : copy.translate}
+            </button>
+            {busy && (
+              <button type="button" onClick={() => reading.cancel()}>
+                {copy.cancel}
+              </button>
+            )}
+            {!busy && status.failed > 0 && (
               <button
-                ref={translate}
-                className="primary"
                 type="button"
-                disabled={busy || settingsBusy || needsKey || source.composing}
+                disabled={status.stale || settingsBusy || needsKey || source.composing}
                 onClick={() => run(true)}
               >
-                <Icon name={status.stale ? 'refresh' : 'translate'} size={16} />
-                {status.stale ? copy.refresh : copy.translate}
+                {copy.retry}
               </button>
-              {busy && (
-                <button type="button" onClick={() => reading.cancel()}>
-                  {copy.cancel}
-                </button>
-              )}
-              {!busy && status.failed > 0 && (
-                <button
-                  type="button"
-                  disabled={status.stale || settingsBusy || needsKey || source.composing}
-                  onClick={() => run(true, true)}
-                >
-                  {copy.retry}
-                </button>
-              )}
-            </div>
-          )}
+            )}
+          </div>
           <ToolbarDisclosure label={copy.options} icon="sliders">
             <div className="toolbar-field">
               <label className="toolbar-field-caption" htmlFor="reading-layout">
@@ -269,15 +294,6 @@ export function ReadingPreview({
               </select>
             </div>
             <div className="toolbar-command-group">
-              {configured && (
-                <button
-                  type="button"
-                  disabled={busy || settingsBusy || source.composing}
-                  onClick={() => run(false)}
-                >
-                  {copy.offline}
-                </button>
-              )}
               <button type="button" onClick={() => configure()}>
                 <Icon name="settings" size={16} />
                 {copy.configure}
@@ -291,7 +307,9 @@ export function ReadingPreview({
         </div>
         <div role="status" aria-atomic="true" className="reading-progress">
           {status.projection && status.configurationLoading && <p>{copy.loadingSettings}</p>}
-          {status.phase !== 'idle' && status.phase !== 'error' && <p>{copy[status.phase]}</p>}
+          {status.phase !== 'idle' && status.phase !== 'error' && status.phase !== 'ready' && (
+            <p>{copy[status.phase]}</p>
+          )}
           {status.total > 0 && (
             <p>{copy.progress(status.completed, status.total, status.cached)}</p>
           )}
@@ -365,25 +383,24 @@ export function ReadingPreview({
         {['unavailable', 'future'].includes(status.configuration?.cache ?? '') && (
           <p>{copy.cache}</p>
         )}
+        {!status.projection && (
+          <ReadingPlaceholder
+            status={status}
+            locale={locale}
+            configure={configure}
+            reload={reload}
+          />
+        )}
+        {sourcePreview.error && <p role="alert">{copy.worker}</p>}
       </div>
-      {!status.projection && (
-        <ReadingPlaceholder
-          status={status}
-          locale={locale}
-          composing={source.composing}
-          configure={configure}
-          reload={reload}
-          loadCached={() => run(false)}
-        />
-      )}
       <article
         className="reading-article cm-live-rendered"
         ref={article}
-        hidden={!status.projection}
+        hidden={!projection}
         // biome-ignore lint/a11y/noNoninteractiveTabindex: Focus lets keyboard users scroll and read the independently scrolling copy.
         tabIndex={0}
         aria-label={copy.mode}
-        lang={status.layout === 'replace' ? status.target || undefined : undefined}
+        lang={status.projection?.layout === 'replace' ? status.target || undefined : undefined}
       />
     </section>
   )

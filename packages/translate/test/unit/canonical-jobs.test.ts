@@ -1,6 +1,7 @@
 import { parseMarkdown } from '@manuslip/core'
 import { expect, it, vi } from 'vitest'
 import examples from '../../../core/test/fixtures/commonmark-0.31.2/spec.json'
+import * as cacheHash from '../../src/cache-hash'
 import { extractCompactTranslation, extractTranslation } from '../../src/extract'
 import { prepareCanonicalTranslation, prepareTranslation } from '../../src/identity'
 import { fixtureCapabilities, fixtureSettings } from '../fixtures/provider'
@@ -41,7 +42,7 @@ it('matches ordinary prepared keys and complete payloads for every pinned Common
 it('hashes repeated immutable values once and keeps settings-specific keys distinct', async () => {
   const one = compact('Hello `PRIVATE`.'),
     repeated = compact('Hello `PRIVATE`.\n\n'.repeat(200)),
-    digest = vi.spyOn(crypto.subtle, 'digest')
+    digest = vi.spyOn(cacheHash, 'murmurHash128')
   try {
     await prepareCanonicalTranslation(one, fixtureSettings(), fixtureCapabilities)
     const count = digest.mock.calls.length

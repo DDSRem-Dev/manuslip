@@ -1,3 +1,4 @@
+import { readingBudgets } from '@manuslip/core/reading-limits'
 import {
   type ReadingProjection,
   readingIndexWrapper,
@@ -26,7 +27,7 @@ export function mountIndexedReading(
   mount: MountRow,
 ): () => void {
   const candidate = projection.indexed
-  if (!candidate || readingProjectionBytes(projection) > 8 * 1024 * 1024)
+  if (!candidate || readingProjectionBytes(projection) > readingBudgets.projection)
     throw new Error('translation-view-limit')
   let index: NonNullable<ReadingProjection['indexed']> = candidate
   const scroller = container.closest<HTMLElement>('.reading-pane')

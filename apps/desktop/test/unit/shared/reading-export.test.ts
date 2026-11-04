@@ -43,7 +43,7 @@ it('requires explicit permission for stale captures and source fallback with exa
   expect(() =>
     parseReadingExport({
       ...reading(),
-      units: Array.from({ length: 17 }, (_, index) => ({
+      units: Array.from({ length: 65 }, (_, index) => ({
         index,
         output: 'a'.repeat(translationLimits.output / 2),
       })),

@@ -283,8 +283,9 @@ it('retains individually oversized prose/token units and rejects a whole-plan ov
 })
 
 it('bounds aggregate reconstructed output and extraction depth without dropping source', () => {
-  const extracted = plan(Array.from({ length: 70 }, (_, i) => `Paragraph ${i}.`).join('\n\n'))
   const output = '界'.repeat(Math.floor(translationLimits.output / 3))
+  const count = Math.floor(translationLimits.reconstructed / utf8Bytes(output)) + 2
+  const extracted = plan(Array.from({ length: count }, (_, i) => `Paragraph ${i}.`).join('\n\n'))
   const result = reconstructTranslation(
     extracted,
     new Map(extracted.units.map((unit) => [unit.occurrenceId, output])),
@@ -293,7 +294,7 @@ it('bounds aggregate reconstructed output and extraction depth without dropping 
     Math.floor(translationLimits.reconstructed / utf8Bytes(output)),
   )
   expect(result.statuses.at(-1)?.status).toBe('limit')
-  expect(renderMarkdown(result.root, options).html).toContain('Paragraph 69.')
+  expect(renderMarkdown(result.root, options).html).toContain(`Paragraph ${count - 1}.`)
   expect(() => plan(`${'> '.repeat(translationLimits.depth + 1)}Deep`)).toThrow('translation-limit')
 })
 

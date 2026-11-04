@@ -45,6 +45,17 @@ it('allows one operation and validates the matching response before releasing ca
   await expect(pending).resolves.toMatchObject({ kind: 'rendered' })
   engine.dispose()
 })
+it('accepts complete render responses above the batched request limit', async () => {
+  const engine = worker()
+  const pending = engine.request(render)
+  const html = '界'.repeat(3 * 1024 * 1024)
+  FakeWorker.instances[0]?.onmessage?.({
+    data: { sequence: 1, value: { kind: 'rendered', projection: { html, slots: [] } } },
+  })
+  await expect(pending).resolves.toMatchObject({ kind: 'rendered', projection: { html } })
+  expect(FakeWorker.instances[0]?.terminate).not.toHaveBeenCalled()
+  engine.dispose()
+})
 it('terminates a hung worker at five seconds, rejects work and requires a fresh instance', async () => {
   vi.useFakeTimers()
   const engine = worker()

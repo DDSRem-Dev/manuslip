@@ -1,4 +1,5 @@
 import type { Root } from 'mdast'
+import { readingBudgets } from './reading-limits'
 import { utf8Bytes } from './text-count'
 
 export { utf8Bytes } from './text-count'
@@ -9,7 +10,7 @@ export const semanticLimits = {
   messageBytes: 8 * 1024 * 1024,
   workerCacheBytes: 16 * 1024 * 1024,
   rendererBytes: 64 * 1024 * 1024,
-  snapshotBytes: 32 * 1024 * 1024,
+  snapshotBytes: readingBudgets.snapshot,
   widgetBytes: 16 * 1024 * 1024,
   viewportMath: 200,
   texBytes: 4096,

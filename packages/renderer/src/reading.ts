@@ -1,9 +1,9 @@
 import { type Root, sourceHash } from '@manuslip/core'
+import { readingBudgets } from '@manuslip/core/reading-limits'
 import type { Root as HastRoot } from 'hast'
 import { toHtml } from 'hast-util-to-html'
 import { type ExportProjection, renderExport } from './export'
 import type { ProjectionChildren, RenderOptions } from './index'
-import { readingJsonBytes } from './reading-bytes'
 import { ReadingDecoration } from './reading-decoration'
 import {
   expandReadingIndex,
@@ -123,14 +123,14 @@ export function renderReading(
             })
             let at = dictionary.get(html)
             if (at === undefined) {
-              bytes += 128 + html.length * 4
-              if (bytes > 8 * 1024 * 1024) return native()
+              bytes += 128 + html.length * 2
+              if (bytes > readingBudgets.projection) return native()
               at = values.length
               values.push(html)
               dictionary.set(html, at)
             }
             bytes += 64
-            if (bytes > 8 * 1024 * 1024) return native()
+            if (bytes > readingBudgets.projection) return native()
             order.push(at)
             pairs.push(pair)
             anchors.push(typeof id === 'string' ? (byId.get(id) ?? -1) : -1)
@@ -173,15 +173,16 @@ export function renderReading(
   }
   if (indexed) {
     result.indexed = indexed
-    const overhead = readingJsonBytes({ ...result, html: '', indexed: undefined }) * 2
+    const overhead = readingProjectionBytes({ ...result, html: '', indexed: undefined })
     let expanded = overhead + `<div class="${readingIndexWrapper(result)}"></div>`.length * 2
     for (let row = 0; row < indexed.order.length; row++)
-      expanded += (readingJsonBytes(readingRowHtml(result, row)) - 2) * 2
+      expanded += readingRowHtml(result, row).length * 2
     if (expanded <= (reading.indexAboveBytes ?? 0)) {
       result.html = expandReadingIndex(result)
       delete result.indexed
     }
-    if (readingProjectionBytes(result) > 8 * 1024 * 1024) throw new Error('translation-view-limit')
+    if (readingProjectionBytes(result) > readingBudgets.projection)
+      throw new Error('translation-view-limit')
   }
   return result
 }

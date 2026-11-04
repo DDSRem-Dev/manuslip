@@ -447,6 +447,11 @@ export class DocumentController {
     if (this.disposed) return
     this.dispatch({ effects: this.display.reconfigure(sourceDisplay(preferences)) })
   }
+  revealHeading(from: number): void {
+    if (this.disposed || this.locked || this.store.getState().composing) return
+    if (this.reading?.store.getState().visible) this.reading.revealHeading(from)
+    else this.revealRange(from)
+  }
   revealRange(from: number, to = from): boolean {
     if (
       this.disposed ||

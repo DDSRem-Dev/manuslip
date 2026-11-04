@@ -11,6 +11,7 @@ import {
   translationUnitKey,
 } from '@manuslip/translate'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import * as cacheHash from '../../../../../../packages/translate/src/cache-hash'
 import type { TranslationCache } from '../../../../src/main/translation/cache'
 import type { CacheOperation } from '../../../../src/main/translation/cache-store'
 import { TranslationConfiguration } from '../../../../src/main/translation/configuration'
@@ -47,7 +48,7 @@ const payload = (text = 'Hello world'): TranslationPayload => ({
 })
 class MemoryCache implements TranslationCache {
   status: TranslationCache['status'] = 'ready'
-  readonly entries = new Map<string, { payload: string; output: string }>()
+  readonly entries = new Map<string, { scope: string; payload: string; output: string }>()
   readonly operations: CacheOperation[] = []
   async request(operation: CacheOperation) {
     this.operations.push(operation)
@@ -57,7 +58,12 @@ class MemoryCache implements TranslationCache {
     const row = operation.kind === 'get' ? this.entries.get(operation.key) : null
     return {
       status: this.status,
-      output: operation.kind === 'get' && row?.payload === operation.payload ? row.output : null,
+      output:
+        operation.kind === 'get' &&
+        row?.scope === operation.scope &&
+        row.payload === operation.payload
+          ? row.output
+          : null,
     }
   }
   dispose() {}
@@ -131,6 +137,15 @@ afterEach(async () => {
   )
 })
 describe('main-owned translation subscriptions', () => {
+  it('does not merge different payloads when their MurmurHash keys collide', async () => {
+    vi.spyOn(cacheHash, 'murmurHash128').mockResolvedValue('a'.repeat(32))
+    const { service, request, provider } = await setup()
+    const first = await request('Hello first')
+    const second = await request('Hello second')
+    const results = await Promise.all([service.request(1, first), service.request(1, second)])
+    expect(results.map((result) => result.output)).toEqual(['你好 first', '你好 second'])
+    expect(provider).toHaveBeenCalledTimes(2)
+  })
   const languages: ProviderLanguage[] = [
     { tag: 'zh-Hans', source: false, target: true, formality: false, glossary: true, tags: true },
   ]
@@ -360,7 +375,7 @@ describe('main-owned translation subscriptions', () => {
   it('rejects forged cache keys, invalid settings/options, future generations and source/AST metadata', async () => {
     const { service, request, provider } = await setup()
     const input = await request()
-    await expect(service.request(1, { ...input, unitKey: '0'.repeat(64) })).rejects.toMatchObject({
+    await expect(service.request(1, { ...input, unitKey: '0'.repeat(32) })).rejects.toMatchObject({
       code: 'translation-invalid',
     })
     await expect(service.request(1, { ...input, cacheGeneration: 99 })).rejects.toMatchObject({

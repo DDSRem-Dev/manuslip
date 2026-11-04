@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
-import { clickDocumentAction, launchDesktop, selectReadingLayout } from './helpers'
+import { clickDocumentAction, launchDesktop, selectReadingLayout, waitForReading } from './helpers'
 import { auditPluginInterface } from './plugin-accessibility'
 
 test('captured reading conventions survive setting changes, layout and export until explicit refresh', async () => {
@@ -71,7 +71,7 @@ test('captured reading conventions survive setting changes, layout and export un
     )
     await page.getByRole('button', { name: 'Translated preview', exact: true }).click()
     await page.getByRole('button', { name: 'Translate', exact: true }).click()
-    await expect(page.getByText('Reading copy ready.', { exact: true })).toBeVisible()
+    await waitForReading(page)
     const article = page.locator('.reading-article')
     await expect(article.locator('mark')).toHaveText('你好')
     await expect(article.locator('del')).toHaveText('deleted')
@@ -106,7 +106,7 @@ test('captured reading conventions survive setting changes, layout and export un
     expect(await readFile(output, 'utf8')).not.toContain('YAML_METADATA_PRIVATE')
     expect(calls).toBe(requests)
     await page.getByRole('button', { name: 'Refresh translation', exact: true }).click()
-    await expect(page.getByText('Reading copy ready.', { exact: true })).toBeVisible()
+    await waitForReading(page)
     await expect(article.locator('mark')).toHaveCount(0)
     await expect(article.locator('del')).toHaveCount(0)
     await expect(article.getByRole('math')).toHaveCount(0)

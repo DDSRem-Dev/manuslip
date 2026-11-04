@@ -6,7 +6,7 @@ import { join, resolve, sep } from 'node:path'
 import type { TranslationSettings } from '@manuslip/translate'
 import { type ElectronApplication, expect, type Page, test } from '@playwright/test'
 import axe from 'axe-core'
-import { clickDocumentAction, launchDesktop } from './helpers'
+import { clickDocumentAction, launchDesktop, waitForReading } from './helpers'
 
 const modifier = process.platform === 'darwin' ? 'Meta' : 'Control'
 const sequence =
@@ -20,7 +20,6 @@ const labels = {
     live: 'Live Preview',
     reading: 'Translated preview',
     translate: 'Translate',
-    ready: 'Reading copy ready.',
     export: 'Export HTML…',
     unsupported:
       'This legacy diagram uses unsupported syntax. Edit its source or convert it to a Mermaid fence.',
@@ -30,7 +29,6 @@ const labels = {
     live: '实时预览',
     reading: '译文预览',
     translate: '翻译',
-    ready: '阅读副本已就绪。',
     export: '导出 HTML…',
     unsupported: '此旧版图表使用了暂不支持的语法。请编辑源码，或将其转换为 Mermaid 代码块。',
   },
@@ -210,7 +208,7 @@ for (const locale of ['en', 'zh-CN'] as const) {
       await page.getByRole('button', { name: names.reading, exact: true }).click()
       expect(received).toHaveLength(0)
       await page.getByRole('button', { name: names.translate, exact: true }).click()
-      await expect(page.getByText(names.ready, { exact: true })).toBeVisible()
+      await waitForReading(page)
       const article = page.locator('.reading-article')
       await expect(article.locator('dt')).toHaveText(['术语 😄', '术语 ❤️'])
       await expect(article.locator('dd strong')).toHaveText(['世界', '世界'])

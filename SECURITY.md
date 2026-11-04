@@ -174,7 +174,7 @@ unknown fields and bounds tokens/bytes. Output must retain exact token identitie
 parent relationships before text-only AST reconstruction. Missing, invalid or over-limit units
 retain source. Provider output is never parsed as HTML or Markdown.
 
-Settings identity uses SHA-256 over the canonical payload, schema versions and output-affecting
+Translation cache identity uses MurmurHash3 x86 128 over the canonical payload, schema versions and output-affecting
 provider/settings metadata. Endpoint normalization preserves routing configuration and rejects
 common credential fields, user information, fragments and remote HTTP. These checks are not a
 substitute for adapter-specific option admission, main-owned credentials, bounded transport,
@@ -186,7 +186,11 @@ deterministic substitutions only and is not exposed as a real translation servic
 Main now owns OpenAI-compatible Chat Completions, Ollama chat and DeepL adapters. Settings/credential
 submission and unit requests have distinct strict IPC schemas and require the authorized editor
 main frame. Unit requests also require a live owned document, settings revision, cache generation,
-canonical payload and recomputed SHA-256 identity. They cannot carry source/AST/bindings. The
+canonical payload and recomputed MurmurHash3 identity. Hashes index derived data, and are not
+an authentication boundary: cache reuse requires exact canonical settings/payload equality
+and validated output. Different payloads that collide within a plan are rejected; main shares
+jobs only when their full settings and payloads match. Credential bindings still use SHA-256.
+Requests cannot carry source/AST/bindings. The
 translated-view consumer extracts eligible prose from an immutable, exact-revision semantic
 capture. Tests exercise this transport through the real bridge using local services and dummy
 credentials, never paid providers.
@@ -226,12 +230,21 @@ schema 2 so older applications preserve the new settings as future data. Future-
 key/config files are not overwritten. OS protection does not protect against
 another process already running as the same user, or a compromised application process.
 
-`translation-cache.sqlite` and its rollback journal live in the Electron userData profile.
+`translation-cache.sqlite` and its WAL/shared-memory sidecars live in the Electron userData profile.
 Successful canonical prose and translations are document-derived user data stored unencrypted;
 code/math/URL reconstruction bindings and credentials are excluded. One lazy dedicated SQLite
-worker performs parameterized migration/read/write/LRU operations within queue/time/space bounds.
-Corruption is quarantined away from drafts; future schemas stay untouched. Quarantine bytes count
-against the 256 MiB database/journal budget. Persistence failures report degradation while
+worker reuses parameterized statements and atomically replaces entries/evicts old data. WAL uses
+full synchronization and automatic checkpoints; a 32 MiB WAL threshold forces a truncating
+checkpoint, with writes paused if pinned readers prevent it. All database/sidecar paths
+reject links and use private file modes where supported. Clear requires a successful checkpoint.
+Entries expire 30 days after writing; reads do not extend their lifetime. Logical data is capped
+at 256 MiB, the database at 320 MiB and entries at 50,000. Eviction accounts for SQLite page
+pressure as well as logical bytes. LRU touches are coalesced in a bounded queue and synced in
+batches, on idle and before eviction. Busy/full writes roll back without disabling healthy
+reads; subsequent writes and clearing can recover. Schema 2 rebuilds legacy cache entries
+that cannot be safely rekeyed from SHA-256. Corruption is quarantined away from drafts; future
+schemas stay untouched. Database, sidecar and quarantine bytes share a 384 MiB footprint budget.
+Persistence failures report degradation while
 in-memory translation continues. Clear advances the global generation, cancels every subscription,
 orders deletion after old writes, and removes only the derived cache/sidecars/quarantine before
 reopening empty. Late results cannot repopulate it; failures are reported rather than claiming a
@@ -246,6 +259,10 @@ cancels changed occurrences, and can retain unchanged in-flight units. Tab suspe
 its reading worker, releases the capture and cancels every subscription. Settings/cache generation
 changes discard derived output; late responses cannot revive it. A five-second reading-worker
 watchdog and bounded messages, outputs, projection and shared DOM budgets fail to source fallback.
+The translated output buffer is capped at 16 MiB, shared snapshots at 64 MiB and reading-worker
+ownership at 64 MiB. Large buffered restores use bounded 8 MiB requests. Complete worker
+responses have a separate 64 MiB wire limit and 32 MiB retained projection limit; large bilingual
+copies retain indexed rows. UTF-16 output accounting allows 24 MiB UTF-8 reconstruction.
 Provider output is validated again before reconstruction and reaches the same HTML/SVG sanitizer,
 isolated math/diagram renderers and main-owned image capabilities as Live Preview. Per-render
 unpredictable heavy-slot names prevent source raw HTML from impersonating internal resource slots.
@@ -256,8 +273,9 @@ copy, including source raw HTML, so duplicate footnotes cannot target the other 
 
 Reading export captures immutable source, languages, layout and indexed completed prose outputs.
 Stale or incomplete copies require explicit confirmation before a destination dialog opens;
-untranslated units then retain source. One private pending capture is limited to 8 MiB serialized,
-10,000 outputs, 256 KiB per output and 4 MiB aggregate output accounting. Tab suspension cancels
+untranslated units then retain source. One private pending capture is limited to 64 MiB serialized,
+10,000 outputs, 256 KiB per output and 16 MiB aggregate UTF-16 output accounting. Export HTML is
+bounded at 64 MiB UTF-8. Tab suspension cancels
 the pending choice and releases it. Subsequent edits/provider responses cannot mutate the capture.
 The isolated export worker reparses source, re-extracts the plan and validates every indexed
 output/placeholder before reconstruction. Renderer-supplied AST/HTML is never accepted. Both

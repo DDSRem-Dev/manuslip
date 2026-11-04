@@ -6,7 +6,7 @@ import { i18next } from './i18n'
 import { useDocumentStatus } from './use-document-status'
 
 function revealHeading(document: DocumentController, from: number): () => void {
-  return () => document.revealRange(from)
+  return () => document.revealHeading(from)
 }
 
 interface OutlineItem {

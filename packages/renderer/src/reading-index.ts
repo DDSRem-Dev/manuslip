@@ -39,7 +39,19 @@ export function readingIndexWrapper(projection: ReadingProjection): string {
 }
 /** Validate and charge actual retained dictionary plus every occurrence's metadata. */
 export function readingProjectionBytes(projection: ReadingProjection): number {
-  if (!projection.indexed) return readingJsonBytes(projection) * 2
+  if (
+    !projection ||
+    typeof projection.html !== 'string' ||
+    !Array.isArray(projection.slots) ||
+    (projection.blocks !== undefined && !Array.isArray(projection.blocks))
+  )
+    return invalid()
+  // Structured clone retains UTF-16 HTML, without JSON/UTF-8 escaping. Keep the
+  // metadata traversal so unexpected fields cannot hide unaccounted storage.
+  if (!projection.indexed)
+    return (
+      4096 + projection.html.length * 2 + readingJsonBytes({ ...projection, html: undefined }) * 2
+    )
   const index = projection.indexed
   if (
     projection.html !== '' ||

@@ -8,6 +8,7 @@ import {
   launchDesktop,
   openMarkdownExtensions,
   selectReadingLayout,
+  waitForReading,
 } from './helpers'
 
 const modifier = process.platform === 'darwin' ? 'Meta' : 'Control'
@@ -205,7 +206,7 @@ test('inline notes, baseline-aligned formulas and literal disclosure tags surviv
     )
     await page.getByRole('button', { name: 'Translated preview', exact: true }).click()
     await page.getByRole('button', { name: 'Translate', exact: true }).click()
-    await expect(page.getByText('Reading copy ready.', { exact: true })).toBeVisible()
+    await waitForReading(page)
     const article = page.locator('.reading-article')
     await expect(article.locator('[data-footnote-ref]')).toHaveText(['1', '2'])
     await expect(article.locator('.footnotes')).toContainText('你好 footnote')

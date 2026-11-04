@@ -1,4 +1,5 @@
 import { messageSize, type Root } from '@manuslip/core'
+import { readingBudgets } from '@manuslip/core/reading-limits'
 import type { RenderOptions } from '@manuslip/renderer'
 import type { ReadingBlock, ReadingLayout, ReadingProjection } from '@manuslip/renderer/reading'
 import type { TranslationPayload, TranslationSettings, UnitKind } from '@manuslip/translate'
@@ -6,11 +7,13 @@ import type { PackedIdentity } from '../../../../../../packages/core/src/packing
 import { readingJsonBytes } from '../../../../../../packages/renderer/src/reading-bytes'
 
 export const readingLimits = {
-  message: 8 * 1024 * 1024,
-  worker: 32 * 1024 * 1024,
+  requests: 2,
+  message: readingBudgets.message,
+  response: readingBudgets.response,
+  worker: readingBudgets.snapshot,
   descriptors: 8 * 1024 * 1024,
-  outputs: 4 * 1024 * 1024,
-  projection: 8 * 1024 * 1024,
+  outputs: readingBudgets.outputs,
+  projection: readingBudgets.projection,
   watchdog: 5000,
   progressMs: 100,
   renderMs: 500,
@@ -25,13 +28,13 @@ export interface ReadingUnit {
   payload: TranslationPayload | null
 }
 export type ReadingOperation =
-  | { kind: 'prepare'; root: Root; source: string; settings: TranslationSettings }
+  | { kind: 'prepare'; root: Root; source: string; settings: TranslationSettings | null }
   | {
       kind: 'prepare-packed'
       payload: ArrayBuffer
       identity: PackedIdentity
       source: string
-      settings: TranslationSettings
+      settings: TranslationSettings | null
     }
   | {
       kind: 'render'

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { type ElectronApplication, expect, test } from '@playwright/test'
 import { translationChannels } from '../../apps/desktop/src/shared/translation-contracts'
-import { clickReadingAction, launchDesktop } from './helpers'
+import { clickReadingAction, launchDesktop, waitForReading } from './helpers'
 
 async function stop(application: ElectronApplication) {
   await application
@@ -51,11 +51,13 @@ test('reading setup reveals provider settings and sends prose only after Transla
     await expect(page.locator('.cm-content')).toContainText('Hello reader')
     await page.getByRole('button', { name: 'Translated preview', exact: true }).click()
     await expect(
-      page.getByRole('heading', { name: 'Read in another language', exact: true }),
+      page.getByRole('button', { name: 'Set up translation', exact: true }),
     ).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Translate', exact: true })).toHaveCount(0)
-    await expect(page.getByLabel('Read in', { exact: true })).toHaveCount(0)
-    await expect(page.locator('.reading-article')).toBeHidden()
+    await expect(page.getByRole('button', { name: 'Translate', exact: true })).toBeEnabled()
+    await expect(page.getByLabel('Read in', { exact: true })).toHaveValue('zh-CN')
+    await expect(page.getByLabel('Read in', { exact: true })).toBeDisabled()
+    await expect(page.getByRole('button', { name: 'Load cached', exact: true })).toHaveCount(0)
+    await expect(page.locator('.reading-article')).toContainText('Hello reader')
     await page.getByRole('button', { name: 'Set up translation', exact: true }).focus()
     await page.keyboard.press('Enter')
     const panel = page.locator('.translation-settings')
@@ -74,9 +76,7 @@ test('reading setup reveals provider settings and sends prose only after Transla
     await expect(translate).toBeFocused()
     await expect(translate).toBeEnabled()
     await expect(page.getByLabel('Read in', { exact: true })).toHaveValue('fr')
-    await expect(
-      page.getByRole('heading', { name: 'Create a reading copy', exact: true }),
-    ).toBeVisible()
+    await expect(page.locator('.reading-article')).toContainText('Hello reader')
     expect(await page.evaluate(() => window.manuslip.translationState())).toMatchObject({
       ok: true,
       value: { credential: 'none' },
@@ -84,7 +84,7 @@ test('reading setup reveals provider settings and sends prose only after Transla
     expect(received).toHaveLength(0)
     await page.screenshot({ path: test.info().outputPath('configured-reading.png') })
     await page.keyboard.press('Enter')
-    await expect(page.getByText('Reading copy ready.', { exact: true })).toBeVisible()
+    await waitForReading(page)
     await expect(page.locator('.reading-article')).toContainText('Bonjour reader')
     await expect(page.locator('.reading-article code')).toContainText('PRIVATE_CODE')
     expect(received).toHaveLength(2)
@@ -126,16 +126,15 @@ test('reading settings show loading, recover from failure, and never claim a mis
     await expect(page.getByRole('button', { name: 'Set up translation', exact: true })).toHaveCount(
       0,
     )
-    await expect(page.getByRole('button', { name: 'Translate', exact: true })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Translate', exact: true })).toBeDisabled()
+    await expect(page.getByLabel('Read in', { exact: true })).toHaveValue('zh-CN')
     await application.evaluate(() => {
       const probe = (
         globalThis as unknown as { readingSetupProbe: { resolve(value: unknown): void } }
       ).readingSetupProbe
       probe.resolve({ ok: false, code: 'translation-storage', error: 'PRIVATE_SETTINGS_ERROR' })
     })
-    await expect(
-      page.getByRole('heading', { name: 'Unable to load translation settings', exact: true }),
-    ).toBeVisible()
+    await expect(page.getByRole('alert')).toContainText('Unable to load translation settings')
     await expect(page.getByRole('alert')).toContainText('Reload settings')
     await expect(page.getByRole('button', { name: 'Set up translation', exact: true })).toHaveCount(
       0,
@@ -144,13 +143,11 @@ test('reading settings show loading, recover from failure, and never claim a mis
     await page.screenshot({ path: test.info().outputPath('settings-recovery.png') })
     await page.getByRole('button', { name: 'Reload settings', exact: true }).click()
     await expect(
-      page.getByRole('heading', { name: 'Read in another language', exact: true }),
+      page.getByRole('button', { name: 'Set up translation', exact: true }),
     ).toBeVisible()
     await expect(page.getByRole('alert')).toHaveCount(0)
-    await expect(
-      page.getByRole('button', { name: 'Set up translation', exact: true }),
-    ).toBeFocused()
-    await expect(page.locator('.reading-article')).toBeHidden()
+    await expect(page.getByRole('button', { name: 'Translate', exact: true })).toBeFocused()
+    await expect(page.locator('.reading-article')).toBeVisible()
   } finally {
     await stop(application)
     await rm(directory, { recursive: true, force: true })
@@ -169,9 +166,9 @@ test('future translation settings explain read-only recovery and preserve the sa
     const page = await application.firstWindow()
     await page.getByRole('button', { name: 'New document', exact: true }).first().click()
     await page.getByRole('button', { name: 'Translated preview', exact: true }).click()
-    await expect(
-      page.getByRole('heading', { name: 'Translation settings are read-only', exact: true }),
-    ).toBeVisible()
+    await expect(page.locator('.reading-controls')).toContainText(
+      'Translation settings are read-only',
+    )
     await expect(page.getByRole('button', { name: 'Set up translation', exact: true })).toHaveCount(
       0,
     )

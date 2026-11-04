@@ -44,7 +44,7 @@ export class ReadingViewport {
     if (this.scroller.scrollTop === this.scrollTop) return
     this.scrollTop = this.scroller.scrollTop
     this.atStart = this.scroller.scrollTop <= 1
-    const top = this.scroller.getBoundingClientRect().top
+    const top = this.contentTop()
     let low = 0,
       high = this.blocks.length
     while (low < high) {
@@ -69,6 +69,19 @@ export class ReadingViewport {
     ]
     this.byId = new Map(this.blocks.map((block) => [block.dataset.readingBlock ?? '', block]))
   }
+  reveal(id: string, headingIndex = 0): boolean {
+    if (!this.byId.has(id) && virtualReadings.get(this.article)?.reveal(id)) this.refresh()
+    const block = this.byId.get(id)
+    if (!block) return false
+    const heading =
+      block.querySelectorAll<HTMLElement>('h1, h2, h3, h4, h5, h6')[headingIndex] ?? block
+    this.scroller.scrollTop += heading.getBoundingClientRect().top - this.contentTop() - 16
+    heading.tabIndex = -1
+    heading.focus({ preventScroll: true })
+    this.scrollTop = -1
+    this.capture()
+    return true
+  }
   restore(): void {
     if (this.atStart) {
       this.scroller.scrollTop = 0
@@ -87,9 +100,7 @@ export class ReadingViewport {
       target = this.byId.get(anchor.order[index] ?? '')
     if (!target) return
     this.scroller.scrollTop +=
-      target.getBoundingClientRect().top -
-      this.scroller.getBoundingClientRect().top +
-      (exact ? anchor.offset : 0)
+      target.getBoundingClientRect().top - this.contentTop() + (exact ? anchor.offset : 0)
     this.scrollTop = this.scroller.scrollTop
   }
   dispose(): void {
@@ -102,5 +113,10 @@ export class ReadingViewport {
     this.atStart = true
     this.refresh()
     this.restore()
+  }
+  private contentTop(): number {
+    const top = this.scroller.getBoundingClientRect().top
+    const controls = this.scroller.querySelector('.reading-controls')
+    return controls ? Math.max(top, controls.getBoundingClientRect().bottom) : top
   }
 }

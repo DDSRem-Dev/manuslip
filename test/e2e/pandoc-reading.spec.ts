@@ -5,7 +5,7 @@ import { join, resolve, sep } from 'node:path'
 import type { TranslationSettings } from '@manuslip/translate'
 import { expect, test } from '@playwright/test'
 import { readPandocZip } from '../../apps/desktop/src/main/pandoc/zip'
-import { clickDocumentAction, launchDesktop, selectReadingLayout } from './helpers'
+import { clickDocumentAction, launchDesktop, selectReadingLayout, waitForReading } from './helpers'
 
 test('Pandoc reading exports retain each layout and a confirmed stale copy without translation requests', async () => {
   const tool = process.env.MANUSLIP_TEST_PANDOC
@@ -67,7 +67,7 @@ test('Pandoc reading exports retain each layout and a confirmed stale copy witho
     ).toMatchObject({ ok: true })
     await page.getByRole('button', { name: 'Translated preview', exact: true }).click()
     await page.getByRole('button', { name: 'Translate', exact: true }).click()
-    await expect(page.getByText('Reading copy ready.', { exact: true })).toBeVisible()
+    await waitForReading(page)
     const completed = requests
     expect(completed).toBeGreaterThan(0)
     for (const layout of ['replace', 'side-by-side', 'interlinear']) {

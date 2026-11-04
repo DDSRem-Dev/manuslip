@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./text": "./src/text-count.ts",
+    "./reading-limits": "./src/reading-limits.ts",
     "./conventions": "./src/conventions.ts"
   },
   "dependencies": {

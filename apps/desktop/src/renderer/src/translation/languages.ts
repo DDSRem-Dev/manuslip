@@ -1,3 +1,5 @@
+export const defaultTranslationTarget = 'zh-CN'
+
 /** Suggestions for model providers, whose language support depends on the selected model. */
 export const translationLanguages = [
   'en',

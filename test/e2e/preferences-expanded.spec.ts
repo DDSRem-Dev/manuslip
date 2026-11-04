@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, rename, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { type ElectronApplication, expect, test } from '@playwright/test'
-import { launchDesktop, openReadingOptions } from './helpers'
+import { launchDesktop, openReadingOptions, waitForReading } from './helpers'
 
 async function stop(application: ElectronApplication): Promise<void> {
   await application
@@ -223,13 +223,10 @@ test('hosted provider setup offers an API key while cached reading stays availab
     await page.getByRole('button', { name: 'New document', exact: true }).first().click()
     await page.locator('.cm-content').fill('The original stays available.')
     await page.getByRole('button', { name: 'Translated preview', exact: true }).click()
-    await expect(
-      page.getByRole('heading', { name: 'Add a translation API key', exact: true }),
-    ).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Translate', exact: true })).toBeDisabled()
-    const reading = page.locator('.reading-placeholder')
-    await reading.getByRole('button', { name: 'Load cached', exact: true }).click()
-    await expect(page.getByText('Reading copy ready.', { exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Add API key', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Translate', exact: true })).toBeEnabled()
+    await page.getByRole('button', { name: 'Translate', exact: true }).click()
+    await waitForReading(page)
     await expect(page.locator('.reading-article')).toContainText('The original stays available.')
     await page.getByRole('button', { name: 'Source', exact: true }).click()
     await expect(page.locator('.cm-content')).toContainText('The original stays available.')

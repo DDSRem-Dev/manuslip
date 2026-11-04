@@ -1,5 +1,6 @@
 // Preload and IPC consumers need validation without initializing Markdown parsers.
 // Keep this entry point independent of extraction and AST reconstruction APIs.
+export { isTranslationKey } from './cache-hash'
 export {
   type ProviderCapabilities,
   type TranslationPayload,

@@ -31,6 +31,9 @@ export class PackedTranslationProjection {
     units: readonly PackedTranslationOccurrence[],
     resolve: (unit: PackedTranslationOccurrence) => unknown,
     reserve: (retained: number, staging: number) => void,
+    // The reading worker keeps these exact immutable strings charged to its
+    // output-buffer owner throughout this inspector. Other consumers own copies.
+    borrowOutputs = false,
   ) {
     const retained = 4096 + units.length * 768
     reserve(retained, 0)
@@ -72,7 +75,7 @@ export class PackedTranslationProjection {
             throw new TranslationError('translation-output-large')
           let canonical = data.outputs.get(value as string)
           if (canonical === undefined) {
-            const next = data.retained + 128 + (value as string).length * 2
+            const next = data.retained + 128 + (borrowOutputs ? 0 : (value as string).length * 2)
             reserve(next, data.staging)
             data.retained = next
             canonical = value as string

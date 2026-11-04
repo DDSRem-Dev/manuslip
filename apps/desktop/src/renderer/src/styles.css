@@ -1207,6 +1207,10 @@ main.editing {
   overflow-anchor: none;
 }
 .reading-controls {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 2;
+  background: var(--surface);
   padding: 14px 24px;
   border-block-end: 1px solid var(--border);
   font-size: 14px;
@@ -1223,6 +1227,9 @@ main.editing {
 }
 .reading-actions {
   gap: 12px 24px;
+}
+.reading-actions > .toolbar-disclosure {
+  margin-inline-start: auto;
 }
 .reading-primary-actions {
   gap: 8px;
@@ -1286,10 +1293,6 @@ main.editing {
 }
 .reading-placeholder p {
   margin-block: 0 24px;
-}
-.reading-placeholder .reading-privacy {
-  margin-block: 24px 0;
-  font-size: 14px;
 }
 .reading-recovery {
   display: flex;

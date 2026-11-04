@@ -13,6 +13,7 @@ import {
   openMarkdownExtensions,
   openReadingOptions,
   selectReadingLayout,
+  waitForReading,
 } from './helpers'
 
 const modifier = process.platform === 'darwin' ? 'Meta' : 'Control'
@@ -105,11 +106,9 @@ test('bilingual blocks align, preserve scroll anchors and export both languages 
     )
     await page.getByRole('button', { name: 'Translated preview', exact: true }).click()
     await clickDocumentAction(page, 'Export reading HTML…')
-    await expect(page.getByRole('alert')).toContainText(
-      'Choose Translate or Load cached before exporting',
-    )
+    await expect(page.getByRole('alert')).toContainText('Choose Translate before exporting')
     await page.getByRole('button', { name: 'Translate', exact: true }).click()
-    await expect(page.getByText('Reading copy ready.', { exact: true })).toBeVisible()
+    await waitForReading(page)
     const count = calls
     await selectReadingLayout(page, 'side-by-side')
     const article = page.locator('.reading-article')
@@ -388,7 +387,7 @@ test('partial and stale export choices preserve the clicked copy despite late re
     await page.screenshot({ path: test.info().outputPath('bilingual-partial-choice.png') })
     await selectReadingLayout(page, 'interlinear')
     for (const pending of waiting) answer(pending.reply, pending.text)
-    await expect(page.getByText('Reading copy ready.', { exact: true })).toBeVisible()
+    await waitForReading(page)
     await expect(page.locator('.reading-article')).toContainText(
       '你好，欢迎阅读这份跨语言文档 first pending.',
     )
@@ -502,22 +501,28 @@ test('a late translation above the reader preserves its block and pixel offset',
     await selectReadingLayout(page, 'side-by-side')
     await page.getByRole('button', { name: 'Translate', exact: true }).click()
     await expect.poll(() => calls).toBe(21)
-    await expect(page.locator('.reading-article')).toContainText(
+    await expect(page.getByText('20 of 21 prose units translated · 0 cached')).toBeVisible()
+    await expect(page.locator('.reading-article')).toContainText('Hello paragraph 19.')
+    await expect(page.locator('.reading-article')).not.toContainText(
       '你好，欢迎阅读这份跨语言文档 paragraph 19.',
     )
     const pair = page.locator('.reading-pair').nth(10)
     const id = await pair.getAttribute('data-reading-block')
     await pair.evaluate((element) => {
       const pane = element.closest('.reading-pane')
-      if (pane)
+      const controls = pane?.querySelector('.reading-controls')
+      if (pane && controls)
         pane.scrollTop +=
-          element.getBoundingClientRect().top - pane.getBoundingClientRect().top + 17
+          element.getBoundingClientRect().top - controls.getBoundingClientRect().bottom + 17
     })
     const offset = () =>
       pair.evaluate(
         (element) =>
           element.getBoundingClientRect().top -
-          (element.closest('.reading-pane')?.getBoundingClientRect().top ?? 0),
+          (element
+            .closest('.reading-pane')
+            ?.querySelector('.reading-controls')
+            ?.getBoundingClientRect().bottom ?? 0),
       )
     // Chromium may quantize scrollTop to device pixels. Capture the achieved
     // offset, then verify that the late translation preserves it.

@@ -84,7 +84,7 @@ export const resources = {
       exportSavedEarlier: 'Exported to {{path}}. Edits made after export started are not included.',
       'export-composing': 'Finish composing text before exporting.',
       exportRevision: 'Revision {{revision}}',
-      'export-reading-empty': 'Choose Translate or Load cached before exporting a reading copy.',
+      'export-reading-empty': 'Choose Translate before exporting a reading copy.',
       'export-incomplete':
         'Some prose is untranslated. Finish translating, or export with source text for those units.',
       'export-invalid': 'The export request is invalid. Retry from the document.',
@@ -500,7 +500,7 @@ export const resources = {
       exportSavedEarlier: '已导出至 {{path}}，不包含导出开始后的编辑。',
       'export-composing': '请先完成输入法组字，再导出文档。',
       exportRevision: '修订 {{revision}}',
-      'export-reading-empty': '请先选择“翻译”或“载入缓存”，再导出阅读副本。',
+      'export-reading-empty': '请先选择“翻译”，再导出阅读副本。',
       'export-incomplete': '部分正文尚未翻译。请完成翻译，或选择保留这些单元的原文后导出。',
       'export-invalid': '导出请求无效，请从文档中重试。',
       'export-limit': '导出超出资源上限，请缩小文档或图片。',

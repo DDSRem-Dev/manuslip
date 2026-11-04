@@ -1,6 +1,8 @@
-import { utf8Bytes } from '@manuslip/core/text'
 import { type MarkdownPlugins, parseMarkdownPlugins } from '@manuslip/core/conventions'
+import { readingBudgets } from '@manuslip/core/reading-limits'
+import { utf8Bytes } from '@manuslip/core/text'
 import type { ExportProjection } from '@manuslip/renderer/export'
+import { readingJsonBytes } from '@manuslip/renderer/reading-bytes'
 import type { Locale, Result } from './contracts'
 import { parseId, record } from './file-contracts'
 import { type PandocOptions, parsePandocOptions } from './pandoc-contracts'
@@ -8,7 +10,7 @@ import { parseReadingExport, type ReadingExport, readingExportLimits } from './r
 
 export const exportLimits = {
   source: 2 * 1024 * 1024,
-  html: 16 * 1024 * 1024,
+  html: readingBudgets.exportHtml,
   output: 160 * 1024 * 1024,
   asset: 20 * 1024 * 1024,
   assets: 100 * 1024 * 1024,
@@ -85,7 +87,7 @@ export function parseExportRequest(input: unknown): ExportRequest {
   if (value.plugins !== undefined) parseMarkdownPlugins(value.plugins)
   const pandoc = value.format === 'pandoc' ? parsePandocOptions(value.pandoc) : undefined
   if (value.format !== 'pandoc' && value.pandoc !== undefined) throw new Error('export-invalid')
-  if (reading && utf8Bytes(JSON.stringify(value)) > readingExportLimits.request)
+  if (reading && readingJsonBytes(value) > readingExportLimits.request)
     throw new Error('export-limit')
   return {
     ...value,

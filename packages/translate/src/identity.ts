@@ -1,4 +1,5 @@
 import { utf8Bytes } from '@manuslip/core/text'
+import { isTranslationKey, murmurHash128 } from './cache-hash'
 import {
   extractionVersion,
   type PreparedTranslation,
@@ -185,33 +186,29 @@ function canonical(value: unknown): string {
     .map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`)
     .join(',')}}`
 }
-async function digest(value: string): Promise<string> {
-  const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))
-  return [...new Uint8Array(bytes)].map((byte) => byte.toString(16).padStart(2, '0')).join('')
-}
 export async function providerDescriptorHash(provider: ProviderDescriptor): Promise<string> {
-  return digest(canonical(normalizeProvider(provider)))
+  return murmurHash128(canonical(normalizeProvider(provider)))
+}
+/** Exact cache scope; hash equality alone must never authorize reuse across settings. */
+export function translationSettingsIdentity(
+  settings: TranslationSettings,
+  capabilities: ProviderCapabilities,
+): string {
+  const normalized = normalizeTranslationSettings(settings, capabilities)
+  return canonical({ ...normalized, extractionVersion, reconstructionVersion })
 }
 export async function translationSettingsKey(
   settings: TranslationSettings,
   capabilities: ProviderCapabilities,
 ): Promise<string> {
-  const normalized = normalizeTranslationSettings(settings, capabilities)
-  return digest(
-    canonical({
-      ...normalized,
-      provider: await providerDescriptorHash(normalized.provider),
-      extractionVersion,
-      reconstructionVersion,
-    }),
-  )
+  return murmurHash128(translationSettingsIdentity(settings, capabilities))
 }
 export async function translationUnitKey(
   payload: TranslationPayload,
   settingsKey: string,
 ): Promise<string> {
-  if (!/^[a-f0-9]{64}$/.test(settingsKey)) throw new TranslationError('translation-settings')
-  return digest(
+  if (!isTranslationKey(settingsKey)) throw new TranslationError('translation-settings')
+  return murmurHash128(
     canonical({
       payload: parseTranslationPayload(payload),
       settingsKey,
@@ -236,9 +233,12 @@ export async function prepareTranslation(
     if (!key) {
       key = await translationUnitKey(unit.payload, settingsKey)
       if (isCanonicalPayload(unit.payload)) keys.set(unit.payload, key)
+      const previous = jobs.get(key)
+      if (previous && canonical(previous) !== canonical(unit.payload))
+        throw new TranslationError('translation-invalid')
+      if (!previous) jobs.set(key, structuredClone(unit.payload))
     }
     occurrences.set(unit.occurrenceId, key)
-    if (!jobs.has(key)) jobs.set(key, structuredClone(unit.payload))
   }
   return { jobs: [...jobs].map(([key, payload]) => ({ key, payload })), occurrences }
 }
@@ -269,7 +269,10 @@ export async function prepareCanonicalTranslation(
     const key = await translationUnitKey(payload, settingsKey)
     active()
     keys.set(payload, key)
-    if (!jobs.has(key)) jobs.set(key, structuredClone(payload))
+    const previous = jobs.get(key)
+    if (previous && canonical(previous) !== canonical(payload))
+      throw new TranslationError('translation-invalid')
+    if (!previous) jobs.set(key, structuredClone(payload))
   }
   return { jobs: [...jobs].map(([key, payload]) => ({ key, payload })), keys }
 }

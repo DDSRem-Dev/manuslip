@@ -1,3 +1,4 @@
+export { isTranslationKey } from './cache-hash'
 export * from './contracts'
 export {
   extractCompactTranslation,
@@ -12,6 +13,7 @@ export {
   prepareCanonicalTranslation,
   prepareTranslation,
   providerDescriptorHash,
+  translationSettingsIdentity,
   translationSettingsKey,
   translationUnitKey,
 } from './identity'

@@ -38,6 +38,7 @@ export class ReadingProcessor {
   private readonly outputs = new Map<string, string>()
   private readonly payloads = new Map<string, TranslationPayload>()
   private bytes = 0
+  private outputBytes = 0
   private planPeakBytes = 0
   private blocks: ReadingBlock[] = []
   private settings: Pick<TranslationSettings, 'sourceLanguage' | 'targetLanguage'> | null = null
@@ -73,7 +74,10 @@ export class ReadingProcessor {
           sequence,
           value: value.kind === 'prepared' ? sharedReadingPrepared(value).value : value,
         }
-        if (readingJsonBytes(response) > readingLimits.message)
+        if (
+          readingJsonBytes(response) >
+          (value.kind === 'rendered' ? readingLimits.response : readingLimits.message)
+        )
           throw new Error('translation-view-limit')
         send(response)
       }
@@ -127,24 +131,26 @@ export class ReadingProcessor {
     const baseBytes = messageSize(plan) * 2 + messageSize(blocks) * 2
     if (baseBytes > readingLimits.worker) throw new Error('translation-view-limit')
     this.settings = {
-      sourceLanguage: operation.settings.sourceLanguage,
-      targetLanguage: operation.settings.targetLanguage,
+      sourceLanguage: operation.settings?.sourceLanguage ?? 'auto',
+      targetLanguage: operation.settings?.targetLanguage ?? '',
     }
-    const prepared = await prepareTranslation(
-      plan,
-      operation.settings,
-      capabilitiesFor(operation.settings.provider.adapter),
-    )
+    const prepared = operation.settings
+      ? await prepareTranslation(
+          plan,
+          operation.settings,
+          capabilitiesFor(operation.settings.provider.adapter),
+        )
+      : null
     const units: ReadingUnit[] = plan.units.map((unit) => ({
       occurrenceId: unit.occurrenceId,
       kind: unit.kind,
       from: unit.from,
       to: unit.to,
       hash: sourceHash(operation.source.slice(unit.from, unit.to)),
-      key: prepared.occurrences.get(unit.occurrenceId) ?? null,
-      payload: unit.payload,
+      key: prepared?.occurrences.get(unit.occurrenceId) ?? null,
+      payload: operation.settings ? unit.payload : null,
     }))
-    for (const job of prepared.jobs) this.payloads.set(job.key, job.payload)
+    for (const job of prepared?.jobs ?? []) this.payloads.set(job.key, job.payload)
     for (const unit of units) if (unit.payload && unit.key) this.keys.set(unit.payload, unit.key)
     const bytes = baseBytes + messageSize(units) * 2
     if (bytes > readingLimits.worker) throw new Error('translation-view-limit')
@@ -163,9 +169,14 @@ export class ReadingProcessor {
       validateTranslation(payload, entry.output)
       const previous = this.outputs.get(entry.key)
       const bytes = entry.output.length * 2 - (previous?.length ?? 0) * 2
-      if (this.bytes + bytes > readingLimits.worker) throw new Error('translation-view-limit')
+      if (
+        this.bytes + bytes > readingLimits.worker ||
+        this.outputBytes + bytes > readingLimits.outputs
+      )
+        throw new Error('translation-view-limit')
       this.outputs.set(entry.key, entry.output)
       this.bytes += bytes
+      this.outputBytes += bytes
     }
     const remaining = readingLimits.worker - this.bytes - readingLimits.message
     if (remaining < 0) throw new Error('translation-view-limit')
@@ -193,7 +204,7 @@ export class ReadingProcessor {
       translated,
       units: plan.units,
       children: projected?.children,
-      indexAboveBytes: readingLimits.projection,
+      indexAboveBytes: readingLimits.message,
     })
     if (readingProjectionBytes(projection) > readingLimits.projection)
       throw new Error('translation-view-limit', { cause: 'projection' })
@@ -208,6 +219,7 @@ export class ReadingProcessor {
     this.outputs.clear()
     this.payloads.clear()
     this.bytes = 0
+    this.outputBytes = 0
     this.planPeakBytes = 0
     this.blocks = []
     this.settings = null

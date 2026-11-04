@@ -1,4 +1,4 @@
-import { messageSize } from '@manuslip/core'
+import { readingJsonBytes } from '../../../../../../packages/renderer/src/reading-bytes'
 import { decodeReadingValue, type ReadingWireValue } from './prepared-wire'
 import {
   type ReadingEngine,
@@ -30,7 +30,8 @@ export class ReadingWorker implements ReadingEngine {
       if (
         !pending ||
         event.data?.sequence !== pending.sequence ||
-        messageSize(event.data) > readingLimits.message
+        readingJsonBytes(event.data) >
+          (event.data.value?.kind === 'rendered' ? readingLimits.response : readingLimits.message)
       )
         return this.fail()
       clearTimeout(pending.timer)

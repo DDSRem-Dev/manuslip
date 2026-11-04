@@ -17,10 +17,20 @@ excluding unsaved edits and untitled documents. The footer count opens statistic
 and file details. **Preferences** (`Ctrl/Cmd+,`) controls theme, language, editor, translation
 and plugins. See [Markdown support](commonmark.md) for syntax and content permissions.
 
-Configure an OpenAI-compatible, Ollama or DeepL provider, select a target language and click
-**Translate**. Requests, Cancel, Retry failed and Load cached are explicit. Reading options
-offers translation-only, side-by-side and interlinear layouts. Source changes mark the copy
-stale; refresh explicitly. Code, math and destinations remain protected.
+Configure an OpenAI-compatible, Ollama or DeepL provider, select a target language (Simplified
+Chinese by default) and click **Translate**. Opening Translated preview automatically displays
+a fully cached translation, including after switching tabs or restarting, without contacting
+the provider. New translations wait for **Translate**; saved blocks are reused automatically.
+Saved translations expire after 30 days. Expired blocks remain in the original language until
+you choose **Translate** again. Upgrading from the previous cache format rebuilds the saved
+translation cache.
+When no translated copy is available, the preview renders the original Markdown, including
+before translation is configured. Outline headings jump within the visible preview and keep
+the selected reading mode.
+Requests run concurrently, and results appear in document order. The translation toolbar stays
+visible while scrolling, with Cancel and Retry failed controls. Reading options offers
+translation-only, side-by-side and interlinear layouts. Source changes mark the copy stale;
+refresh explicitly. Code, math and destinations remain protected.
 
 ## Tables and appearance
 

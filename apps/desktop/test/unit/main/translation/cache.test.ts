@@ -25,12 +25,13 @@ describe('bounded SQLite worker transport', () => {
       cache = new TranslationCacheWorker('private-cache.sqlite', changed)
     expect(state.workers).toHaveLength(0)
     const reads = Array.from({ length: 32 }, () =>
-      cache.request({ kind: 'get', key: 'a'.repeat(64), payload: '{}' }),
+      cache.request({ kind: 'get', scope: 'test', key: 'a'.repeat(32), payload: '{}' }),
     )
     const worker = state.workers[0]
     expect(worker.postMessage).toHaveBeenCalledTimes(32)
     expect(
-      (await cache.request({ kind: 'get', key: 'b'.repeat(64), payload: '{}' })).output,
+      (await cache.request({ kind: 'get', scope: 'test', key: 'b'.repeat(32), payload: '{}' }))
+        .output,
     ).toBeNull()
     expect(worker.postMessage).toHaveBeenCalledTimes(32)
     for (let id = 1; id <= 32; id++)
@@ -56,7 +57,7 @@ describe('bounded SQLite worker transport', () => {
   it('fails closed when a clear cannot be enqueued instead of retaining old readable cache data', async () => {
     const cache = new TranslationCacheWorker('cache.sqlite', vi.fn())
     const reads = Array.from({ length: 32 }, () =>
-      cache.request({ kind: 'get', key: 'a'.repeat(64), payload: '{}' }),
+      cache.request({ kind: 'get', scope: 'test', key: 'a'.repeat(32), payload: '{}' }),
     )
     expect((await cache.request({ kind: 'clear' })).status).toBe('unavailable')
     expect((await Promise.all(reads)).every((reply) => reply.status === 'unavailable')).toBe(true)
@@ -66,7 +67,8 @@ describe('bounded SQLite worker transport', () => {
     const cache = new TranslationCacheWorker('cache.sqlite', vi.fn())
     const large = cache.request({
       kind: 'put',
-      key: 'a'.repeat(64),
+      scope: 'test',
+      key: 'a'.repeat(32),
       payload: 'x'.repeat(8 * 1024 * 1024 + 1),
       output: 'text',
     })

@@ -148,7 +148,7 @@ it('rejects complete projection overflow and can retry using the same untouched 
     engine = new ReadingProcessor()
   const prepared = await engine.execute({ kind: 'prepare', root, source, settings })
   if (prepared.kind !== 'prepared') throw new Error('Not prepared')
-  const large = 'x'.repeat(240 * 1024)
+  const large = '&'.repeat(240 * 1024)
   const values = prepared.units.map((unit, index) => ({
     key: unit.key ?? '',
     output: `${large}${index}`,
