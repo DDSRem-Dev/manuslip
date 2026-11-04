@@ -7,6 +7,8 @@ import {
   type Page,
 } from '@playwright/test'
 
+export { contrast } from '../helpers/contrast'
+
 export function launchDesktop(profile: string, paths: string[] = []): Promise<ElectronApplication> {
   return electron.launch({
     ...(process.env.MANUSLIP_PACKAGED_EXECUTABLE
@@ -67,16 +69,4 @@ export async function selectReadingLayout(page: Page, layout: string): Promise<v
   const panel = await openReadingOptions(page)
   await panel.getByRole('combobox', { name: /^(Reading layout|阅读布局)$/ }).selectOption(layout)
   await page.keyboard.press('Escape')
-}
-
-export function contrast(foreground: string, background: string): number {
-  const luminance = (color: string): number => {
-    const channels = (color.match(/[\d.]+/g) || []).slice(0, 3).map((value) => {
-      const channel = Number(value) / 255
-      return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4
-    })
-    return (channels[0] || 0) * 0.2126 + (channels[1] || 0) * 0.7152 + (channels[2] || 0) * 0.0722
-  }
-  const values = [luminance(foreground), luminance(background)].sort((a, b) => a - b)
-  return ((values[1] || 0) + 0.05) / ((values[0] || 0) + 0.05)
 }

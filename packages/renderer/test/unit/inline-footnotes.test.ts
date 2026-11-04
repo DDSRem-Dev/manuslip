@@ -16,6 +16,8 @@ describe('document inline footnote rendering', () => {
     expect(definitions[1]?.html).toContain('value="1"')
     for (const html of [preview.html, renderExport(root, options).html]) {
       expect(html).toContain('aria-label="Footnotes 1" role="doc-noteref"')
+      expect(html).toMatch(/<section\b[^>]*data-footnotes[^>]*role="doc-endnotes"/)
+      expect(html.match(/role="doc-backlink"/g)).toHaveLength(3)
       expect(html).toContain('aria-label="Back 1-2"')
       expect(html).toContain('class="markdown-icon markdown-icon-backref" aria-hidden="true"')
       expect(html).not.toContain('aria-describedby="footnote-label"')

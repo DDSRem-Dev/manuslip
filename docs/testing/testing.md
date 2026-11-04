@@ -6,15 +6,17 @@ Run commands from the repository root.
 | Suite | Location | Command |
 | --- | --- | --- |
 | Desktop/library unit tests | `apps/desktop/test/unit/`, `packages/*/test/unit/` | `npm run test:unit` |
-| Native child processes and optional Pandoc | `apps/desktop/test/integration/` | `npm run test:integration` |
+| Native search/files, HTTP sync/translation and SQLite | `apps/desktop/test/integration/` | `npm run test:integration` |
+| Real Pandoc conversions | `apps/desktop/test/integration/main/pandoc/converter-native.test.ts` | `npm run test:pandoc` |
 | Patch installation/equivalence, release and Linux launcher | `test/packaging/` | `npm run test:packaging` |
 | Desktop workflows | `test/e2e/` | `npm run build:app`, then `npm run test:e2e` |
+| Real Pandoc desktop exports | `test/e2e/pandoc*.spec.ts` | `npm run build:app`, then `npm run test:pandoc:e2e` |
 | Packaged workflows | `test/e2e/` | `npm run build`, then `npm run test:packaged` |
 | Performance and resource gates | `test/benchmark/` | `npm run test:performance` |
 
-`npm run check` covers lint, repository layout/local links, runtime boundaries,
-dependency patch guards, formatting and types. `npm test` runs all Vitest projects,
-including native integration and parser patch equivalence.
+`npm run check` covers lint, repository layout/local links, lockfile policy, runtime boundaries,
+dependency patch guards, formatting and types. `npm test` runs the common Vitest projects,
+including native integration and parser patch equivalence, without requiring Pandoc.
 
 ## Focused runs and fixtures
 
@@ -26,14 +28,43 @@ npm run test:e2e -- --list
 ```
 
 Unit files use `*.test.ts`; browser workflows use `*.spec.ts`; Node packaging tests use
-`*.test.mjs`. Keep fixtures with their owning suite. `test/helpers/` contains the shared
-packaged-executable selector. Tests use isolated profiles and temporary files. Set
-`MANUSLIP_PACKAGED_EXECUTABLE` to select another executable for desktop workflows.
+`*.test.mjs`. Keep fixtures with their owning suite. `test/helpers/` contains shared
+HTTP/WebDAV fixtures, computed-color contrast checks and the packaged-executable selector.
+HTTP fixtures bind to an ephemeral loopback port, close their connections at teardown and
+report asynchronous handler failures to the owning test. Tests use isolated profiles and
+temporary files. Set `MANUSLIP_PACKAGED_EXECUTABLE` to select another executable for desktop workflows.
 Headless Linux Electron tests need Xvfb.
 
-Set `MANUSLIP_TEST_PANDOC` to a trusted local Pandoc 3 executable to include real conversion
-cases; they explicitly skip without it. Tests otherwise use local fake providers and dummy
-keys. Paid translation accounts are not required.
+Real Pandoc tests have their own Vitest project and tagged desktop cases. `npm test`,
+`npm run test:integration` and `npm run test:e2e` exclude them, even when Pandoc is configured.
+Set `MANUSLIP_TEST_PANDOC` to a trusted local Pandoc 3 executable before running the dedicated
+commands below. Missing configuration fails those runs immediately. Common desktop tests
+retain the missing/invalid Pandoc UI workflow, which needs no Pandoc installation.
+Tests otherwise use local fake providers and dummy keys. Paid translation accounts are not required.
+
+The reusable [Pandoc fixtures](../../apps/desktop/test/fixtures/pandoc/conversion.md) also
+include [export](../../apps/desktop/test/fixtures/pandoc/export.md),
+[translated reading](../../apps/desktop/test/fixtures/pandoc/reading.md) and
+[reference/escaping](../../apps/desktop/test/fixtures/pandoc/references.md) examples.
+Integration tests pass Markdown through the production parser, renderer and real converter,
+then inspect DOCX, EPUB and LaTeX content, links, footnotes and embedded media. Desktop tests
+also check local image paths containing Unicode/spaces, unchanged CRLF source bytes,
+selection/undo and stale reading exports. Run the Pandoc cases after selecting the tool:
+
+```sh
+npm run test:pandoc
+npm run build:app
+npm run test:pandoc:e2e
+```
+
+The integration suite composes production services with real I/O: native search results
+open and save files with encoding preservation, workspace and draft recovery survive
+reopening, WebDAV transfers verify conditional writes and durable recovery, and provider
+requests exercise HTTP cancellation, redirects, retries and SQLite cache invalidation.
+The translation service tests use the SQLite store directly; Electron workflows also
+exercise the bundled cache worker. The `workspace-search-flow` and `sync-restart-flow`
+E2E specs drive the normal UI against native search and loopback servers, including stale
+results, streaming cancellation and conflict recovery after a process restart.
 
 The unmodified [CommonMark 0.31.2 corpus](../../packages/core/test/fixtures/commonmark-0.31.2/spec.json)
 contains all 652 official examples from <https://spec.commonmark.org/0.31.2/spec.json>.
@@ -78,8 +109,30 @@ Use `test.info().outputPath()` for browser attachments so retries own their outp
 Temporary inputs should be cleaned up by their tests. `npm run clean` removes build
 output and generated result directories.
 
-CI checks source and unit/integration/packaging suites, then builds on Windows x64,
-Linux x64 and macOS x64/arm64. E2E jobs reuse the archived builds for built/packaged tests.
-Windows additionally runs `npm run test:installer` in a clean account, checking install,
-exact saved bytes, restart and uninstall restoration. See [distribution](../development/distribution.md).
-Performance budgets and physical OS/IME/assistive-technology behavior require separate runs.
+CI runs verification on Linux x64, Windows x64 and macOS x64/arm64. Each verify job
+validates the lockfile before `npm ci`, then runs `npm run check`, `npm run test:unit`,
+`npm run test:integration`, `npm run test:packaging` and `npm run build:app`.
+Each verify job also runs the missing/invalid Pandoc UI workflow without installing Pandoc.
+Separate Pandoc jobs use the same platform matrix, install Pandoc 3.13, select its absolute
+executable path, then run `npm run test:pandoc`, build the app and run `npm run test:pandoc:e2e`.
+Linux desktop tests use Xvfb. The common and Pandoc jobs run independently, so a Pandoc
+failure does not prevent common verification or the other platform results.
+
+Dependency security runs once on Linux for pull requests, pushes to `main`, manual runs
+and daily at 03:23 UTC. Scheduled runs execute only this job, without installing dependencies.
+`npm run check:lockfile` accepts HTTPS tarballs from `registry.npmjs.org` and the existing
+`registry.npmmirror.com` mirror, requires valid SHA-512 integrity hashes and permits local
+links only to actual declared workspaces inside the repository. Credentials, query strings,
+fragments, Git sources and other filesystem dependencies are rejected. An overriding
+`npm-shrinkwrap.json` is also rejected so installations use the validated lockfile.
+
+`npm run audit:dependencies` audits the lockfile against the public npm advisory service,
+including development, optional and peer dependencies. High or critical vulnerabilities
+fail the job; lower severities remain visible in its report. Registry errors also fail the
+job. This command reports findings without changing dependency versions or running install scripts.
+
+Run desktop E2E, native builds and packaged-app tests separately on the target platform
+before release. Windows installer checks use `npm run test:installer` in a clean account,
+checking install, exact saved bytes, restart and uninstall restoration.
+See [distribution](../development/distribution.md). Performance budgets and physical
+OS/IME/assistive-technology behavior also require separate runs.

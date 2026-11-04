@@ -2,8 +2,11 @@
 
 Ordinary builds produce unsigned native installers without selecting an update feed
 or publishing. Targets are Windows x64 NSIS, Linux x64 AppImage and macOS x64/arm64 DMG.
-Build on the target platform and architecture. CI builds and tests each target;
-interactive OS integration and signing require their own platform checks.
+Build and test on the target platform and architecture before release. Routine CI checks
+source and builds application assets on Linux x64, Windows x64 and macOS x64/arm64.
+Separate CI jobs run real Pandoc conversions and desktop export workflows on the same targets.
+Native installers, the full desktop E2E suite, interactive OS integration and signing require
+separate platform checks.
 
 [ADR 013](../adr/013-local-distribution.md) explains why local packaging, signing,
 update metadata and publication remain separate operations.

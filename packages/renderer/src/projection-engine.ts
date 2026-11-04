@@ -143,6 +143,11 @@ export function describeProjectionNode(node: MarkdownNode, options?: RenderOptio
 }
 
 export function applyProjectionPolicy(element: Element, listStart?: number): void {
+  // Pair note references with a semantic footer so HTML consumers can resolve them.
+  if (element.tagName === 'section' && Object.hasOwn(element.properties, 'dataFootnotes'))
+    element.properties.role = 'doc-endnotes'
+  if (element.tagName === 'a' && Object.hasOwn(element.properties, 'dataFootnoteBackref'))
+    element.properties.role = 'doc-backlink'
   // Each live definition has its own list wrapper. Preserve the footer's ordinal
   // in standard HTML so every rendering path keeps its first-reference number.
   if (

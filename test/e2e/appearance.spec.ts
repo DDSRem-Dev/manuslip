@@ -289,7 +289,7 @@ test('appearance first-save and Save As keep local styles, while failed storage 
     const page = await application.firstWindow()
     await page.getByRole('button', { name: 'New document', exact: true }).first().click()
     await page.getByRole('button', { name: 'Source', exact: true }).click()
-    const editor = page.locator('.cm-content')
+    const editor = page.getByRole('textbox', { name: 'Markdown source', exact: true })
     const source = '# Appearance\n\n| A | B |\n| --- | --- |\n| one | two |\n\n'
     await editor.fill(source)
     await clickDocumentAction(page, 'Document appearance')
@@ -332,8 +332,12 @@ test('appearance first-save and Save As keep local styles, while failed storage 
     await expect(table.locator('button')).toHaveCount(0)
     await table.focus()
     await table.press('Enter')
+    const cell = page.locator('[data-table-cell-editor]')
+    await expect(cell).toBeFocused()
+    await expect(cell).toHaveText('A')
+    await cell.press('Escape')
     await expect(editor).toBeFocused()
-    await expect.poll(() => page.evaluate(() => getSelection()?.toString())).toContain('| A | B |')
+    await expect(cell).toHaveCount(0)
     await clickDocumentAction(page, 'Document appearance')
     const backup = `${storePath}.fixture-backup`
     await rename(storePath, backup)

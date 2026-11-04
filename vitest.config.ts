@@ -1,5 +1,7 @@
 import { availableParallelism } from 'node:os'
-import { defineConfig } from 'vitest/config'
+import { configDefaults, defineConfig } from 'vitest/config'
+
+const pandocTests = ['apps/desktop/test/integration/main/pandoc/converter-native.test.ts']
 
 export default defineConfig({
   test: {
@@ -17,7 +19,12 @@ export default defineConfig({
         test: {
           name: 'desktop-integration',
           include: ['apps/desktop/test/integration/**/*.test.ts'],
+          exclude: [...configDefaults.exclude, ...pandocTests],
         },
+      },
+      {
+        extends: true,
+        test: { name: 'pandoc', include: pandocTests },
       },
       {
         extends: true,

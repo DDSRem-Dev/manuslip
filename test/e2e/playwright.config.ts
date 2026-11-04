@@ -3,6 +3,7 @@ import { defineConfig } from '@playwright/test'
 
 export default defineConfig({
   testDir: '.',
+  grepInvert: /@pandoc/,
   timeout: 30_000,
   workers: 1,
   fullyParallel: false,

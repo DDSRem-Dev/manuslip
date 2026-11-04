@@ -2,19 +2,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, test } from '@playwright/test'
-import { launchDesktop } from './helpers'
-
-function contrast(foreground: string, background: string): number {
-  function luminance(color: string): number {
-    const channels = (color.match(/[\d.]+/g) || []).slice(0, 3).map((value) => {
-      const normalized = Number(value) / 255
-      return normalized <= 0.04045 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4
-    })
-    return (channels[0] || 0) * 0.2126 + (channels[1] || 0) * 0.7152 + (channels[2] || 0) * 0.0722
-  }
-  const values = [luminance(foreground), luminance(background)].sort((a, b) => a - b)
-  return ((values[1] || 0) + 0.05) / ((values[0] || 0) + 0.05)
-}
+import { contrast, launchDesktop } from './helpers'
 
 test('secure shell launches, stays offline, and restores preferences', async () => {
   const profile = await mkdtemp(join(tmpdir(), 'manuslip-e2e-'))

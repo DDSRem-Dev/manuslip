@@ -1,4 +1,5 @@
 import type { ReadingProjection } from '@manuslip/renderer/reading'
+import { markdownConventionStyle } from '@manuslip/renderer/conventions'
 import { reserveWidgetBytes } from '../../../../apps/desktop/src/renderer/src/preview/widgets'
 import type { ReadingOperation } from '../../../../apps/desktop/src/renderer/src/translation/protocol'
 import { mountReading } from '../../../../apps/desktop/src/renderer/src/translation/surface'
@@ -8,7 +9,10 @@ import type { DesktopBridge } from '../../../../apps/desktop/src/shared/contract
 import '../../../../apps/desktop/src/renderer/src/styles.css'
 
 const scroller = document.createElement('section'),
-  article = document.createElement('article')
+  article = document.createElement('article'),
+  style = document.createElement('style')
+style.textContent = markdownConventionStyle
+document.head.append(style)
 scroller.className = 'reading-pane'
 scroller.style.height = '100vh'
 article.className = 'reading-article cm-live-rendered'

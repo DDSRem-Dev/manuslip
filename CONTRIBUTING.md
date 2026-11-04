@@ -25,11 +25,15 @@ retried with `npm install`; unknown dependency contents require reviewing the pa
 | Command | Purpose |
 | --- | --- |
 | `npm run dev` | Start the desktop app with hot reload |
-| `npm run check` | Lint, layout/local links, process boundaries, patch guards, formatting and types |
+| `npm run check` | Lint, layout/local links, lockfile policy, process boundaries, patch guards, formatting and types |
+| `npm run check:lockfile` | Validate dependency registries, integrity hashes and workspace links before installing |
+| `npm run audit:dependencies` | Audit all locked dependencies; fail for high/critical vulnerabilities |
 | `npm run format` | Apply Biome formatting |
-| `npm test` | All Vitest projects |
+| `npm test` | Common Vitest projects without an external Pandoc requirement |
 | `npm run test:unit` | Desktop and library unit tests |
-| `npm run test:integration` | Native child-process and optional Pandoc tests |
+| `npm run test:integration` | Native child-process, filesystem, sync and translation integration tests |
+| `npm run test:pandoc` | Real Pandoc conversions; requires `MANUSLIP_TEST_PANDOC` |
+| `npm run test:pandoc:e2e` | Real Pandoc desktop exports against existing assets |
 | `npm run test:packaging` | Dependency installation, release and platform launcher checks |
 | `npm run build:app` | Build application assets for Electron E2E |
 | `npm run test:e2e` | Run workflows against existing assets |
@@ -87,5 +91,9 @@ and `revert`; use `!` and explain breaking changes when applicable.
 
 Sign off commits with `git commit -s` under the Developer Certificate of Origin. Describe
 the resulting behavior and relevant verification in the PR. Run `npm run check` and the
-affected tests; CI also builds and verifies the application on supported platforms.
+affected tests; CI runs source, unit/integration/packaging checks and builds application
+assets on Linux x64, Windows x64 and macOS x64/arm64. Real Pandoc conversions and export
+E2E run in separate jobs on the same targets. Dependency security runs separately
+on Linux and also runs daily. Run desktop E2E and native installer checks on the target
+platform before release; see [testing](docs/testing/testing.md).
 A maintainer review is required before merge. Contributions use the [MIT license](LICENSE).

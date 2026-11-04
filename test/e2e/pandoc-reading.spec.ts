@@ -5,19 +5,20 @@ import { join, resolve, sep } from 'node:path'
 import type { TranslationSettings } from '@manuslip/translate'
 import { expect, test } from '@playwright/test'
 import { readPandocZip } from '../../apps/desktop/src/main/pandoc/zip'
+import { pandocFixture, pandocTestPath } from '../helpers/pandoc'
 import { clickDocumentAction, launchDesktop, selectReadingLayout, waitForReading } from './helpers'
 
-test('Pandoc reading exports retain each layout and a confirmed stale copy without translation requests', async () => {
-  const tool = process.env.MANUSLIP_TEST_PANDOC
-  test.skip(!tool, 'Set MANUSLIP_TEST_PANDOC to an explicitly selected local Pandoc 3 application')
+test('Pandoc reading exports retain each layout and a confirmed stale copy without translation requests', {
+  tag: '@pandoc',
+}, async () => {
+  const tool = pandocTestPath()
   test.setTimeout(90_000)
   const directory = await mkdtemp(resolve('test/e2e/result/pandoc-reading-'))
   if (!directory.startsWith(resolve('test/e2e/result') + sep))
     throw new Error('Unsafe fixture path')
   const path = join(directory, 'reading.md'),
     info = test.info()
-  const original =
-    '# Hello first\r\n\r\nHello with $x^2$ and a note[^n].\r\n\r\n```mermaid\r\nflowchart LR\r\nA-->B\r\n```\r\n\r\n## Hello last\r\n\r\nHello end marker.\r\n\r\n[^n]: Hello reference.\r\n'
+  const original = await pandocFixture('reading', 'crlf')
   await writeFile(path, original)
   let requests = 0
   const server = createServer(async (incoming, reply) => {
@@ -78,7 +79,7 @@ test('Pandoc reading exports retain each layout and a confirmed stale copy witho
           dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [values.tool] })
           dialog.showSaveDialog = async () => ({ canceled: false, filePath: values.target })
         },
-        { tool: tool as string, target },
+        { tool, target },
       )
       await clickDocumentAction(page, 'Export reading with Pandoc…')
       const modal = page.getByRole('dialog', { name: 'Export with Pandoc', exact: true })

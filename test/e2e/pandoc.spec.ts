@@ -3,12 +3,10 @@ import { join, resolve, sep } from 'node:path'
 import { type ElectronApplication, expect, type Page, test } from '@playwright/test'
 import axe from 'axe-core'
 import { readPandocZip } from '../../apps/desktop/src/main/pandoc/zip'
+import { pandocFixture, pandocPixel, pandocTestPath } from '../helpers/pandoc'
 import { clickDocumentAction, launchDesktop } from './helpers'
 
 const modifier = process.platform === 'darwin' ? 'Meta' : 'Control'
-const tool = process.env.MANUSLIP_TEST_PANDOC
-const source =
-  'token keep token\r\n\r\n# Hello export 中文\r\n\r\nEditable **strong** text 😀 and a note[^n].\r\n\r\n| Name | Detail |\r\n| --- | --- |\r\n| Original | 译文 |\r\n\r\nMath $x^2$ and $\\ce{H2O}$.\r\n\r\n```mermaid\r\nflowchart LR\r\nWrite[写作 Write]-->Share[分享 Share]\r\n```\r\n\r\n![Local red pixel](pixel.png)\r\n\r\n## Final heading\r\n\r\nComplete end marker.\r\n\r\n[^n]: Footnote content.\r\n'
 async function stop(application: ElectronApplication, directory: string): Promise<void> {
   await application
     .evaluate(({ BrowserWindow }) => {
@@ -91,12 +89,12 @@ test('missing and invalid Pandoc choices keep normal export and source editing u
 })
 
 for (const locale of ['en', 'zh-CN'] as const) {
-  test(`${locale} real Pandoc exports preserve editable content, rendered media and source history`, async () => {
-    test.skip(
-      !tool,
-      'Set MANUSLIP_TEST_PANDOC to an explicitly selected local Pandoc 3 application',
-    )
+  test(`${locale} real Pandoc exports preserve editable content, rendered media and source history`, {
+    tag: '@pandoc',
+  }, async () => {
+    const tool = pandocTestPath()
     test.setTimeout(120_000)
+    const source = await pandocFixture('export', 'crlf')
     const info = test.info()
     const directory = await mkdtemp(resolve('test/e2e/result/pandoc-native-'))
     if (!directory.startsWith(resolve('test/e2e/result') + sep))
@@ -115,13 +113,9 @@ for (const locale of ['en', 'zh-CN'] as const) {
         chinese = locale === 'zh-CN'
       const errors: string[] = []
       page.on('pageerror', (error) => errors.push(error.message))
-      const pixel = await application.evaluate(({ nativeImage }) =>
-        nativeImage
-          .createFromBitmap(Buffer.from([0, 0, 255, 255]), { width: 1, height: 1 })
-          .toPNG()
-          .toString('base64'),
-      )
-      await writeFile(join(directory, 'pixel.png'), Buffer.from(pixel, 'base64'))
+      const pixel = await readFile(pandocPixel)
+      await mkdir(join(directory, 'images'))
+      await writeFile(join(directory, 'images', '图 & pixel.png'), pixel)
       await page.getByRole('button', { name: chinese ? '源码' : 'Source', exact: true }).click()
       const editor = page.locator('.cm-content')
       await editor.focus()
@@ -144,7 +138,7 @@ for (const locale of ['en', 'zh-CN'] as const) {
         if (format === 'docx') {
           await application.evaluate(({ dialog }, path) => {
             dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] })
-          }, tool as string)
+          }, tool)
           await modal
             .getByRole('button', { name: chinese ? '选择 Pandoc…' : 'Choose Pandoc…', exact: true })
             .click()
@@ -195,7 +189,7 @@ for (const locale of ['en', 'zh-CN'] as const) {
           expect(text).toContain(content)
         const media = [...files].filter(([name]) => /\.(?:png|jpe?g)$/.test(name))
         expect(media.length).toBeGreaterThanOrEqual(4)
-        expect(media.some(([, bytes]) => bytes.equals(Buffer.from(pixel, 'base64')))).toBe(true)
+        expect(media.some(([, bytes]) => bytes.equals(pixel))).toBe(true)
         await info.attach(`pandoc-${format}`, {
           body: bytes,
           contentType:

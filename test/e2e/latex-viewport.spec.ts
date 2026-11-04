@@ -11,6 +11,27 @@ const value = [
   String.raw`\end{aligned}`,
 ].join('\n')
 
+async function revealPreview(preview: Locator, scroller: Locator): Promise<void> {
+  // Inline decorations only exist in CodeMirror's rendered viewport. Scroll the
+  // document until the formula is mounted before asking Playwright to reveal it.
+  await scroller.evaluate((element) => {
+    element.scrollTop = 0
+  })
+  await expect
+    .poll(
+      async () => {
+        if (await preview.count()) return true
+        await scroller.evaluate((element) => {
+          element.scrollTop += element.clientHeight / 2
+        })
+        return false
+      },
+      { intervals: [100] },
+    )
+    .toBe(true)
+  await preview.scrollIntoViewIfNeeded()
+}
+
 async function expectEditingVisible(preview: Locator, caretOnly = false): Promise<void> {
   await expect
     .poll(() =>
@@ -85,10 +106,7 @@ for (const { width, height, zoom, theme } of [
           kind === 'diagram'
             ? editor.locator('.cm-live-diagram .cm-live-rendered')
             : editor.getByRole('math', { name: expression, exact: true })
-        await page.locator('.cm-scroller').evaluate((element) => {
-          element.scrollTop = (element.scrollHeight - element.clientHeight) / 2
-        })
-        await math.scrollIntoViewIfNeeded()
+        await revealPreview(math, page.locator('.cm-scroller'))
         await expect(math.locator('svg')).toBeVisible()
         await math.evaluate((element) => {
           const scroller = element.closest('.cm-scroller')
@@ -158,10 +176,7 @@ for (const { width, height, zoom, theme } of [
         await editor.fill(source)
         await editor.press(`${modifier}+Home`)
         await page.getByRole('button', { name: 'Live Preview', exact: true }).click()
-        await scroller.evaluate((element) => {
-          element.scrollTop = (element.scrollHeight - element.clientHeight) / 2
-        })
-        await math.scrollIntoViewIfNeeded()
+        await revealPreview(math, scroller)
         const focusable = kind === 'diagram' ? editor.locator('.cm-live-diagram') : math
         await focusable.focus()
         await focusable.press('Enter')

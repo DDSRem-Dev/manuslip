@@ -135,7 +135,12 @@ for (const theme of ['light', 'dark'])
         await expect(exportReading).toBeInViewport({ ratio: 1 })
         await page.keyboard.press('Enter')
         await expect(commands).toBeHidden()
-        await expect(page.locator('.export-controls > [role="alert"]')).toBeVisible()
+        await expect(page.locator('.export-feedback').getByRole('alert')).toHaveText(
+          chinese
+            ? '请先选择“翻译”，再导出阅读副本。'
+            : 'Choose Translate before exporting a reading copy.',
+        )
+        await expect(page.locator('.export-feedback').getByRole('alert')).toBeVisible()
         await expect.poll(() => visibleHeight('.reading-pane')).toBeGreaterThanOrEqual(240)
         expect(
           await page
