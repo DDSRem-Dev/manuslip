@@ -103,7 +103,8 @@ Both host and editor sanitize SVG, keeping references inside each diagram and gi
 mounted copy distinct IDs. Main owns a 3-second watchdog, one running/four pending jobs,
 visible-consumer priority, cancellation, a bounded cache and a three-restart/minute budget.
 Hung obsolete jobs count toward that budget; deliberate document/window revocation does not.
-Source, SVG, node and element limits are specified in ADR 002. Failures retain editable
+Source, SVG, node and element limits are defined in
+[diagram contracts](packages/renderer/src/diagram.ts). Failures retain editable
 source and offer manual Retry. Packaged tests deliberately freeze the host and verify that
 typing, saving and another window remain responsive, then recover through Retry.
 
@@ -159,7 +160,8 @@ PDF waits for font/image readiness, prints at most 2,001 pages, then rejects mor
 pages before writing. Worker, print and diagram hosts are disposed on success, failure, cancel
 or document/window close. Packaged tests deliberately hang the print renderer and verify
 continued source editing/saving, cancellation, cleanup and a successful fresh export.
-Numeric limits and verification scope are recorded in ADR 002 and VALIDATION.md.
+Numeric limits live in [export contracts](apps/desktop/src/shared/export-contracts.ts);
+verification commands are in the [testing guide](docs/testing/testing.md).
 
 ## Offline structural translation core
 

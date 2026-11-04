@@ -1,17 +1,35 @@
-# Visual table editing
+# ADR 007: Edit tables through source-preserving transactions
 
-Status: accepted on the Windows baseline for ADR002 item22; see VALIDATION.md, iteration98.
+Status: Accepted.
 
-Live table cells edit their Markdown directly. Double-click retains native text selection, and F2 edits the focused cell or the first cell of a focused table. The cell keeps its theme, borders, row striping and alignment without a separate fill or underline. Rendered tables have no callback for opening a structural window.
+## Context
 
-Edit table remains an explicit document action for the table at the main caret. Its modal dialog stages inline Markdown in standard labelled cell inputs while the existing source editor stays mounted. Row/column insertion, removal and movement preserve the header row and at least one column; alignment moves with its column. Tab/Shift+Tab follow the normal input order. Enter/Shift+Enter and up/down move between rows, and Alt+left/right moves between columns. Ordinary text cursor keys and composition retain their native meaning. Source/Live/reading shortcuts do not change the surface behind the dialog.
+Tables need convenient cell and structural editing without replacing Markdown spellings,
+document history or text outside the selected table. Pending input and asynchronous
+captures can otherwise apply a table draft to a different revision.
 
-Pending source input settles before a modal or semantic capture is opened. The controller waits for the exact current DocumentPreview snapshot, reads its positioned native MDAST root synchronously, and then retains only the bounded table target/draft. This deliberately uses the native snapshot rather than the reading adapter, which preferentially exposes an owned packed graph even on the native parser path. The experimental packed-worker path keeps its complete Source fallback; no feature flag, reader lifetime, resource cap, grammar or IPC capability changes. The shared MDAST root is never mutated.
+## Decision
 
-Cell positions include structural pipes, so extraction strips those delimiters and ASCII padding only. Inline code, escapes, references, shortcode spellings, Unicode and non-ASCII whitespace remain source text. Common uniform quote/list continuation prefixes and the original header prefix are retained. Short rows gain empty draft cells; excess cells beyond the header width and ambiguous varying prefixes require Source editing. Unchanged Apply returns the exact original table without a history event. Cancel discards only the staged draft.
+Live cells edit their own source in place, including F2 activation. Double-click retains
+native text selection and active cells keep their theme, borders and alignment.
+Structural editing is the explicit Document actions → Edit table command.
 
-The model permits at most200 rows including the header,32 columns,2,048 cells and4,096 UTF-16 units per cell. Original table source is limited to256KiB and generated source to512KiB. Dimensions are checked before allocating the matrix, and output UTF-8 cost before joining each line. Existing document, semantic capture and renderer bounds remain unchanged. Limits or unsupported structure show localized guidance and retain the complete source.
+The dialog stages a bounded table draft from the current positioned native snapshot.
+Preserve original cell text, escapes, inline code and supported container prefixes.
+Ambiguous structures remain editable in Source. Cancel discards the draft; unchanged
+Apply creates no history event.
 
-Apply checks document revision, immutable source identity, mounting, lock/read-only and composition state after synchronizing input. One source transaction replaces only the table, maps every existing selection and isolates undo history. Existing source-cap filters remain authoritative; a rejected transaction leaves the draft open. Cancellation, a document switch, disposal or a later revision cannot resume an old Apply into a newer session. Dialog closure and document teardown release the table target and pending capture request. Source outside the selected table and file encoding/newline metadata are preserved.
+Before Apply, synchronize input and recheck source identity, revision, owner, locks and
+composition. Replace only the table in one undoable transaction, map existing selections
+and retain the document's size filter. Rejection keeps the draft available.
 
-The interface reuses the application palette, focus styles and popover controls. The grid scrolls within the dialog at narrow widths, and inputs fill their complete cells. English/light and Chinese/dark functional, accessibility and visual checks cover both Source and Live entry, keyboard navigation, staged cancellation, structural changes, alignment, one-step undo/redo, exact CRLF save/reopen and sanitized unsafe links. Pure tests additionally cover actual-parser round trips, nested prefixes, source spellings, selection mapping, stale/cancel races, rejected transactions, bounds and unchanged Apply. The full packaged regression run passes153 cases, including both visual table flows and complete-Source fallbacks.
+## Alternatives and consequences
+
+Rebuilding the document from a table/AST model can normalize unrelated spelling and
+history. Opening a structural dialog on every table click interferes with direct editing.
+The chosen split requires target/race validation and source-aware serialization, while
+keeping ordinary cell editing and explicit structural work predictable.
+
+See [table controls](../guides/desktop.md#tables-and-appearance), the
+[table model and limits](../../apps/desktop/src/renderer/src/table-model.ts) and
+[model regressions](../../apps/desktop/test/unit/renderer/src/table-model.test.ts).

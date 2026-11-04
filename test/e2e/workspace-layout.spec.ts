@@ -4,7 +4,7 @@ import { expect, test } from '@playwright/test'
 import { clickDocumentAction, launchDesktop } from './helpers'
 
 test('workspace search restores a hidden sidebar and preferences preserve writing and translation drafts', async () => {
-  const directory = await mkdtemp(resolve('test/artifacts/logs/workspace-layout-'))
+  const directory = await mkdtemp(resolve('test/e2e/result/workspace-layout-'))
   const folder = join(directory, 'Notes')
   await mkdir(folder)
   const path = join(folder, 'Notebook.md')
@@ -71,7 +71,7 @@ test('workspace search restores a hidden sidebar and preferences preserve writin
 })
 
 test('file search chooses a folder and live listings preserve pagination through workspace switches', async () => {
-  const directory = await mkdtemp(resolve('test/artifacts/logs/workspace-live-'))
+  const directory = await mkdtemp(resolve('test/e2e/result/workspace-live-'))
   const first = join(directory, 'First folder'),
     second = join(directory, 'Second folder')
   const chapters = join(first, 'chapters')

@@ -24,14 +24,5 @@
     "test/**/*.ts",
     "*.config.ts"
   ],
-  "exclude": [
-    "**/node_modules",
-    "**/out",
-    "**/release",
-    "**/test/artifacts",
-    "test/e2e/results",
-    "test/e2e/report",
-    "test/benchmark/results",
-    "test/packaging/results"
-  ]
+  "exclude": ["**/node_modules", "**/out", "**/release", "**/test/**/result"]
 }

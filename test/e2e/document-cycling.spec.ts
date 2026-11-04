@@ -14,8 +14,8 @@ async function fixture(
     originals: ThreeDocuments,
   ) => Promise<void>,
 ) {
-  const directory = await mkdtemp(resolve('test/artifacts/logs/document-cycling-'))
-  if (!directory.startsWith(`${resolve('test/artifacts/logs')}${sep}`))
+  const directory = await mkdtemp(resolve('test/e2e/result/document-cycling-'))
+  if (!directory.startsWith(`${resolve('test/e2e/result')}${sep}`))
     throw new Error('Invalid test directory')
   const paths: ThreeDocuments = [
     join(directory, '1.md'),

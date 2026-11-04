@@ -1,10 +1,12 @@
-# Building and reviewing a desktop release
+# Desktop distribution
 
-Manuslip 0.1.0 can be delivered as an unsigned local Windows NSIS installer. Ordinary
-builds do not sign, select an update feed or publish. Windows execution is verified
-locally; the existing CI retains Windows x64, Linux x64 and macOS x64/arm64 builds and
-desktop tests. Other-platform execution and physical OS integration need their own
-acceptance evidence.
+Ordinary builds produce unsigned native installers without selecting an update feed
+or publishing. Targets are Windows x64 NSIS, Linux x64 AppImage and macOS x64/arm64 DMG.
+Build on the target platform and architecture. CI builds and tests each target;
+interactive OS integration and signing require their own platform checks.
+
+[ADR 013](../adr/013-local-distribution.md) explains why local packaging, signing,
+update metadata and publication remain separate operations.
 
 ## Ordinary local build
 
@@ -25,7 +27,7 @@ Unsigned packages show the operating system's normal unidentified-publisher prom
 Signing is a separate release operation described below.
 
 Run `npm run test:installer` on a Windows account without an existing Manuslip
-installation or running Manuslip process. It installs into a fresh ignored `test/packaging/results`
+installation or running Manuslip process. It installs into a fresh ignored `test/packaging/result`
 directory, compares every installed runtime byte, launches the installed application,
 edits/saves/reopens BOM/CRLF/Unicode source, checks icons/registrations/shortcuts, then
 uninstalls and verifies restoration of the original association and shortcut state.
@@ -50,7 +52,7 @@ npm run package:release -- --signed --plan
 ```
 
 Remove `--plan` to execute the selected profile. Each execution creates a fresh
-`test/packaging/results/releases/candidate-*/` directory containing `plan.json`, `builder.json`,
+`test/packaging/result/releases/candidate-*/` directory containing `plan.json`, `builder.json`,
 `report.json` and `artifacts/`. A successful build writes `artifacts/SHA256SUMS`
 with the SHA-256 of every installer/archive/update metadata file. Keep the manifest
 with the artifacts for review. Failure evidence remains in the same directory.

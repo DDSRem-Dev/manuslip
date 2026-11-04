@@ -9,7 +9,7 @@ for (const [locale, theme, width, height] of [
   ['zh-CN', 'dark', 400, 860],
 ] as const) {
   test(`export feedback appears at the bottom right for five seconds in ${locale} ${theme}`, async () => {
-    const directory = await mkdtemp(resolve('test/artifacts/logs/export-feedback-'))
+    const directory = await mkdtemp(resolve('test/e2e/result/export-feedback-'))
     const profile = join(directory, 'profile')
     const path = join(directory, 'Notes.md')
     const target = join(directory, 'A readable exported copy with a long file name.html')

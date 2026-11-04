@@ -91,8 +91,8 @@ async function audit(page: Page, name: string): Promise<void> {
 for (const locale of ['en', 'zh-CN'] as const) {
   test(`${locale} document appearance preserves writing, scopes CSS and survives reading, export and restart`, async () => {
     test.setTimeout(60_000)
-    const directory = await mkdtemp(resolve('test/artifacts/logs/appearance-'))
-    if (!directory.startsWith(resolve('test/artifacts/logs') + sep))
+    const directory = await mkdtemp(resolve('test/e2e/result/appearance-'))
+    if (!directory.startsWith(resolve('test/e2e/result') + sep))
       throw new Error('Unsafe fixture path')
     const profile = join(directory, 'profile'),
       path = join(directory, 'notebook.md'),
@@ -275,8 +275,8 @@ for (const locale of ['en', 'zh-CN'] as const) {
 }
 
 test('appearance first-save and Save As keep local styles, while failed storage still permits trusted reset and Source', async () => {
-  const directory = await mkdtemp(resolve('test/artifacts/logs/appearance-recovery-'))
-  if (!directory.startsWith(resolve('test/artifacts/logs') + sep))
+  const directory = await mkdtemp(resolve('test/e2e/result/appearance-recovery-'))
+  if (!directory.startsWith(resolve('test/e2e/result') + sep))
     throw new Error('Unsafe fixture path')
   const profile = join(directory, 'profile'),
     path = join(directory, 'first.md'),

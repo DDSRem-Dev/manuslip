@@ -17,8 +17,8 @@ async function withSource(
   action: (source: Source) => Promise<void>,
   holdInput = false,
 ): Promise<void> {
-  await mkdir('test/artifacts/logs', { recursive: true })
-  const directory = await mkdtemp(resolve('test/artifacts/logs/mode-input-'))
+  await mkdir('test/e2e/result', { recursive: true })
+  const directory = await mkdtemp(resolve('test/e2e/result/mode-input-'))
   const path = join(directory, 'mode-input.md')
   await writeFile(path, original)
   const application = await launchDesktop(join(directory, 'profile'), holdInput ? [] : [path])

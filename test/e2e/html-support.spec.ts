@@ -88,7 +88,7 @@ async function basicHtml(container: Locator) {
 for (const theme of ['light', 'dark'] as const) {
   test(`basic CommonMark HTML preserves semantics, editing and reading in ${theme}`, async () => {
     test.setTimeout(60_000)
-    const directory = await mkdtemp(resolve('test/artifacts/logs/html-support-'))
+    const directory = await mkdtemp(resolve('test/e2e/result/html-support-'))
     const profile = join(directory, 'profile')
     const path = join(directory, 'html.md')
     await mkdir(profile)

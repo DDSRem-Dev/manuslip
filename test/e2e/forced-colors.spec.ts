@@ -42,8 +42,8 @@ async function appearance(control: Locator) {
 
 for (const scheme of ['light', 'dark'] as const)
   test(`forced system colors keep selected tabs and modes visible in ${scheme}`, async () => {
-    await mkdir('test/artifacts/logs', { recursive: true })
-    const directory = await mkdtemp(resolve(`test/artifacts/logs/system-colors-${scheme}-`))
+    await mkdir('test/e2e/result', { recursive: true })
+    const directory = await mkdtemp(resolve(`test/e2e/result/system-colors-${scheme}-`))
     test.info().annotations.push({ type: 'system-colors-evidence', description: directory })
     const first = join(directory, 'First notes.md'),
       second = join(directory, '第二个文档.md')

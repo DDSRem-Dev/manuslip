@@ -30,7 +30,7 @@ async function fixture(
   source: string,
   run: (page: Page, application: ElectronApplication, directory: string) => Promise<void>,
 ): Promise<void> {
-  const directory = await mkdtemp(resolve('test/artifacts/logs/alerts-images-'))
+  const directory = await mkdtemp(resolve('test/e2e/result/alerts-images-'))
   const profile = join(directory, 'profile')
   await mkdir(profile)
   await writeFile(

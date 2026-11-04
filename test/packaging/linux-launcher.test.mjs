@@ -20,7 +20,7 @@ import { promisify } from 'node:util'
 
 const execute = promisify(execFile)
 const repository = fileURLToPath(new URL('../..', import.meta.url))
-const logs = join(repository, 'test/packaging/results')
+const logs = join(repository, 'test/packaging/result')
 const fontName = 'NotoSansCJKsc-VF.ttf'
 const fontHash = '990c807e79c25662a5a9ecf7f971baeb2bf2eab9a559e5ecf15cdfdb8561d21f'
 const sha = (body) => createHash('sha256').update(body).digest('hex')

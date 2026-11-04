@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { readFile, writeFile } from 'node:fs/promises'
 
 // Replay a completed gap buffer into the caller's original event array directly.
-// See docs/patches/micromark-replay.md for provenance and compatibility boundaries.
+// See docs/development/dependency-patches.md for provenance and compatibility boundaries.
 const directory = new URL('../node_modules/micromark-util-subtokenize/', import.meta.url)
 const info = JSON.parse(await readFile(new URL('package.json', directory), 'utf8'))
 if (info.name !== 'micromark-util-subtokenize' || info.version !== '2.1.0')

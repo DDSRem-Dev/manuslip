@@ -33,7 +33,7 @@ interface ParserSource {
 }
 async function originals(patch: ParserPatch): Promise<ParserSource[]> {
   const helper = pathToFileURL(
-    join(root, 'test/benchmark/helpers/parser-lifetime-sources.mjs'),
+    join(root, 'test/packaging/helpers/parser-lifetime-sources.mjs'),
   ).href
   return (await import(helper))[patch.originals]()
 }
@@ -60,7 +60,7 @@ it.each([
   ['micromark', 'withSynchronousLabelResolution'],
 ] as const)('upgrades the recognized %s lifetime image: %s', async (name, restoreName) => {
   const helper = await import(
-    pathToFileURL(join(root, 'test/benchmark/helpers/parser-lifetime-sources.mjs')).href
+    pathToFileURL(join(root, 'test/packaging/helpers/parser-lifetime-sources.mjs')).href
   )
   const restore = helper[restoreName]
   await fixture(patches[0], async (directory, sources) => {
@@ -83,7 +83,7 @@ async function fixture(
   patch: ParserPatch,
   run: (directory: string, sources: ParserSource[]) => Promise<void>,
 ) {
-  const logs = join(root, 'test/artifacts/logs')
+  const logs = join(root, 'test/packaging/result')
   await mkdir(logs, { recursive: true })
   const directory = await mkdtemp(join(logs, 'parser-lifetimes-test-'))
   if (!resolve(directory).startsWith(`${resolve(logs)}${sep}parser-lifetimes-test-`))
@@ -194,7 +194,7 @@ it.each(patches)(
     const result = spawnSync(
       process.execPath,
       [
-        join(root, 'test/benchmark/profiles/compare-parser-lifetimes.mjs'),
+        join(root, 'test/packaging/helpers/compare-parser-lifetimes.mjs'),
         ...(patch.name === 'replay' ? ['--event-copy'] : []),
       ],
       {

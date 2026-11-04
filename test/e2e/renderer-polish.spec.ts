@@ -7,7 +7,7 @@ async function documentTest(
   source: string,
   run: (page: Page, application: ElectronApplication) => Promise<void>,
 ) {
-  const directory = await mkdtemp(resolve('test/artifacts/logs/renderer-polish-'))
+  const directory = await mkdtemp(resolve('test/e2e/result/renderer-polish-'))
   const path = join(directory, 'polish.md')
   await writeFile(path, source)
   const application = await launchDesktop(join(directory, 'profile'), [path])

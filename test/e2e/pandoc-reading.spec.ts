@@ -11,8 +11,8 @@ test('Pandoc reading exports retain each layout and a confirmed stale copy witho
   const tool = process.env.MANUSLIP_TEST_PANDOC
   test.skip(!tool, 'Set MANUSLIP_TEST_PANDOC to an explicitly selected local Pandoc 3 application')
   test.setTimeout(90_000)
-  const directory = await mkdtemp(resolve('test/artifacts/logs/pandoc-reading-'))
-  if (!directory.startsWith(resolve('test/artifacts/logs') + sep))
+  const directory = await mkdtemp(resolve('test/e2e/result/pandoc-reading-'))
+  if (!directory.startsWith(resolve('test/e2e/result') + sep))
     throw new Error('Unsafe fixture path')
   const path = join(directory, 'reading.md'),
     info = test.info()

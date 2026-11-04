@@ -42,7 +42,7 @@ function activePair(page: Page): Promise<{ label: boolean; close: boolean; overf
 for (const theme of ['light', 'dark'])
   test(`${theme} tabs keep their label and close control visible through navigation and Save As`, async () => {
     const testInfo = test.info()
-    const directory = await mkdtemp(resolve('test/artifacts/logs/tabs-scroll-'))
+    const directory = await mkdtemp(resolve('test/e2e/result/tabs-scroll-'))
     const source = '# A place to write\n\nKeep every word in this manuscript.\n'
     const files = Array.from({ length: 6 }, (_, index) =>
       join(directory, `${index + 1} - 每一份草稿都值得完整的名字 - manuscript-notes-${index}.md`),
@@ -158,7 +158,7 @@ for (const theme of ['light', 'dark'])
       })
     } finally {
       await application.close()
-      expect(directory.startsWith(resolve('test/artifacts/logs') + sep)).toBe(true)
+      expect(directory.startsWith(resolve('test/e2e/result') + sep)).toBe(true)
       await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })
     }
   })

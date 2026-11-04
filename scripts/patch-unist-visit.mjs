@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto'
 import { readFile, writeFile } from 'node:fs/promises'
 
-// Pinned traversal backport; provenance and the observable stack-name change are recorded
-// in docs/patches/unist-visit.md. The parser/renderer own ordinary data trees, not accessor nodes.
+// Pinned traversal backport; compatibility is documented in docs/development/dependency-patches.md.
+// The parser/renderer own ordinary data trees, not accessor nodes.
 const directory = new URL('../node_modules/unist-util-visit-parents/', import.meta.url)
 const info = JSON.parse(await readFile(new URL('package.json', directory), 'utf8'))
 if (info.name !== 'unist-util-visit-parents' || info.version !== '6.0.2')

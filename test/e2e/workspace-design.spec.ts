@@ -5,7 +5,7 @@ import axe from 'axe-core'
 import { launchDesktop } from './helpers'
 
 test('folder disclosure, closing, and catalog hierarchy preserve unsaved writing', async () => {
-  const directory = await mkdtemp(resolve('test/artifacts/logs/workspace-design-e2e-'))
+  const directory = await mkdtemp(resolve('test/e2e/result/workspace-design-e2e-'))
   const folder = join(directory, 'Writing notes')
   await mkdir(folder)
   const path = join(folder, 'Notes.md')

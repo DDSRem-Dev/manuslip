@@ -4,13 +4,12 @@ import { rm } from 'node:fs/promises'
 for (const path of [
   '../apps/desktop/out',
   '../apps/desktop/release',
-  '../apps/desktop/test/artifacts',
+  '../apps/desktop/test/unit/result',
   '../coverage',
-  '../test/artifacts',
-  '../test/e2e/results',
-  '../test/e2e/report',
-  '../test/benchmark/results',
-  '../test/packaging/results',
+  '../test/e2e/result',
+  '../test/benchmark/result',
+  '../test/packaging/result',
+  '../apps/desktop/test/integration/result',
 ]) {
   await rm(new URL(path, import.meta.url), { recursive: true, force: true })
 }

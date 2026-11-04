@@ -181,10 +181,5 @@ apps/*/out/
 # Biome and local tool caches
 .biome/
 
-# Test evidence and temporary output
-/test/artifacts/
-/test/e2e/results/
-/test/e2e/report/
-/test/benchmark/results/
-/test/packaging/results/
-**/test/artifacts/
+# Generated test output stays inside its owning suite.
+**/test/**/result/

@@ -20,7 +20,7 @@ const source = [
 
 for (const locale of ['en', 'zh-CN'] as const) {
   test(`${locale} live cells and diagrams keep editing sessions, source history and refined styling`, async () => {
-    const directory = await mkdtemp(resolve('test/artifacts/logs/markdown-interaction-'))
+    const directory = await mkdtemp(resolve('test/e2e/result/markdown-interaction-'))
     const profile = join(directory, 'profile')
     const path = join(directory, 'document.md')
     await mkdir(profile)

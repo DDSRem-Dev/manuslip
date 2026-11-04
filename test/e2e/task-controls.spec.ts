@@ -7,8 +7,8 @@ const modifier = process.platform === 'darwin' ? 'Meta' : 'Control'
 
 for (const width of [1144, 400]) {
   test(`task toggles keep mixed semantic content still at ${width}px throughout the preview update`, async () => {
-    await mkdir('test/artifacts/logs', { recursive: true })
-    const directory = await mkdtemp(resolve('test/artifacts/logs/task-controls-stability-'))
+    await mkdir('test/e2e/result', { recursive: true })
+    const directory = await mkdtemp(resolve('test/e2e/result/task-controls-stability-'))
     const application = await launchDesktop(resolve(directory, 'profile'))
     try {
       await application.evaluate(({ BrowserWindow }, width) => {
@@ -123,8 +123,8 @@ for (const width of [1144, 400]) {
 }
 
 test('task targets replace unordered bullets and remain usable in light, dark and narrow layouts', async () => {
-  await mkdir('test/artifacts/logs', { recursive: true })
-  const directory = await mkdtemp(resolve('test/artifacts/logs/task-controls-layout-'))
+  await mkdir('test/e2e/result', { recursive: true })
+  const directory = await mkdtemp(resolve('test/e2e/result/task-controls-layout-'))
   const application = await launchDesktop(resolve(directory, 'profile'))
   try {
     const page = await application.firstWindow()
@@ -208,8 +208,8 @@ test('task targets replace unordered bullets and remain usable in light, dark an
 })
 
 test('keyboard task toggles preserve focus and undo, and follow a pending document lock', async () => {
-  await mkdir('test/artifacts/logs', { recursive: true })
-  const directory = await mkdtemp(resolve('test/artifacts/logs/task-controls-keyboard-'))
+  await mkdir('test/e2e/result', { recursive: true })
+  const directory = await mkdtemp(resolve('test/e2e/result/task-controls-keyboard-'))
   const application = await launchDesktop(resolve(directory, 'profile'))
   try {
     const page = await application.firstWindow()

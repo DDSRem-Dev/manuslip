@@ -27,7 +27,7 @@ async function expectAligned(raw: Locator, preview: Locator): Promise<void> {
 
 for (const theme of ['light', 'dark']) {
   test(`${theme} editing inline math keeps a preview directly below its source line`, async () => {
-    const directory = await mkdtemp(resolve('test/artifacts/logs/inline-math-preview-'))
+    const directory = await mkdtemp(resolve('test/e2e/result/inline-math-preview-'))
     const profile = join(directory, 'profile')
     const path = join(directory, 'equations.md')
     await mkdir(profile)

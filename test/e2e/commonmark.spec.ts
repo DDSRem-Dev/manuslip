@@ -14,8 +14,8 @@ async function withDocument(
     directory: string,
   ) => Promise<void>,
 ): Promise<void> {
-  const directory = await mkdtemp(resolve('test/artifacts/logs/commonmark-'))
-  if (!directory.startsWith(resolve('test/artifacts/logs') + sep))
+  const directory = await mkdtemp(resolve('test/e2e/result/commonmark-'))
+  if (!directory.startsWith(resolve('test/e2e/result') + sep))
     throw new Error('Unsafe fixture path')
   const path = join(directory, 'commonmark.md')
   await writeFile(path, source)

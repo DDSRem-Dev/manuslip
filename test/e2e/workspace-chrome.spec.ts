@@ -5,7 +5,7 @@ import { launchDesktop } from './helpers'
 
 for (const theme of ['light', 'dark'])
   test(`document details and long filenames remain usable in the ${theme} workspace`, async () => {
-    const directory = await mkdtemp(resolve('test/artifacts/logs/workspace-chrome-e2e-'))
+    const directory = await mkdtemp(resolve('test/e2e/result/workspace-chrome-e2e-'))
     const folder = join(directory, 'Research and drafts', 'Notes for the next edition')
     await mkdir(folder, { recursive: true })
     const name = '写作计划 — ملاحظات — Research notes and references for the next edition.md'

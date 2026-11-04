@@ -7,7 +7,7 @@ import { auditPluginInterface } from './plugin-accessibility'
 for (const locale of ['en', 'zh-CN'] as const) {
   test(`${locale} local plugins review grants, inspect source and apply one undoable captured change`, async () => {
     test.setTimeout(90_000)
-    const root = resolve('test/artifacts/logs'),
+    const root = resolve('test/e2e/result'),
       directory = await mkdtemp(join(root, 'plugin-lifecycle-'))
     if (!directory.startsWith(root + sep)) throw new Error('Unsafe fixture path')
     const path = join(directory, 'writing.md'),
@@ -54,7 +54,7 @@ for (const locale of ['en', 'zh-CN'] as const) {
       await expectPluginAction(false)
       await application.evaluate(({ dialog }, path) => {
         dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] })
-      }, resolve('examples/plugins/writing-tools.manuslip-plugin.json'))
+      }, resolve('test/e2e/fixtures/plugins/writing-tools.manuslip-plugin.json'))
       await page
         .getByRole('button', { name: chinese ? '偏好设置' : 'Preferences', exact: true })
         .click()

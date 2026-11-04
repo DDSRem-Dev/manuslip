@@ -8,8 +8,8 @@ const pending = 'pending 世界'
 const modifier = process.platform === 'darwin' ? 'Meta' : 'Control'
 
 test('HTML export includes input pending in the editor DOM observer', async () => {
-  await mkdir('test/artifacts/logs', { recursive: true })
-  const directory = await mkdtemp(resolve('test/artifacts/logs/export-input-'))
+  await mkdir('test/e2e/result', { recursive: true })
+  const directory = await mkdtemp(resolve('test/e2e/result/export-input-'))
   const path = join(directory, 'source.md')
   const target = join(directory, 'pending.html')
   await writeFile(path, original)

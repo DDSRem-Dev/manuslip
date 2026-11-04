@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { readFile, writeFile } from 'node:fs/promises'
 
 // Pinned backport: preserve the dense event array's untouched prefix in consume().
-// See docs/patches/micromark-edit-map.md for provenance, compatibility and verification.
+// See docs/development/dependency-patches.md for provenance, compatibility and verification.
 const directory = new URL('../node_modules/micromark-util-edit-map/', import.meta.url)
 const packageInfo = JSON.parse(await readFile(new URL('package.json', directory), 'utf8'))
 if (packageInfo.name !== 'micromark-util-edit-map' || packageInfo.version !== '1.0.0')

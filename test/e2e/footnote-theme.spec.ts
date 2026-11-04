@@ -26,7 +26,7 @@ Read the [field guide][guide] or the [research notes][research]. An inline note^
 
 for (const theme of ['light', 'dark'] as const) {
   test(`footnotes and references stay readable and editable in ${theme}`, async () => {
-    const directory = await mkdtemp(resolve('test/artifacts/logs/footnote-theme-'))
+    const directory = await mkdtemp(resolve('test/e2e/result/footnote-theme-'))
     const profile = join(directory, 'profile')
     await mkdir(profile)
     await writeFile(

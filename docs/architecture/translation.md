@@ -1,9 +1,11 @@
 # Structural translation core
 
-`packages/translate` implements ADR 002 item 15's extraction/reconstruction harness. It is
+`packages/translate` implements structural prose extraction and reconstruction. It is
 browser-compatible, imports no Electron or Node runtime APIs, and performs no network or
 filesystem operations. Run `npm test -- --project translate` for its contract/fixture suite.
 The desktop application integrates this package with translated preview and provider calls.
+The source, occurrence and cache identity decisions are maintained in
+[ADR 002](../adr/002-implementation-plan.md).
 
 `extractTranslation(root, source, occurrence?)` consumes a captured semantic root from
 `@manuslip/core`. It emits paragraph, heading and table-cell units, including prose inside
@@ -33,17 +35,18 @@ provider HTML/Markdown is literal text, not parsed markup. Source remains visibl
 invalid or limited units. Root and source are never rewritten by reconstruction.
 
 `normalizeTranslationSettings` checks capabilities and separates non-secret provider metadata
-from future credentials. Remote endpoints require HTTPS; HTTP is accepted only for explicitly
+from credentials owned by desktop main. Remote endpoints require HTTPS; HTTP is accepted only for explicitly
 configured loopback endpoints. Normalization preserves path/trailing-slash/query order routing
 semantics, rejects user information/fragments/common credential query/option names, and keeps
 all prompt-affecting settings in identity. Concrete transport adapters must additionally admit
 only their documented options, retrieve credentials in main, check redirects/DNS as appropriate,
 bound bodies/deadlines, and redact logs. This package is not a transport security boundary.
 
-Numeric caps live in `contracts.ts` and ADR 002. Per-unit oversize retains source with a limit
+Numeric caps live in [translation contracts](../../packages/translate/src/contracts.ts).
+Per-unit oversize retains source with a limit
 status; aggregate extraction overflow rejects the whole plan instead of silently truncating.
 Reconstruction independently bounds per-unit/aggregate output. Planning and reconstruction
-must run off the typing path in the application's later integration.
+run off the typing path in the desktop reading worker.
 
 `capabilitiesFor(adapter)` distinguishes chat prompt options from DeepL native options.
 `parseDeepLLanguages`, `deepLLanguage` and `deepLMetadataEndpoint` validate bounded stable

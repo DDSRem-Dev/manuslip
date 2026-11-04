@@ -11,8 +11,8 @@ import { build, type InlineConfig, type PreviewServer, preview } from 'vite'
 import type {} from './fixtures/preview-lifetime/fixture'
 
 async function setup() {
-  await mkdir('test/artifacts/logs', { recursive: true })
-  const profile = await mkdtemp(resolve('test/artifacts/logs/widget-lifetime-'))
+  await mkdir('test/e2e/result', { recursive: true })
+  const profile = await mkdtemp(resolve('test/e2e/result/widget-lifetime-'))
   let application: ElectronApplication | undefined
   let server: PreviewServer | undefined
   const cleanup = async () => {
@@ -33,7 +33,7 @@ async function setup() {
     logLevel: 'silent',
     base: './',
     build: {
-      outDir: resolve('test/artifacts/logs/widget-lifetime-build'),
+      outDir: resolve('test/e2e/result/widget-lifetime-build'),
       emptyOutDir: false,
       manifest: true,
     },
@@ -43,7 +43,7 @@ async function setup() {
   try {
     await build(config)
     const manifest = JSON.parse(
-      await readFile('test/artifacts/logs/widget-lifetime-build/.vite/manifest.json', 'utf8'),
+      await readFile('test/e2e/result/widget-lifetime-build/.vite/manifest.json', 'utf8'),
     ) as Record<string, { file: string }>
     const pythonGrammar = Object.entries(manifest).find(([key]) =>
       key.endsWith('@codemirror/lang-python/dist/index.js'),
@@ -693,7 +693,7 @@ test('owned packed models render sanitized widgets and release native model data
       const chunks: string[] = []
       client.on('HeapProfiler.addHeapSnapshotChunk', ({ chunk }) => chunks.push(chunk))
       await client.send('HeapProfiler.takeHeapSnapshot')
-      await writeFile('test/artifacts/logs/widget-lifetime.heapsnapshot', chunks.join(''))
+      await writeFile('test/e2e/result/widget-lifetime.heapsnapshot', chunks.join(''))
       throw error
     }
     expect(await page.evaluate(() => 'compromised' in window)).toBe(false)

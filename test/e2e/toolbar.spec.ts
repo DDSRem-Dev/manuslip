@@ -21,8 +21,8 @@ async function close(application: ElectronApplication): Promise<void> {
 }
 
 async function evidenceDirectory(): Promise<string> {
-  await mkdir('test/artifacts/logs', { recursive: true })
-  return mkdtemp(resolve('test/artifacts/logs/document-toolbar-'))
+  await mkdir('test/e2e/result', { recursive: true })
+  return mkdtemp(resolve('test/e2e/result/document-toolbar-'))
 }
 
 test('document and reading actions preserve keyboard access, native shortcuts and visible feedback', async () => {

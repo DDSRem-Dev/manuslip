@@ -19,8 +19,8 @@ async function stop(application: ElectronApplication): Promise<void> {
 
 test('reading presentations and images retain each bilingual layout without new translation requests', async () => {
   test.setTimeout(90_000)
-  const directory = await mkdtemp(resolve('test/artifacts/logs/presentation-reading-'))
-  if (!directory.startsWith(resolve('test/artifacts/logs') + sep))
+  const directory = await mkdtemp(resolve('test/e2e/result/presentation-reading-'))
+  if (!directory.startsWith(resolve('test/e2e/result') + sep))
     throw new Error('Unsafe fixture path')
   const path = join(directory, 'reading.md')
   const original =
@@ -174,8 +174,8 @@ test('reading presentations and images retain each bilingual layout without new 
 
 test('presentation and image limits retain the document and previous destination, and a crashed view can restart', async () => {
   test.setTimeout(60_000)
-  const directory = await mkdtemp(resolve('test/artifacts/logs/presentation-recovery-'))
-  if (!directory.startsWith(resolve('test/artifacts/logs') + sep))
+  const directory = await mkdtemp(resolve('test/e2e/result/presentation-recovery-'))
+  if (!directory.startsWith(resolve('test/e2e/result') + sep))
     throw new Error('Unsafe fixture path')
   const target = join(directory, 'previous.png')
   await writeFile(target, 'previous image')
@@ -326,8 +326,8 @@ const source = (
 for (const locale of ['en', 'zh-CN'] as const) {
   test(`${locale} presentation and raster exports preserve source, complete content and isolated assets`, async () => {
     test.setTimeout(90_000)
-    const directory = await mkdtemp(resolve('test/artifacts/logs/presentation-'))
-    if (!directory.startsWith(resolve('test/artifacts/logs') + sep))
+    const directory = await mkdtemp(resolve('test/e2e/result/presentation-'))
+    if (!directory.startsWith(resolve('test/e2e/result') + sep))
       throw new Error('Unsafe fixture path')
     const profile = join(directory, 'profile'),
       path = join(directory, 'slides.md'),

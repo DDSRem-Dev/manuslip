@@ -6,7 +6,7 @@ import { clickDocumentAction, contrast, launchDesktop } from './helpers'
 
 for (const theme of ['light', 'dark'])
   test(`${theme} duplicate filenames stay distinct through navigation, Save As and close`, async () => {
-    const directory = await mkdtemp(resolve('test/artifacts/logs/tab-context-'))
+    const directory = await mkdtemp(resolve('test/e2e/result/tab-context-'))
     test.info().annotations.push({ type: 'tabs-context-evidence', description: directory })
     const paths = ['drafts/notes.md', 'archive/notes.md', 'book/drafts/notes.md'].map((path) =>
       join(directory, path),

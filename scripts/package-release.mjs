@@ -110,7 +110,7 @@ async function main() {
     updates: args.includes('--updates'),
     env: process.env,
   })
-  plan.config.directories.output = '<new directory under test/packaging/results/releases>/artifacts'
+  plan.config.directories.output = '<new directory under test/packaging/result/releases>/artifacts'
   if (args.includes('--plan')) {
     console.log(JSON.stringify(plan, null, 2))
     return
@@ -119,7 +119,7 @@ async function main() {
   await access(join(desktop, 'out/main/index.mjs')).catch(() => {
     throw new Error('Build current application assets with npm run build:app before packaging')
   })
-  const releases = join(root, 'test/packaging/results/releases')
+  const releases = join(root, 'test/packaging/result/releases')
   await mkdir(releases, { recursive: true })
   const directory = await mkdtemp(join(releases, 'candidate-'))
   const output = join(directory, 'artifacts')

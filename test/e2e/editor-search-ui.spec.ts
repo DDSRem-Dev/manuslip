@@ -20,8 +20,8 @@ for (const state of [
   },
 ])
   test(`Find and Replace remains readable and keyboard operable: ${state.name}`, async () => {
-    await mkdir('test/artifacts/logs', { recursive: true })
-    const directory = await mkdtemp(resolve('test/artifacts/logs/editor-search-e2e-'))
+    await mkdir('test/e2e/result', { recursive: true })
+    const directory = await mkdtemp(resolve('test/e2e/result/editor-search-e2e-'))
     const profile = join(directory, 'profile')
     await mkdir(profile)
     await writeFile(

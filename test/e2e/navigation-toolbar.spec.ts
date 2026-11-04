@@ -5,7 +5,7 @@ import axe from 'axe-core'
 import { launchDesktop } from './helpers'
 
 test('one toolbar keeps tabs and native editing aligned across window sizes', async () => {
-  const directory = await mkdtemp(resolve('test/artifacts/logs/navigation-toolbar-'))
+  const directory = await mkdtemp(resolve('test/e2e/result/navigation-toolbar-'))
   const folder = join(directory, 'Notes')
   await mkdir(folder)
   const paths = ['First.md', '第二个文档.md'].map((name) => join(folder, name))

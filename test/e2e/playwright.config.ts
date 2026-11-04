@@ -7,6 +7,7 @@ export default defineConfig({
   workers: 1,
   fullyParallel: false,
   reporter: 'list',
-  outputDir: fileURLToPath(new URL('./results', import.meta.url)),
+  globalSetup: './setup.mjs',
+  outputDir: fileURLToPath(new URL('./result', import.meta.url)),
   use: { trace: 'retain-on-failure' },
 })

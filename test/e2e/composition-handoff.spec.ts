@@ -5,8 +5,8 @@ import { launchDesktop } from './helpers'
 
 for (const mode of ['Source', 'Live Preview'])
   test(`keeps ${mode} commands guarded when composition restarts before a deferred end notification`, async () => {
-    const directory = await mkdtemp(resolve('test/artifacts/logs/composition-handoff-'))
-    if (!directory.startsWith(`${resolve('test/artifacts/logs')}${sep}`))
+    const directory = await mkdtemp(resolve('test/e2e/result/composition-handoff-'))
+    if (!directory.startsWith(`${resolve('test/e2e/result')}${sep}`))
       throw new Error('Invalid test directory')
     const path = join(directory, 'source.md')
     const original = '# Original\n\nKeep this text. '

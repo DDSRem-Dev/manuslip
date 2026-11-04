@@ -6,8 +6,8 @@ import { installTestPlugin, pluginManifest, runTestPlugin } from './plugin-helpe
 
 test('plugin installs survive restart, updates revoke grants and a stale proposal cannot replace newer writing', async () => {
   test.setTimeout(90_000)
-  const directory = await mkdtemp(resolve('test/artifacts/logs/plugin-restart-'))
-  if (!directory.startsWith(resolve('test/artifacts/logs') + sep))
+  const directory = await mkdtemp(resolve('test/e2e/result/plugin-restart-'))
+  if (!directory.startsWith(resolve('test/e2e/result') + sep))
     throw new Error('Unsafe fixture path')
   const path = join(directory, 'source.md'),
     profile = join(directory, 'profile'),
@@ -87,8 +87,8 @@ test('plugin installs survive restart, updates revoke grants and a stale proposa
 
 test('plugin text-file writes require native choice, preserve an open source and remain charged until a cancelled picker settles', async () => {
   test.setTimeout(90_000)
-  const directory = await mkdtemp(resolve('test/artifacts/logs/plugin-file-write-'))
-  if (!directory.startsWith(resolve('test/artifacts/logs') + sep))
+  const directory = await mkdtemp(resolve('test/e2e/result/plugin-file-write-'))
+  if (!directory.startsWith(resolve('test/e2e/result') + sep))
     throw new Error('Unsafe fixture path')
   const source = join(directory, 'source.md'),
     fixture = join(directory, 'plugin.json'),
@@ -175,8 +175,8 @@ test('plugin text-file writes require native choice, preserve an open source and
 
 test('a plugin that hangs during initial loading reaches its real deadline and releases the isolated renderer', async () => {
   test.setTimeout(45_000)
-  const directory = await mkdtemp(resolve('test/artifacts/logs/plugin-load-timeout-'))
-  if (!directory.startsWith(resolve('test/artifacts/logs') + sep))
+  const directory = await mkdtemp(resolve('test/e2e/result/plugin-load-timeout-'))
+  if (!directory.startsWith(resolve('test/e2e/result') + sep))
     throw new Error('Unsafe fixture path')
   const source = join(directory, 'source.md'),
     fixture = join(directory, 'plugin.json')

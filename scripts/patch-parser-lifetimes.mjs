@@ -14,7 +14,7 @@ import { textResolverSteps } from './parser-text-resolve-steps.mjs'
 
 // Pinned parser lifetime patch. Only mdast's private events are compacted/consumed;
 // micromark's public event contexts and the serializer's streaming identity stay intact.
-// See docs/patches/parser-lifetimes.md for provenance, compatibility and measured limits.
+// See docs/development/dependency-patches.md for provenance and compatibility boundaries.
 const variants = [
   {
     package: 'micromark',

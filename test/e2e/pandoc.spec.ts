@@ -51,8 +51,8 @@ async function audit(page: Page, name: string): Promise<void> {
   await info.attach(name, { path, contentType: 'image/png' })
 }
 test('missing and invalid Pandoc choices keep normal export and source editing usable', async () => {
-  const directory = await mkdtemp(resolve('test/artifacts/logs/pandoc-missing-'))
-  if (!directory.startsWith(resolve('test/artifacts/logs') + sep))
+  const directory = await mkdtemp(resolve('test/e2e/result/pandoc-missing-'))
+  if (!directory.startsWith(resolve('test/e2e/result') + sep))
     throw new Error('Unsafe fixture path')
   const path = join(directory, 'missing.md')
   await writeFile(path, '# Unmodified source\r\n')
@@ -98,8 +98,8 @@ for (const locale of ['en', 'zh-CN'] as const) {
     )
     test.setTimeout(120_000)
     const info = test.info()
-    const directory = await mkdtemp(resolve('test/artifacts/logs/pandoc-native-'))
-    if (!directory.startsWith(resolve('test/artifacts/logs') + sep))
+    const directory = await mkdtemp(resolve('test/e2e/result/pandoc-native-'))
+    if (!directory.startsWith(resolve('test/e2e/result') + sep))
       throw new Error('Unsafe fixture path')
     const profile = join(directory, 'profile'),
       path = join(directory, 'copy.md')

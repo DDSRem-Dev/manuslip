@@ -78,8 +78,8 @@ async function audit(page: Page, name: string) {
 for (const locale of ['en', 'zh-CN'] as const) {
   test(`${locale} definition lists and legacy diagrams preserve editing, translation and export`, async () => {
     test.setTimeout(60_000)
-    const directory = await mkdtemp(resolve('test/artifacts/logs/block-markdown-'))
-    if (!resolve(directory).startsWith(resolve('test/artifacts/logs') + sep))
+    const directory = await mkdtemp(resolve('test/e2e/result/block-markdown-'))
+    if (!resolve(directory).startsWith(resolve('test/e2e/result') + sep))
       throw new Error('Unsafe fixture path')
     const profile = join(directory, 'profile'),
       path = join(directory, 'blocks.md'),

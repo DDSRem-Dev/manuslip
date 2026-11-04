@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { readFile, writeFile } from 'node:fs/promises'
 
-// Pinned GFM-table compatibility fix; see docs/patches/definition-list.md.
+// Pinned GFM-table compatibility fix; see docs/development/dependency-patches.md.
 const directory = new URL('../node_modules/micromark-extension-definition-list/', import.meta.url)
 const metadata = JSON.parse(await readFile(new URL('package.json', directory), 'utf8'))
 if (metadata.name !== 'micromark-extension-definition-list' || metadata.version !== '2.0.2')

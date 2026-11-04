@@ -13,14 +13,14 @@ import { build, preview } from 'vite'
 import type {} from './fixtures/reading-memory/fixture'
 
 async function setup() {
-  await mkdir('test/artifacts/logs', { recursive: true })
-  const profile = await mkdtemp(resolve('test/artifacts/logs/indexed-reading-profile-'))
+  await mkdir('test/e2e/result', { recursive: true })
+  const profile = await mkdtemp(resolve('test/e2e/result/indexed-reading-profile-'))
   const config = {
     configFile: false as const,
     root: resolve('test/e2e/fixtures/reading-memory'),
     logLevel: 'silent' as const,
     base: './',
-    build: { outDir: resolve('test/artifacts/logs/indexed-reading-build'), emptyOutDir: false },
+    build: { outDir: resolve('test/e2e/result/indexed-reading-build'), emptyOutDir: false },
     worker: { format: 'es' as const },
     resolve: { conditions: ['worker', 'module', 'browser', 'development|production'] },
   }

@@ -218,8 +218,8 @@ for (const state of [
   { name: 'zoomed Chinese', locale: 'zh-CN', theme: 'light', width: 1160, height: 1000, zoom: 2 },
 ])
   test(`preferences failures remain actionable inside the dialog: ${state.name}`, async () => {
-    await mkdir('test/artifacts/logs', { recursive: true })
-    const directory = await mkdtemp(resolve('test/artifacts/logs/preferences-save-e2e-'))
+    await mkdir('test/e2e/result', { recursive: true })
+    const directory = await mkdtemp(resolve('test/e2e/result/preferences-save-e2e-'))
     const profile = join(directory, 'profile')
     const path = join(profile, 'preferences.json'),
       backup = join(profile, 'original.json')

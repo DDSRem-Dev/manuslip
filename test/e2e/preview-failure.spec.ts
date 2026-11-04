@@ -71,8 +71,8 @@ test('repeated worker failure falls back to Source without losing editing or und
 })
 
 test('unavailable diagnostic measurements preserve healthy preview work and latest edits', async () => {
-  await mkdir('test/artifacts/logs', { recursive: true })
-  const directory = await mkdtemp(resolve('test/artifacts/logs/worker-metric-failure-'))
+  await mkdir('test/e2e/result', { recursive: true })
+  const directory = await mkdtemp(resolve('test/e2e/result/worker-metric-failure-'))
   const application = await launchDesktop(join(directory, 'profile'))
   try {
     const page = await application.firstWindow()

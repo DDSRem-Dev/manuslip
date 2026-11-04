@@ -121,7 +121,7 @@ jobs:
         with:
           name: windows-installer-${{ matrix.arch }}
           path: |
-            test/packaging/results/windows-installer-*/report.json
-            test/packaging/results/windows-installer-*/*.png
+            test/packaging/result/windows-installer-*/report.json
+            test/packaging/result/windows-installer-*/*.png
           if-no-files-found: ignore
           retention-days: 7

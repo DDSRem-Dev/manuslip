@@ -1,31 +1,35 @@
-# Extended Markdown
+# ADR 006: Extend Markdown through positioned grammar and shared rendering
 
-Status: inline syntax, definition lists and the documented legacy diagram subset implemented and verified in the Windows package.
+Status: Accepted.
 
-Manuslip syntax recognizes `~subscript~`, `^superscript^` and known `:emoji_name:` shortcodes. Script contents cannot contain spaces, tabs or line endings; they can contain inline emphasis and nested scripts of the other kind. `~~strikethrough~~` retains its GFM meaning. Strict CommonMark is unchanged. Single-tilde GFM strikethrough is intentionally replaced by subscript in Manuslip mode. Unknown, unfinished and escaped shortcodes stay literal. Code, math, frontmatter and link destinations keep their original meaning.
+## Context
 
-The parser produces positioned `subscript`, `superscript` and `emoji` nodes rather than rewriting rendered text. An offline, pinned gemoji 8.1.0 dataset resolves known names to Unicode. No image download, new network request or renderer capability is needed. Source bytes remain authoritative; Source mode shows the original spelling, and selecting a Live widget reveals its original Markdown. An enclosing script widget includes its children so nested replacements cannot overlap.
+Extended syntax must remain editable as its original Markdown and behave consistently
+in Live Preview, translated reading and export. Compatibility must not add network
+dependencies or grant document content execution privileges.
 
-The common renderer emits semantic `sub` and `sup` elements and ordinary Unicode emoji text with the original shortcode as a title. Reading and self-contained export use the same sanitizer and handlers. Script prose is translatable within paired formatting tokens; emoji are protected local bindings. Canonically identical translation jobs may share a response, but each occurrence restores its own emoji and name. Grammar, renderer, extraction and reconstruction identities change to invalidate incompatible derived caches. Main and preload payload validators accept the same new bounded token roles; IPC methods and permissions are unchanged.
+## Decision
 
-Live Preview preserves source newlines in ordinary prose, including multiline emphasis, quotes and list items. Caret movement, text selection and selection collapse keep the same source rows. The caret and text selections expose paired delimiters while retaining the text's typography. Escapes, entities and emoji keep their rendered character and expose lighter editable source after it while the caret touches the token. Embedded HTML, multiline code spans and bounded-parser fallbacks still use semantic projections where inline decorations cannot express their contents. Live widget prose preserves its text newlines without doubling explicit hard breaks or adding breaks for serialized block separators. Code and math retain their own literal or semantic rendering. Renderer identity includes the projection policy.
+Represent subscript, superscript, offline emoji, inline notes and definition lists as
+positioned semantic nodes. Preserve source spellings, code, math and destinations.
+Strict CommonMark remains a separate grammar; optional conventions select their own
+syntax. Captured reading copies retain their grammar until explicitly refreshed.
 
-Reading and export keep their Markdown paragraph semantics: ordinary newlines are soft breaks; two trailing spaces or an unescaped trailing backslash produce hard breaks; blank lines separate paragraphs. Live Preview keeps source newlines visible for editing. View-plugin decorations hide syntax within a source line and never replace its newline; structured semantic replacements spanning newlines are provided directly by state fields. Source bytes and file line endings remain authoritative. The parser identity also changes for the corrected final carriage-return flush described in [parser lifetimes](../patches/parser-lifetimes.md).
+Use the shared renderer and sanitizer for all projections. Translate eligible prose
+with structural tokens while retaining protected values in local occurrence bindings.
+Parser, renderer and extraction identities invalidate incompatible caches.
 
-Source editing uses a mapped session independent of text selection. Clicking a widget places a collapsed caret in its source; repeated clicks preserve the session. Escape or moving outside its source range ends it. Diagrams and display formulas retain a preview below editable source. Table cells use one embedded editor at a time and mirror changes and selections into the authoritative document, sharing its history and save barrier. Unauthored padded cells acquire delimiters only when edited; pasted pipes are escaped and line breaks normalized within the cell. Double-clicking source retains native word selection; F2 edits a cell in place. Active cell editing preserves its original background, row striping, border, text color and alignment, without a focus fill or underline. Unchanged projections map through edits while the semantic worker refreshes changed source. Non-empty selections retain half-open endpoints, and Shift navigation preserves source rows and the native horizontal goal column.
+Convert the documented `sequence`/`seq` and `flowchart`/`flow` subset inside the existing
+isolated Mermaid host using generated identifiers and encoded labels. Keep its resource
+and configuration policy. Unsupported syntax retains complete editable source.
 
-Diagram activation belongs to its persistent source-and-preview editor, and table activation belongs to the cell controller, including keyboard activation and F2. Neither uses the generic source-reveal handler. The renderer has no structural-dialog callback; that flow is available through its explicit Document actions command. Emoji use text-only glyph widgets, matching escape and entity adornments; native caret movement controls their editable hints without creating source sessions or renderer leases. Editing an inline formula retains its existing activation and adds a measured block preview at the end of its source line. It keeps inline TeX semantics and does not change display math or HTML block editing. Preview spacing stays inside widget padding because CodeMirror cannot measure external vertical margins.
+## Alternatives and consequences
 
-The experimental packed schema, widget journal and cooperative conversion path preserve the same nodes and source positions under their existing limits. Production feature flags and all source, transport, conversion and cache caps retain their previous settings.
+Rendered-text replacement cannot reliably preserve ranges, syntax nesting or translation
+bindings. Adding separate legacy JavaScript engines expands the execution surface.
+Grammar extensions and bounded conversion require explicit compatibility tests but share
+existing rendering, isolation and fallback behavior.
 
-Definition lists use positioned `defList`, `defListTerm` and `defListDescription` nodes from pinned micromark-extension-definition-list 2.0.2 and mdast-util-definition-list 2.0.1. A source-hash guarded [compatibility patch](../patches/definition-list.md) preserves colon-prefixed GFM table rows, accepts real terms after tables, and supports ordered/unordered list prefixes. Install applies the patch; lint and app build verify it. Complete-tree differential tests retain table structure and source positions. Native, cooperative and experimental packed adapters share the grammar and semantic `dl`/`dt`/`dd` handlers. Terms translate as separate prose units; descriptions keep their paragraph boundaries and each occurrence restores its own protected values. Live definition-list widgets reveal the original source on selection and contain nested block content without overlapping replacements. Lists and blockquotes with structured contents use their complete semantic projection in Live Preview. Nested formulas, highlighted code, diagrams and images mount through the same bounded renderers as standalone content.
-
-Legacy fences recognize `sequence`/`seq` and `flowchart`/`flow`, without case sensitivity. Original fence language and bodies remain authoritative. A validated optional syntax enum travels through existing projection, reading, export and diagram contracts; cache identity includes the format. Conversion runs only inside the existing isolated Mermaid host with generated identifiers, encoded labels, strict configuration and the original source, generated-source, node, edge, SVG, cancellation and timeout limits. No legacy JavaScript engine, new IPC method, network permission or renderer privilege is added.
-
-The supported sequence subset includes participants and aliases declared before messages, one title, solid/dashed filled/open arrows, and notes left/right of one participant or over one/two participants. The flowchart subset includes start/end, operation, input/output, subroutine and condition nodes, multiline labels, edge chains and `yes`/`no` branches. Comments and blank lines are accepted. Links, styles, parallel nodes, directional ports, unsupported sequence directives, ambiguous references and other syntax retain their complete original source with an actionable localized message. Export uses the same conversion; failures preserve an existing destination. Mermaid 12 leaves numeric escapes visible in SVG flow labels, so the host restores only generated escapes once on sanitized text nodes before final sanitation; labels never become markup.
-
-Primary references: [gemoji](https://github.com/wooorm/gemoji), [micromark definition lists](https://github.com/wataru-chocola/micromark-extension-definition-list), [mdast definition lists](https://github.com/wataru-chocola/mdast-util-definition-list), [js-sequence-diagrams grammar](https://github.com/bramp/js-sequence-diagrams/blob/master/src/grammar.jison), [flowchart.js syntax](https://github.com/adrai/flowchart.js/blob/master/README.md), [Mermaid sequence syntax](https://mermaid.js.org/syntax/sequenceDiagram.html).
-
-Flattened SVGs retain their natural viewBox dimensions while existing preview/export CSS allows them to shrink. Removing Mermaid CSS no longer enlarges narrow diagrams to the full editor width. A native layout regression verifies that flowcharts are not enlarged.
-
-Validation evidence is recorded in VALIDATION.md, iterations96–97. ADR002 item21 is complete; visual table editing and items23–28 remain in scope. The complete-application goal remains active.
+The [Markdown guide](../guides/commonmark.md) defines syntax, defaults and supported
+legacy constructs. See [dependency patches](../development/dependency-patches.md) for
+definition-list/table compatibility and pinned parser assumptions.

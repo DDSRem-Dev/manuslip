@@ -4,7 +4,7 @@ import { expect, test } from '@playwright/test'
 import { launchDesktop } from './helpers'
 
 test('footnotes jump to rendered bodies and back across unmounted editor viewports', async () => {
-  const directory = await mkdtemp(resolve('test/artifacts/logs/footnote-navigation-'))
+  const directory = await mkdtemp(resolve('test/e2e/result/footnote-navigation-'))
   const path = join(directory, 'footnotes.md')
   const source = [
     '# Footnotes',

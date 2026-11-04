@@ -27,8 +27,8 @@ async function audit(page: Page, directory: string, name: string): Promise<void>
 }
 
 test('document tabs keep close actions outside the tab list and preserve keyboard, modal and pointer access', async () => {
-  await mkdir('test/artifacts/logs', { recursive: true })
-  const directory = await mkdtemp(resolve('test/artifacts/logs/tab-accessibility-'))
+  await mkdir('test/e2e/result', { recursive: true })
+  const directory = await mkdtemp(resolve('test/e2e/result/tab-accessibility-'))
   const firstName = 'First document.md',
     secondName = '第二个文档 — long notes and references.md'
   const first = join(directory, firstName),

@@ -1,45 +1,44 @@
 # Sync a saved document
 
-Open **Document actions → Sync**. Save your latest writing and resolve any file conflict
-first. A connection synchronizes one document with one other file.
+## Connect
 
-Choose **Folder**, enter a Markdown/text filename, then select the destination folder.
-It may be managed by another sync application. Or choose **WebDAV** and enter the full
-HTTPS URL of one file in an existing collection. HTTP is allowed only for a loopback
-server. URL credentials, queries and fragments are refused. Basic username/password
-authentication is optional. Credentials stay in this session unless you check
-**Remember securely on this device**, which requires a working system key store.
+Save your writing, resolve conflicts, then open **Document actions → Sync**.
+Each connection pairs one saved path with one file:
 
-Select **Review saved versions** to contact the destination. The dialog shows saved local
-and remote byte counts and optional text previews. Initial differences, changes on both
-sides and a missing remote file are explained. Choose a direction explicitly:
+| Adapter | Configuration |
+| --- | --- |
+| Folder | Enter a Markdown/text filename and select its destination folder. |
+| WebDAV | Enter one file's full HTTPS URL in an existing collection; HTTP is loopback-only. No URL credentials, queries or fragments. |
 
-- **Send saved version** creates or replaces the remote file.
-- **Receive remote version** replaces the local saved file.
-- **Keep local and save remote copy…** exports remote bytes to a file you choose, then
-  sends the saved local version. Cancelling the picker cancels that transfer.
+Optional Basic credentials last for the session. **Remember securely on this device**
+requires a working system key store. Save As needs a new connection.
 
-Manuslip keeps exact recovery bytes before replacement. The baseline advances after
-verification. A newer disk/server version invalidates the review; review again before
-choosing. Existing WebDAV content needs a strong server ETag for replacement. A server
-without one can still supply a version to receive.
+## Review and transfer
 
-Continue writing offline, save locally, reconnect and review again. Opening the app or
-dialog does not contact the server. **Stop sync** cancels the attempt; a server may
-already have accepted a write, so retry checks actual versions. Finish or cancel an
-outstanding native picker before starting another attempt.
+**Review saved versions** reads the destination and displays byte counts, optional previews
+and differences. Choose explicitly:
 
-**Recovery copies** remain after restart and disconnect. **Export copy…** writes original
-bytes, including encoding, BOM and line endings, to a destination you choose. Export
-refuses all open source destinations. Export a damaged/interrupted artifact for manual
-inspection, or explicitly remove it. Such artifacts block new replacement until handled.
-Recovery holds at most100 copies/512MiB without eviction. Each document is capped at50MiB.
+- **Send saved version:** create or replace the remote file.
+- **Receive remote version:** replace the local saved file.
+- **Keep local and save remote copy…:** export remote bytes, then send saved local bytes.
+  Cancelling the picker cancels the transfer.
 
-**Disconnect** removes the connection and its stored credentials. Both files and every
-recovery copy remain. Connections follow saved paths: Save As needs a new connection.
-If a file moves or disappears, use ordinary Save As/recovery controls and disconnect
-the old connection before closing its tab.
+A changed disk/server version requires fresh review. Replacing existing WebDAV content
+requires a strong ETag; servers without one can still supply content to receive.
+Recovery bytes precede replacement; verification advances the baseline.
 
-Sync handles saved files. If you type or compose while a download arrives, Manuslip
-keeps your newer editor draft and shows ordinary file-conflict controls. Save a copy of
-that draft or choose a version through those controls.
+Opening the app/dialog never transfers or contacts the server. Work offline, save locally,
+then reconnect and review. **Stop sync** cancels an attempt but cannot retract a committed
+server write; retries inspect actual versions. Finish/cancel native pickers before retrying.
+Incoming files preserve newer editor drafts through ordinary conflict controls.
+
+## Recover and disconnect
+
+**Recovery copies** survive restart/disconnect. **Export copy…** preserves exact encoding,
+BOM and line endings and refuses open-document destinations. Export damaged/interrupted
+artifacts for inspection or explicitly remove them; unresolved artifacts block replacement.
+Storage holds at most 100 copies / 512 MiB without eviction; files are capped at 50 MiB.
+
+**Disconnect** removes pairing and stored credentials, retaining both files and recovery.
+For moved/missing files, use Save As/recovery and disconnect the old path before closing.
+[ADR 012](../adr/012-explicit-file-sync.md) defines version review and durable recovery.

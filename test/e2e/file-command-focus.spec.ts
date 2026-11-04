@@ -52,8 +52,8 @@ for (const state of [
   },
 ])
   test(`file commands retain keyboard context and draft history: ${state.name}`, async () => {
-    await mkdir('test/artifacts/logs', { recursive: true })
-    const directory = await mkdtemp(resolve('test/artifacts/logs/file-command-focus-e2e-'))
+    await mkdir('test/e2e/result', { recursive: true })
+    const directory = await mkdtemp(resolve('test/e2e/result/file-command-focus-e2e-'))
     const profile = join(directory, 'profile')
     await mkdir(profile)
     await writeFile(

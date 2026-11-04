@@ -9,8 +9,8 @@ import { installTestPlugin, pluginManifest, runTestPlugin } from './plugin-helpe
 test('sandboxed plugins deny ungranted source, native files and direct network, then enforce approved origins and redirects', async () => {
   test.setTimeout(90_000)
   const info = test.info()
-  const directory = await mkdtemp(resolve('test/artifacts/logs/plugin-permissions-'))
-  if (!directory.startsWith(resolve('test/artifacts/logs') + sep))
+  const directory = await mkdtemp(resolve('test/e2e/result/plugin-permissions-'))
+  if (!directory.startsWith(resolve('test/e2e/result') + sep))
     throw new Error('Unsafe fixture path')
   const requests: string[] = []
   const server = createServer((request, response) => {
@@ -135,8 +135,8 @@ test('sandboxed plugins deny ungranted source, native files and direct network, 
 test('a hung plugin process can be stopped while the editor saves, and disabling revokes an active command', async () => {
   test.setTimeout(90_000)
   const info = test.info()
-  const directory = await mkdtemp(resolve('test/artifacts/logs/plugin-hang-'))
-  if (!directory.startsWith(resolve('test/artifacts/logs') + sep))
+  const directory = await mkdtemp(resolve('test/e2e/result/plugin-hang-'))
+  if (!directory.startsWith(resolve('test/e2e/result') + sep))
     throw new Error('Unsafe fixture path')
   const source = join(directory, 'source.md'),
     fixture = join(directory, 'hang.json'),

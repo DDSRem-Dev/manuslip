@@ -1,90 +1,85 @@
-# Tests and validation
+# Testing
 
 Use the Node/npm versions pinned by `.nvmrc` and `package.json`, then run `npm ci`.
-Run every command below from the repository root.
+Run commands from the repository root.
 
-## Test ownership
-
-| Kind | Location | Runner |
+| Suite | Location | Command |
 | --- | --- | --- |
-| Desktop unit tests | `apps/desktop/test/unit/`, mirroring `src/` | Vitest project `desktop` |
-| Library unit tests | `packages/<package>/test/unit/` | Vitest projects `core`, `editor`, `renderer`, `translate` |
-| Native process and optional Pandoc integration | `apps/desktop/test/integration/` | Vitest project `desktop-integration` |
-| Desktop end-to-end tests | `test/e2e/` | Playwright, `test/e2e/playwright.config.ts` |
-| Benchmarks and profilers | `test/benchmark/`, `test/benchmark/profiles/` | Playwright, `test/benchmark/playwright.config.ts`; Node diagnostic drivers |
-| Packaging, dependency patch installation and release tests | `test/packaging/` | Vitest project `packaging` and Node's test runner |
-| Packaged app and Windows installer verification | `test/packaging/` | Explicit launcher and installer drivers |
+| Desktop/library unit tests | `apps/desktop/test/unit/`, `packages/*/test/unit/` | `npm run test:unit` |
+| Native child processes and optional Pandoc | `apps/desktop/test/integration/` | `npm run test:integration` |
+| Patch installation/equivalence, release and Linux launcher | `test/packaging/` | `npm run test:packaging` |
+| Desktop workflows | `test/e2e/` | `npm run build:app`, then `npm run test:e2e` |
+| Packaged workflows | `test/e2e/` | `npm run build`, then `npm run test:packaged` |
+| Performance and resource gates | `test/benchmark/` | `npm run test:performance` |
 
-Keep unit tests out of production `src/` directories. Name them `*.test.ts` and keep
-their fixtures within the owning package's `test/fixtures/`. The official CommonMark
-corpus is shared from `packages/core/test/fixtures/`; its license stays with the data.
-Browser workflows use `*.spec.ts`. Node packaging tests use `*.test.mjs`.
-Write e2e screenshots and exported samples through `test.info().outputPath()` so each test
-and retry owns its evidence under the configured results directory.
-Helpers and fixtures live with the suite that owns them. `test/helpers/` contains the
-packaged executable selector shared by the benchmark and packaging runners.
+`npm run check` covers lint, repository layout/local links, runtime boundaries,
+dependency patch guards, formatting and types. `npm test` runs all Vitest projects,
+including native integration and parser patch equivalence.
 
-Each Vitest project selects its own files explicitly. `npm test` runs all Vitest projects,
-including native integration and patch installation checks. Tests using a real Pandoc
-binary run only when `MANUSLIP_TEST_PANDOC` points to that executable. Unit fixtures use
-temporary directories and clean up after themselves; the Windows inherited-ACL check
-uses an ignored directory on the workspace volume.
+## Focused runs and fixtures
 
-## Commands
+```sh
+npm test -- --project core
+npx vitest run packages/editor/test/unit/replace.test.ts
+npm run test:e2e -- test/e2e/files.spec.ts
+npm run test:e2e -- --list
+```
 
-| Command | Purpose |
+Unit files use `*.test.ts`; browser workflows use `*.spec.ts`; Node packaging tests use
+`*.test.mjs`. Keep fixtures with their owning suite. `test/helpers/` contains the shared
+packaged-executable selector. Tests use isolated profiles and temporary files. Set
+`MANUSLIP_PACKAGED_EXECUTABLE` to select another executable for desktop workflows.
+Headless Linux Electron tests need Xvfb.
+
+Set `MANUSLIP_TEST_PANDOC` to a trusted local Pandoc 3 executable to include real conversion
+cases; they explicitly skip without it. Tests otherwise use local fake providers and dummy
+keys. Paid translation accounts are not required.
+
+The unmodified [CommonMark 0.31.2 corpus](../../packages/core/test/fixtures/commonmark-0.31.2/spec.json)
+contains all 652 official examples from <https://spec.commonmark.org/0.31.2/spec.json>.
+It is copyright John MacFarlane, CC-BY-SA 4.0; retain its adjacent `LICENSE`.
+Tests compare normalized parser HTML, shared renderer structure and editor integration.
+Application URL/HTML restrictions and Markdown extensions have separate checks. This data
+is not bundled in the app.
+
+## Performance gates
+
+Build with `npm run build`, or `npm run build:app` followed by `npm run package:dir`.
+Run benchmarks serially on a reference machine without competing builds or tests:
+
+```sh
+npm run test:performance
+npm run test:performance -- --case single-paragraph --grep corpus
+npm run test:performance -- --grep retained
+npm run test:performance -- --grep "exact 50 MiB"
+```
+
+The runner selects the packaged executable for the current OS/architecture. Specs enforce
+input/rendering latency, request backpressure, resource retention, cold widgets and exact
+source-size boundaries. Budget assertions live beside their measurement methods in the
+specs. Reports identify the hardware, runtime and executable/ASAR hashes. Input-to-frame
+measurements estimate browser frame timing, not physical display presentation. Passing
+correctness tests alone does not establish these hardware-dependent budgets.
+
+Keep automated performance checks tied to explicit assertions. Use DevTools for exploratory
+profiles; keep measurement-only specs and historical benchmark baselines out of test suites.
+
+## Outputs and CI
+
+| Output | Ignored location |
 | --- | --- |
-| `npm run check` | Lint, repository layout and links, dependency patch guards, formatting, TypeScript |
-| `npm test` | All Vitest projects |
-| `npm run test:unit` | The five package unit projects |
-| `npm test -- --project core` | One package's tests; substitute its project name |
-| `npm run test:integration` | Native child-process and optional Pandoc tests |
-| `npm run test:packaging` | Patch installation tests, release plans and platform-gated Linux launcher checks |
-| `npm run build:app` | Build application assets for correctness e2e |
-| `npm run test:e2e` | Correctness e2e against those assets |
-| `npm run build` | Build application assets and local unsigned installers |
-| `npm run test:packaged` | Reuse correctness e2e against the unpacked package |
-| `npm run test:installer` | Windows install, installed-app verification and uninstall |
-| `npm run test:performance` | Packaged hardware-dependent benchmark gates |
-| `npm run test:performance -- --profile` | Diagnostic CPU/timeline capture |
+| E2E failures, traces and exports | `test/e2e/result/` |
+| Benchmark runs and reports | `test/benchmark/result/<run-id>/` |
+| Installer/release output | `test/packaging/result/` |
+| Workspace-volume unit fixtures | `apps/desktop/test/unit/result/` |
+| Native process fixtures | `apps/desktop/test/integration/result/` |
 
-Add `-- --list` to a Playwright runner to inspect discovery. Set
-`MANUSLIP_PACKAGED_EXECUTABLE` to select an alternative executable for correctness e2e.
-The packaged and performance drivers select the native build under `apps/desktop/release/`.
-Use Xvfb for desktop runs on headless Linux. Benchmarks run serially on a reference machine
-without competing builds or tests; see [benchmark methods](benchmarks.md) for budgets,
-profilers and known limits. Passing correctness tests does not establish performance budgets.
+Use `test.info().outputPath()` for browser attachments so retries own their output.
+Temporary inputs should be cleaned up by their tests. `npm run clean` removes build
+output and generated result directories.
 
-SSR diagnostic drivers disable Vite's automatic HTML entry discovery so archived HTML
-under the artifact directories is not crawled or optimized as application input.
-
-Windows installer verification requires a clean account without Manuslip installed or
-running. It uses a per-user temporary installation, verifies registration and exact saved
-bytes, then uninstalls and checks the original OS state. See [distribution](../development/distribution.md).
-
-## Artifacts and cleanup
-
-| Evidence | Ignored location |
-| --- | --- |
-| Correctness traces, attachments and last-run state | `test/e2e/results/` |
-| Optional e2e HTML report | `test/e2e/report/` |
-| Benchmark reports and traces | `test/benchmark/results/<run-id>/` |
-| Installer reports, screenshots and release candidates | `test/packaging/results/` |
-| Diagnostic logs, CPU/heap profiles and archived evidence | `test/artifacts/logs/` |
-| Package fixtures requiring the workspace volume | `<workspace>/test/artifacts/` |
-
-Existing root logs and benchmark/e2e results have moved to these directories. Historical
-files retain their recorded contents and bundle hashes. New evidence uses the same paths;
-do not recreate root `.logs/`, `benchmark-results/` or `test-results/` directories. UUID
-metadata files have no repository purpose and should be removed.
-
-`npm run clean` removes build output and these generated test directories, including
-archived evidence. Copy any evidence you need before cleaning. Source tests, fixtures,
-licenses and documentation remain available.
-
-CI checks the repository and all Vitest projects, runs packaging checks, and builds once
-per OS/architecture. A separate job reuses the archived build for correctness and packaged
-e2e, with Windows installer evidence uploaded from `test/packaging/results/windows-installer-*/`.
-Benchmark gates and physical OS/IME/accessibility acceptance remain explicit platform runs.
-Record results and remaining acceptance work in the
-[validation history](../validation/implementation-history.md).
+CI checks source and unit/integration/packaging suites, then builds on Windows x64,
+Linux x64 and macOS x64/arm64. E2E jobs reuse the archived builds for built/packaged tests.
+Windows additionally runs `npm run test:installer` in a clean account, checking install,
+exact saved bytes, restart and uninstall restoration. See [distribution](../development/distribution.md).
+Performance budgets and physical OS/IME/assistive-technology behavior require separate runs.

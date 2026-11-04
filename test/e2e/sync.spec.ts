@@ -9,9 +9,8 @@ import { auditPluginInterface } from './plugin-accessibility'
 for (const locale of ['en', 'zh-CN'] as const) {
   test(`${locale} folder sync reviews both directions, keeps both versions and retains recovery after disconnect`, async () => {
     test.setTimeout(120_000)
-    const directory = await mkdtemp(resolve('test/artifacts/logs/sync-native-'))
-    if (!directory.startsWith(resolve('test/artifacts/logs') + sep))
-      throw new Error('Unsafe fixture')
+    const directory = await mkdtemp(resolve('test/e2e/result/sync-native-'))
+    if (!directory.startsWith(resolve('test/e2e/result') + sep)) throw new Error('Unsafe fixture')
     const profile = join(directory, 'profile'),
       path = join(directory, 'writing.md'),
       remote = join(directory, 'remote'),
@@ -178,9 +177,8 @@ for (const locale of ['en', 'zh-CN'] as const) {
 
   test(`${locale} WebDAV is explicit, uses conditional writes and session credentials, and retains offline edits`, async () => {
     test.setTimeout(120_000)
-    const directory = await mkdtemp(resolve('test/artifacts/logs/sync-webdav-native-'))
-    if (!directory.startsWith(resolve('test/artifacts/logs') + sep))
-      throw new Error('Unsafe fixture')
+    const directory = await mkdtemp(resolve('test/e2e/result/sync-webdav-native-'))
+    if (!directory.startsWith(resolve('test/e2e/result') + sep)) throw new Error('Unsafe fixture')
     const profile = join(directory, 'profile'),
       path = join(directory, 'writing.md'),
       chinese = locale === 'zh-CN'

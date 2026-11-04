@@ -5,10 +5,7 @@ import { renderExport } from '../../src/export'
 import { renderMath } from '../../src/math'
 
 it('renders every expression in the shipped LaTeX gallery as offline self-contained SVG', () => {
-  const source = readFileSync(
-    new URL('../../../../docs/examples/latex.md', import.meta.url),
-    'utf8',
-  )
+  const source = readFileSync(new URL('../fixtures/markdown/latex.md', import.meta.url), 'utf8')
   const result = renderExport(parseDocumentMarkdown(source).root, {
     rawHtml: false,
     footnotesLabel: 'Notes',

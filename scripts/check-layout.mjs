@@ -42,11 +42,7 @@ async function collect(directory) {
     const location = slash(relative(root, path))
     if (/^\.uuid(?:[.-].*)?$/.test(entry.name)) failures.push(`${location}: remove UUID metadata`)
     if (entry.isDirectory()) {
-      if (
-        !generated.has(entry.name) &&
-        !/\btest\/artifacts(?:\/|$)/.test(location) &&
-        !/^test\/(e2e|benchmark|packaging)\/(results|report)$/.test(location)
-      )
+      if (!generated.has(entry.name) && !/\btest\/(?:.*\/)?result$/.test(location))
         await collect(path)
     } else files.push(location)
   }
@@ -61,15 +57,29 @@ for (const obsolete of [
   'benchmark-results',
   'test-results',
   'playwright-report',
+  'logs',
+  'examples',
+  'docs/examples',
+  'docs/validation',
+  'docs/reviews',
+  'test/benchmark/profiles',
+  'test/artifacts',
+  'test/e2e/results',
+  'test/benchmark/results',
+  'test/packaging/results',
+  'apps/desktop/test/artifacts',
 ]) {
   if (await exists(resolve(root, obsolete)))
-    failures.push(`${obsolete}: use the classified docs/test directory`)
+    failures.push(`${obsolete}: remove obsolete records; use current guides and active test suites`)
 }
 await collect(root)
 for (const file of files) {
   if (file.endsWith('.md')) {
     if (
       !rootDocuments.has(file) &&
+      !/^(?:(?:apps|packages)\/[^/]+\/test\/fixtures|test\/(?:e2e|benchmark|packaging)\/fixtures)\/.+\.md$/.test(
+        file,
+      ) &&
       !/^docs\/(?:[a-z0-9]+(?:-[a-z0-9]+)*\/)+[a-z0-9]+(?:-[a-z0-9]+)*\.md$/.test(file)
     )
       failures.push(`${file}: put documentation in docs/<topic>/ with a kebab-case filename`)
@@ -106,7 +116,11 @@ for (const file of files) {
     failures.push(`${file}: move test runners and profilers into their suite`)
   if (file !== 'scripts/check-layout.mjs' && /\.[cm]?[jt]sx?$/.test(file)) {
     const source = await readFile(resolve(root, file), 'utf8')
-    if (/(['"`])(?:\.logs|test-results|benchmark-results?|playwright-report)(?:\/|\1)/.test(source))
+    if (
+      /(['"`])(?:\.logs|test-results|benchmark-results?|playwright-report|test\/artifacts|test\/(?:e2e|benchmark|packaging)\/results)(?:\/|\1)/.test(
+        source,
+      )
+    )
       failures.push(`${file}: write generated output inside the owning test directory`)
   }
 }

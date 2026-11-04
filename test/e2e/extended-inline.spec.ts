@@ -73,8 +73,8 @@ async function audit(page: Page, name: string): Promise<void> {
 for (const locale of ['en', 'zh-CN'] as const) {
   test(`${locale} scripts and offline emoji preserve source, translation, export and history`, async () => {
     test.setTimeout(45_000)
-    const directory = await mkdtemp(resolve('test/artifacts/logs/extended-inline-'))
-    if (!resolve(directory).startsWith(resolve('test/artifacts/logs') + sep))
+    const directory = await mkdtemp(resolve('test/e2e/result/extended-inline-'))
+    if (!resolve(directory).startsWith(resolve('test/e2e/result') + sep))
       throw new Error('Unsafe fixture path')
     const profile = join(directory, 'profile'),
       path = join(directory, 'inline.md')

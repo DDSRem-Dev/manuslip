@@ -7,7 +7,7 @@ import { clickDocumentAction, launchDesktop, selectReadingLayout } from './helpe
 import { auditPluginInterface } from './plugin-accessibility'
 
 test('captured reading conventions survive setting changes, layout and export until explicit refresh', async () => {
-  const directory = await mkdtemp(resolve('test/artifacts/logs/reading-conventions-'))
+  const directory = await mkdtemp(resolve('test/e2e/result/reading-conventions-'))
   const path = join(directory, 'reading.md')
   const source =
     '---\ntitle: YAML_METADATA_PRIVATE\n...\n\n# Hello reader\n\n==Hello== ~~deleted~~ $x^2$.\n'
@@ -129,7 +129,7 @@ test('captured reading conventions survive setting changes, layout and export un
 
 test('built-in convention settings update preview and export and persist across restart', async () => {
   test.setTimeout(90_000)
-  const directory = await mkdtemp(resolve('test/artifacts/logs/conventions-'))
+  const directory = await mkdtemp(resolve('test/e2e/result/conventions-'))
   const profile = join(directory, 'profile')
   const path = join(directory, 'conventions.md')
   const source =
@@ -258,8 +258,11 @@ test('built-in convention settings update preview and export and persist across 
 })
 
 test('the LaTeX gallery renders complete offline formulas in preview and HTML export', async () => {
-  const directory = await mkdtemp(resolve('test/artifacts/logs/latex-gallery-'))
-  const source = await readFile(resolve('docs/examples/latex.md'), 'utf8')
+  const directory = await mkdtemp(resolve('test/e2e/result/latex-gallery-'))
+  const source = await readFile(
+    resolve('packages/renderer/test/fixtures/markdown/latex.md'),
+    'utf8',
+  )
   const path = join(directory, 'LaTeX.md')
   await writeFile(path, source)
   const application = await launchDesktop(join(directory, 'profile'), [path])
@@ -300,7 +303,7 @@ for (const [locale, theme] of [
   ['zh-CN', 'dark'],
 ] as const) {
   test(`conventions and their settings remain accessible in ${locale} ${theme}`, async () => {
-    const directory = await mkdtemp(resolve('test/artifacts/logs/convention-accessibility-'))
+    const directory = await mkdtemp(resolve('test/e2e/result/convention-accessibility-'))
     const profile = join(directory, 'profile')
     const path = join(directory, 'Guide.md')
     await mkdir(profile)

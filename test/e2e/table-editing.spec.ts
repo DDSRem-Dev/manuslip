@@ -97,8 +97,8 @@ async function audit(page: Page, name: string): Promise<void> {
 for (const locale of ['en', 'zh-CN'] as const) {
   test(`${locale} visual tables stage edits, navigate cells and preserve source history and saved bytes`, async () => {
     test.setTimeout(60_000)
-    const directory = await mkdtemp(resolve('test/artifacts/logs/table-editing-'))
-    if (!directory.startsWith(resolve('test/artifacts/logs') + sep))
+    const directory = await mkdtemp(resolve('test/e2e/result/table-editing-'))
+    if (!directory.startsWith(resolve('test/e2e/result') + sep))
       throw new Error('Unsafe fixture path')
     const profile = join(directory, 'profile'),
       path = join(directory, 'table.md'),
@@ -263,8 +263,8 @@ for (const [kind, source, message] of [
   ],
 ] as const) {
   test(`visual table ${kind} fallback retains complete editable source`, async () => {
-    const directory = await mkdtemp(resolve('test/artifacts/logs/table-fallback-'))
-    if (!directory.startsWith(resolve('test/artifacts/logs') + sep))
+    const directory = await mkdtemp(resolve('test/e2e/result/table-fallback-'))
+    if (!directory.startsWith(resolve('test/e2e/result') + sep))
       throw new Error('Unsafe fixture path')
     const path = join(directory, 'table.md'),
       profile = join(directory, 'profile')

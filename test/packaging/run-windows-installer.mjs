@@ -11,7 +11,7 @@ import { verifyInstalledDesktop } from './helpers/verify-installed-desktop.mjs'
 
 assert.equal(process.platform, 'win32', 'Installer execution requires Windows')
 const root = resolve('.')
-const logs = resolve('test/packaging/results')
+const logs = resolve('test/packaging/result')
 const directory = join(logs, `windows-installer-${randomUUID()}`)
 const installed = join(directory, 'installed app')
 const metadata = JSON.parse(await readFile('apps/desktop/package.json', 'utf8'))

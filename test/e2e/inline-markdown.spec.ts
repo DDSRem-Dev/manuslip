@@ -77,7 +77,7 @@ async function baselineAligned(formula: Locator) {
 
 test('inline notes, baseline-aligned formulas and literal disclosure tags survive editing, reading and export', async () => {
   test.setTimeout(60_000)
-  const directory = await mkdtemp(resolve('test/artifacts/logs/inline-markdown-'))
+  const directory = await mkdtemp(resolve('test/e2e/result/inline-markdown-'))
   const path = join(directory, 'inline.md')
   const source =
     '# Inline patch\n\nInline $x$ and $\\frac{1}{2}$ and $x_i^2$ centered.\n\nHello note^[Hello **footnote** `code ]` $y_2$] and named[^n].\n\n<details open>\n<summary>Literal title</summary>\n**Body**\n</details>\n\n[^n]: Named note.\n\nEnd\n'
@@ -290,7 +290,7 @@ test('inline math keeps a common baseline through scripts, tall fractions, CJK, 
     '| Table |\n| --- |\n| Inline $\\sqrt{z}$ text. |',
     'End',
   ].join('\n\n')
-  const directory = await mkdtemp(resolve('test/artifacts/logs/math-baseline-'))
+  const directory = await mkdtemp(resolve('test/e2e/result/math-baseline-'))
   const path = join(directory, 'math.md')
   await writeFile(path, source)
   const application = await launchDesktop(join(directory, 'profile'), [path])

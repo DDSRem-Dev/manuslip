@@ -9,7 +9,7 @@ export default defineConfig({
   fullyParallel: false,
   reporter: 'list',
   outputDir: fileURLToPath(
-    new URL(`./results/${process.env.MANUSLIP_BENCH_RUN ?? 'latest'}`, import.meta.url),
+    new URL(`./result/${process.env.MANUSLIP_BENCH_RUN ?? 'latest'}`, import.meta.url),
   ),
   use: { trace: 'retain-on-failure' },
 })

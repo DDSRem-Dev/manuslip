@@ -41,7 +41,7 @@ async function expectAlignment(table: Locator): Promise<void> {
 
 for (const locale of ['en', 'zh-CN'] as const) {
   test(`${locale} tables preserve alignment, document flow and keyboard scrolling`, async () => {
-    const directory = await mkdtemp(resolve('test/artifacts/logs/table-rendering-'))
+    const directory = await mkdtemp(resolve('test/e2e/result/table-rendering-'))
     const profile = join(directory, 'profile')
     const path = join(directory, 'tables.md')
     await mkdir(profile)
@@ -155,7 +155,7 @@ for (const locale of ['en', 'zh-CN'] as const) {
 }
 
 test('reading copies and HTML exports retain table alignment on screen and in print', async () => {
-  const directory = await mkdtemp(resolve('test/artifacts/logs/table-reading-'))
+  const directory = await mkdtemp(resolve('test/e2e/result/table-reading-'))
   const path = join(directory, 'tables.md')
   await writeFile(path, source)
   const server = createServer(async (request, response) => {

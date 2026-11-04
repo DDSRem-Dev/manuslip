@@ -68,7 +68,7 @@ it.skipIf(process.platform !== 'win32')(
 it.skipIf(process.platform !== 'win32')(
   'preserves an inherited Windows ACL when saving a file on the workspace volume',
   async () => {
-    const logs = join(process.cwd(), 'apps/desktop/test/artifacts')
+    const logs = join(process.cwd(), 'apps/desktop/test/unit/result')
     await mkdir(logs, { recursive: true })
     const directory = await mkdtemp(join(logs, 'manuslip-inherited-acl-'))
     const path = join(directory, 'inherited 世界.md')

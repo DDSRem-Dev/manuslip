@@ -4,7 +4,7 @@ import { expect, it } from 'vitest'
 import { runPandocProcess } from '../../../../src/main/pandoc/process'
 
 it('streams exact UTF-8 input through a real child and reaps a timed-out child', async () => {
-  const root = resolve('test/artifacts/logs')
+  const root = resolve('apps/desktop/test/integration/result')
   await mkdir(root, { recursive: true })
   const directory = await mkdtemp(resolve(root, 'pandoc-process-'))
   if (!directory.startsWith(root + sep)) throw new Error('Unsafe fixture path')

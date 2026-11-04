@@ -8,9 +8,8 @@ import { launchDesktop } from './helpers'
 for (const composing of [false, true]) {
   test(`a late sync download preserves ${composing ? 'active composition' : 'a newer dirty draft'} through the file conflict flow`, async () => {
     test.setTimeout(60_000)
-    const directory = await mkdtemp(resolve('test/artifacts/logs/sync-race-native-'))
-    if (!directory.startsWith(resolve('test/artifacts/logs') + sep))
-      throw new Error('Unsafe fixture')
+    const directory = await mkdtemp(resolve('test/e2e/result/sync-race-native-'))
+    if (!directory.startsWith(resolve('test/e2e/result') + sep)) throw new Error('Unsafe fixture')
     const path = join(directory, 'source.md'),
       profile = join(directory, 'profile'),
       original = '# Original\n\nKeep this writing. '
