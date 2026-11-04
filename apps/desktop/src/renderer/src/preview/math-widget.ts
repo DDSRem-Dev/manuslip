@@ -21,11 +21,11 @@ export function renderMathWidget(
     container.style.removeProperty('vertical-align')
     container.removeAttribute('data-math-scroll')
     container.textContent = block.value
-    container.removeAttribute('role')
-    container.removeAttribute('aria-label')
+    container.setAttribute('role', 'math')
+    container.setAttribute('aria-label', block.value)
+    container.tabIndex = container.closest('.cm-live-edit-preview, th, td') ? -1 : 0
     setWidgetState(container, 'loading')
     if (restoreFocus) {
-      container.tabIndex = -1
       container.focus({ preventScroll: true })
     }
     measure()
@@ -39,9 +39,6 @@ export function renderMathWidget(
         if (signal.aborted || !install(svg, 'math')) return
         setWidgetState(container, 'ready')
         if (block.kind === 'inlineMath') mountInlineMathLayout(container, signal, measure)
-        container.setAttribute('role', 'math')
-        container.setAttribute('aria-label', block.value)
-        container.tabIndex = 0
         // The labelled math container owns the accessible expression.
         for (const svg of container.querySelectorAll('svg')) {
           svg.setAttribute('aria-hidden', 'true')

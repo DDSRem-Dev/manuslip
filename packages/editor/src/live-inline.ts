@@ -223,7 +223,12 @@ function inline(view: EditorView, options: LiveOptions): InlineState {
   for (const block of blocks)
     if (
       proseProjection(block.kind) &&
-      !(editing && editing.from >= block.from && editing.to <= block.to) &&
+      !(
+        editing &&
+        editing.from >= block.from &&
+        editing.to <= block.to &&
+        block.kind !== 'defList'
+      ) &&
       block.from >= (sourceBlocks.at(-1)?.to ?? 0)
     )
       sourceBlocks.push(block)
@@ -313,6 +318,15 @@ function inline(view: EditorView, options: LiveOptions): InlineState {
       to: visible.to,
       enter: (node) => {
         const name = node.name
+        // Exposed TeX is literal source. Markdown escapes, links and emphasis must
+        // not replace its delimiters or tokens underneath the native selection.
+        if (
+          editing &&
+          (editing.block.kind === 'inlineMath' || editing.block.kind === 'math') &&
+          node.from >= editing.block.from &&
+          node.to <= editing.block.to
+        )
+          return false
         if (node.to <= metadataEnd) return false
         if (inSourceBlock(node.from, node.to)) return false
         if (['FencedCode', 'CodeBlock'].includes(name)) {

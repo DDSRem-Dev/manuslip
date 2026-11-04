@@ -83,6 +83,240 @@ async function setup() {
   }
 }
 
+test('a rendered paragraph maps its first click before native selection reveals the source', async () => {
+  const fixture = await setup()
+  try {
+    const { page } = fixture
+    const text = 'Before **Same**\nand <b>Same &amp; Same</b> after.\n\nEnd'
+    await page.evaluate((text) => window.previewLifetime.setSource(text), text)
+    await page.evaluate(() => window.previewLifetime.owned())
+    const point = await page.locator('.cm-live-paragraph b').evaluate((element) => {
+      const node = element.firstChild
+      if (!node) throw new Error('Missing rendered text')
+      const range = document.createRange()
+      range.setStart(node, (node.textContent?.lastIndexOf('Same') ?? 0) + 2)
+      range.collapse(true)
+      const box = range.getBoundingClientRect()
+      return { x: box.left, y: box.top + box.height / 2 }
+    })
+    await page.mouse.click(point.x, point.y)
+    const at = text.lastIndexOf('Same') + 2
+    expect(await page.evaluate(() => window.previewLifetime.snapshot().selection)).toBe(at)
+    await page.keyboard.insertText('Q')
+    expect(await page.evaluate(() => window.previewLifetime.snapshot().text)).toBe(
+      `${text.slice(0, at)}Q${text.slice(at)}`,
+    )
+    expect(fixture.errors).toEqual([])
+  } finally {
+    await fixture.close()
+  }
+})
+
+test('clicking math inside a projected paragraph preserves its own source and preview', async () => {
+  const fixture = await setup()
+  try {
+    const { page } = fixture
+    const text = 'Before <b>the</b> expression.\n$x^2$ then $x^2$\nAfter the expression.\n\nEnd'
+    await page.evaluate((text) => window.previewLifetime.setSource(text), text)
+    await page.evaluate(() => window.previewLifetime.owned())
+    await expect(page.locator('.cm-live-paragraph [role="math"]')).toHaveCount(2)
+    const math = page.getByRole('math', { name: 'x^2', exact: true }).last()
+    await expect(math.locator('svg')).toBeVisible()
+    const point = await math
+      .locator('[data-source-from="2"]')
+      .last()
+      .evaluate((element) => {
+        const box = element.getBoundingClientRect()
+        return { x: box.left + box.width * 0.8, y: box.top + box.height / 2 }
+      })
+    await page.mouse.click(point.x, point.y)
+    expect(await page.evaluate(() => window.previewLifetime.snapshot().selection)).toBe(
+      text.lastIndexOf('^2') + 2,
+    )
+    await expect(page.locator('.cm-live-edit-preview [role="math"]')).toHaveAttribute(
+      'aria-label',
+      'x^2',
+    )
+    await page.keyboard.insertText('Q')
+    const at = text.lastIndexOf('^2') + 2
+    expect(await page.evaluate(() => window.previewLifetime.snapshot().text)).toBe(
+      `${text.slice(0, at)}Q${text.slice(at)}`,
+    )
+    await page.evaluate(() => window.previewLifetime.owned())
+    const editor = page.getByRole('textbox', { name: 'Markdown source', exact: true })
+    await editor.press('Escape')
+    const changedMath = page.getByRole('math', { name: 'x^2Q', exact: true })
+    await changedMath.focus()
+    await changedMath.press('Enter')
+    expect(await page.evaluate(() => window.previewLifetime.snapshot().selection)).toBe(
+      text.lastIndexOf('$x^2$') + 1,
+    )
+    await expect(page.locator('.cm-live-inline-math-source')).toHaveText('$x^2Q$')
+    expect(fixture.errors).toEqual([])
+  } finally {
+    await fixture.close()
+  }
+})
+
+test('a diagram inside a quote keeps its own source position and companion preview', async () => {
+  const fixture = await setup()
+  try {
+    const { page } = fixture
+    const value = 'flowchart LR\nA[Same] --> B[Other]'
+    const text =
+      '> Intro\n>\n> ```mermaid\n> flowchart LR\n> A[Same] --> B[Other]\n> ```\n>\n> End\n\nAfter'
+    await page.evaluate((text) => window.previewLifetime.setSource(text), text)
+    await page.evaluate(() => window.previewLifetime.deferDiagrams())
+    await page.evaluate(() => window.previewLifetime.owned())
+    const svg = `<svg viewBox="0 0 200 80" width="200" height="80"><text x="20" y="30" data-source-from="${value.indexOf('Other')}" data-source-to="${value.indexOf('Other') + 5}">Other</text></svg>`
+    await page.evaluate((value) => {
+      window.previewLifetime.settleDiagrams({ ok: true, value })
+      window.previewLifetime.settleCancellations()
+    }, svg)
+    const label = page.locator('.cm-live-blockquote [data-render-kind="diagram"] text')
+    await expect(label).toHaveText('Other')
+    await label.click({ position: { x: 1, y: 2 } })
+    expect(await page.evaluate(() => window.previewLifetime.snapshot().selection)).toBe(
+      text.indexOf('Other'),
+    )
+    await expect(page.locator('.cm-live-edit-preview.cm-live-diagram')).toBeVisible()
+    const editor = page.getByRole('textbox', { name: 'Markdown source', exact: true })
+    await editor.press('Escape')
+    const diagram = page.locator('.cm-live-blockquote [data-render-kind="diagram"]')
+    await diagram.focus()
+    await diagram.press('Enter')
+    expect(await page.evaluate(() => window.previewLifetime.snapshot().selection)).toBe(
+      text.indexOf('flowchart'),
+    )
+    await editor.press('ArrowDown')
+    await editor.press('End')
+    await editor.press('ArrowLeft')
+    await page.keyboard.insertText('Q')
+    expect(await page.evaluate(() => window.previewLifetime.snapshot().text)).toBe(
+      text.replace('Other]', 'OtherQ]'),
+    )
+    expect(fixture.errors).toEqual([])
+  } finally {
+    await fixture.close()
+  }
+})
+
+test('an HTML click retains its authored position when preview layout changes during the press', async () => {
+  const fixture = await setup()
+  try {
+    const { page } = fixture
+    const text = '<div title="Same"><span>Same</span><b>Same &amp; Same</b></div>\n\nEnd'
+    await page.evaluate((text) => window.previewLifetime.setSource(text), text)
+    await page.evaluate(() => window.previewLifetime.owned())
+    const point = await page.locator('.cm-live-html b').evaluate((element) => {
+      const range = document.createRange()
+      const node = element.firstChild
+      if (!node) throw new Error('Missing HTML text')
+      range.setStart(node, 9)
+      range.collapse(true)
+      const box = range.getBoundingClientRect()
+      return { x: box.left, y: box.top + box.height / 2 }
+    })
+    await page.mouse.move(point.x, point.y)
+    await page.mouse.down()
+    await page.locator('.cm-live-html .cm-live-rendered').evaluate((element) => {
+      element.style.paddingTop = '120px'
+      element.style.paddingLeft = '200px'
+    })
+    await page.mouse.up()
+    await expect(page.getByRole('textbox', { name: 'Markdown source', exact: true })).toBeFocused()
+    expect(await page.evaluate(() => window.previewLifetime.snapshot().selection)).toBe(
+      text.lastIndexOf('Same') + 2,
+    )
+    expect(fixture.errors).toEqual([])
+  } finally {
+    await fixture.close()
+  }
+})
+
+test('reused HTML and math previews resolve source positions after edits before the widget', async () => {
+  const fixture = await setup()
+  try {
+    const { page } = fixture
+    for (const kind of ['html', 'math'] as const) {
+      const text = `Intro\n\n${kind === 'html' ? '<div><b>Same &amp; Same</b></div>' : '$$\nx+y\n$$'}\n\nEnd`
+      await page.evaluate((text) => window.previewLifetime.setSource(text), text)
+      await page.evaluate(() => window.previewLifetime.owned())
+      const rendered = page.locator(`.cm-live-${kind}`)
+      if (kind === 'math') await expect(rendered.locator('svg')).toBeVisible()
+      await rendered.evaluate((element) => {
+        element.dataset.retained = 'true'
+      })
+      await page.evaluate(() => window.previewLifetime.select([[0, 0]]))
+      await page.keyboard.insertText('Prefix ')
+      await expect(rendered).toHaveAttribute('data-retained', 'true')
+      const point = await rendered.evaluate((element, kind) => {
+        if (kind === 'html') {
+          const range = document.createRange()
+          const node = element.querySelector('b')?.firstChild
+          if (!node) throw new Error('Missing retained HTML text')
+          range.setStart(node, 9)
+          range.collapse(true)
+          const box = range.getBoundingClientRect()
+          return { x: box.left, y: box.top + box.height / 2 }
+        }
+        const symbol = [...element.querySelectorAll('[data-source-from="0"]')].at(-1)
+        if (!symbol) throw new Error('Missing retained math symbol')
+        const box = symbol.getBoundingClientRect()
+        return { x: box.left + box.width * 0.8, y: box.top + box.height / 2 }
+      }, kind)
+      await page.mouse.click(point.x, point.y)
+      const at = 7 + (kind === 'html' ? text.lastIndexOf('Same') + 2 : text.indexOf('x+y') + 1)
+      expect(await page.evaluate(() => window.previewLifetime.snapshot().selection)).toBe(at)
+    }
+    expect(fixture.errors).toEqual([])
+  } finally {
+    await fixture.close()
+  }
+})
+
+test('a docked preview keeps one renderer and releases it on source mode and document teardown', async () => {
+  const fixture = await setup()
+  try {
+    const { page } = fixture
+    await page.setViewportSize({ width: 600, height: 550 })
+    await page.locator('#editor').evaluate((element) => {
+      element.style.height = '440px'
+      element.style.transform = 'scale(0.85)'
+      element.style.transformOrigin = 'top left'
+    })
+    const text = `<div><b>Same</b>\n${'<!-- hidden -->\n'.repeat(100)}</div>\n\nEnd`
+    await page.evaluate((text) => window.previewLifetime.setSource(text), text)
+    await page.evaluate(() => window.previewLifetime.owned())
+    const collapsed = page.locator('.cm-live-html:not(.cm-live-edit-preview)')
+    await collapsed.focus()
+    await collapsed.press('Enter')
+    const panel = page.locator('.cm-live-preview-panel')
+    await expect(panel.locator('.cm-live-edit-preview')).toHaveCount(1)
+    await expect(panel).toBeVisible()
+    // The following paragraph is outside CodeMirror's virtualized viewport.
+    await expect.poll(() => page.evaluate(() => window.previewLifetime.counts().connected)).toBe(1)
+    const editor = page.getByRole('textbox', { name: 'Markdown source', exact: true })
+    await editor.press('ArrowDown')
+    const before = await page.evaluate(() => window.previewLifetime.snapshot().selection)
+    await panel.locator('b').click()
+    expect(await page.evaluate(() => window.previewLifetime.snapshot().selection)).toBe(before)
+    await expect(editor).toBeFocused()
+    await page.evaluate(() => window.previewLifetime.sourceMode())
+    await expect(panel).toHaveCount(0)
+    await expect
+      .poll(() => page.evaluate(() => window.previewLifetime.counts()))
+      .toMatchObject({ holds: 2, connected: 0 })
+    const counts = await page.evaluate(() => window.previewLifetime.counts())
+    expect(counts.aborted).toBe(counts.mounts)
+    await page.evaluate(() => window.previewLifetime.clear())
+    await expect.poll(() => page.evaluate(() => window.previewLifetime.counts().holds)).toBe(0)
+    expect(fixture.errors).toEqual([])
+  } finally {
+    await fixture.close()
+  }
+})
+
 test('live selections reveal selected syntax across characters, lines and multiple cursors', async () => {
   const fixture = await setup()
   try {
@@ -995,6 +1229,174 @@ test('cancelled math remains charged until its worker and queued promises settle
   } finally {
     for (const route of held.splice(0)) await route.continue().catch(() => {})
     await fixture.page.clock.resume().catch(() => {})
+    await fixture.close()
+  }
+})
+
+for (const [kind, duringPress] of [
+  ['math', false],
+  ['math', true],
+  ['diagram', false],
+  ['diagram', true],
+] as const) {
+  test(`a first click in pending ${kind} source keeps its position when rendering finishes ${duringPress ? 'during press' : 'after click'}`, async () => {
+    const fixture = await setup()
+    const held: Route[] = []
+    const pattern = '**/assets/math.worker-*.js'
+    try {
+      const { page } = fixture
+      if (kind === 'math') {
+        await page.context().route(pattern, (route) => {
+          held.push(route)
+        })
+      } else await page.evaluate(() => window.previewLifetime.deferDiagrams())
+      const value = kind === 'math' ? 'x + y + z' : 'flowchart LR\nA[Alpha] --> B[Beta]'
+      const source = kind === 'math' ? `$$\n${value}\n$$` : `\`\`\`mermaid\n${value}\n\`\`\``
+      await page.evaluate(
+        (source) => window.previewLifetime.setSource(`# Heading\n\n${source}\n\nEnd`),
+        source,
+      )
+      await page.evaluate(() => window.previewLifetime.owned())
+      const preview = page.locator(`.cm-live-${kind} .cm-live-rendered`)
+      await expect(preview).toHaveAttribute('data-render-state', 'loading')
+      const needle = kind === 'math' ? 'y' : 'Beta'
+      const complete = async () => {
+        if (kind === 'math') {
+          await expect.poll(() => held.length).toBeGreaterThan(0)
+          for (const route of held.splice(0)) await route.continue()
+          await page.context().unroute(pattern)
+        } else
+          await page.evaluate(() => {
+            window.previewLifetime.settleDiagrams({
+              ok: true,
+              value: '<svg viewBox="0 0 100 30"><text x="0" y="20">Rendered</text></svg>',
+            })
+            window.previewLifetime.settleCancellations()
+          })
+      }
+      const point = await preview.evaluate((element, needle) => {
+        const node = element.querySelector('pre')?.firstChild ?? element.firstChild
+        const at = node?.textContent?.indexOf(needle) ?? -1
+        if (!node || at < 0) throw new Error('Missing literal preview')
+        const range = document.createRange()
+        range.setStart(node, at)
+        range.setEnd(node, at + 1)
+        const box = range.getBoundingClientRect()
+        return { x: box.left + box.width * 0.2, y: box.top + box.height / 2 }
+      }, needle)
+      if (duringPress) {
+        await page.mouse.move(point.x, point.y)
+        await page.mouse.down()
+        await complete()
+        await expect(preview.locator('svg')).toBeVisible()
+        await page.mouse.up()
+      } else await page.mouse.click(point.x, point.y)
+      const at = `# Heading\n\n${source}`.indexOf(needle)
+      expect(await page.evaluate(() => window.previewLifetime.snapshot().selection)).toBe(at)
+      await page.keyboard.insertText('Q')
+      await expect
+        .poll(() => page.evaluate(() => window.previewLifetime.snapshot().text))
+        .toBe(`# Heading\n\n${source}\n\nEnd`.replace(needle, `Q${needle}`))
+      await page.evaluate(() => window.previewLifetime.owned())
+      const selection = await page.evaluate(() => window.previewLifetime.selections())
+      if (!duringPress || kind === 'diagram') await complete()
+      await expect(preview.locator('svg')).toBeVisible()
+      await expect(page.locator('.cm-content')).toBeFocused()
+      expect(await page.evaluate(() => window.previewLifetime.selections())).toEqual(selection)
+      expect(fixture.errors).toEqual([])
+    } finally {
+      for (const route of held.splice(0)) await route.continue().catch(() => {})
+      if (kind === 'diagram')
+        await fixture.page
+          .evaluate(() => {
+            window.previewLifetime.settleDiagrams({
+              ok: false,
+              error: 'Stopped',
+              code: 'diagram-process',
+            })
+            window.previewLifetime.settleCancellations()
+          })
+          .catch(() => {})
+      await fixture.close()
+    }
+  })
+}
+
+test('a delayed preview growing after source activation stays visible without overriding a wheel gesture', async () => {
+  const fixture = await setup()
+  try {
+    const { page } = fixture
+    await page.setViewportSize({ width: 720, height: 650 })
+    await page.locator('#editor').evaluate((element) => {
+      element.style.height = '500px'
+      element.style.transform = 'scale(0.85)'
+      element.style.transformOrigin = 'top left'
+    })
+    const paragraph = Array.from({ length: 20 }, (_, at) => `Paragraph ${at}.\n\n`).join('')
+    const text = `${paragraph}\`\`\`mermaid\nflowchart LR\nA[Alpha] --> B[Beta]\n\`\`\`\n\n${paragraph}`
+    await page.evaluate((text) => window.previewLifetime.setSource(text), text)
+    await page.evaluate(() => window.previewLifetime.deferDiagrams())
+    await page.evaluate(() => window.previewLifetime.owned())
+    const scroller = page.locator('.cm-scroller')
+    await scroller.evaluate((element) => {
+      element.scrollTop = (element.scrollHeight - element.clientHeight) / 2
+    })
+    const diagram = page.locator('.cm-live-diagram')
+    await diagram.scrollIntoViewIfNeeded()
+    await diagram.focus()
+    await diagram.press('Enter')
+    const preview = page.locator('.cm-live-edit-preview')
+    await expect(preview).toBeVisible()
+    await page.evaluate(() => {
+      window.previewLifetime.settleDiagrams({
+        ok: true,
+        value:
+          '<svg viewBox="0 0 120 180" width="120" height="180"><text x="10" y="20">Alpha</text></svg>',
+      })
+      window.previewLifetime.settleCancellations()
+    })
+    const visible = () =>
+      preview.evaluate((element) => {
+        const scroller = element.closest('.cm-scroller')
+        const bounds = scroller?.getBoundingClientRect(),
+          source = scroller?.querySelector('.cm-live-edit-start')?.getBoundingClientRect()
+        return Boolean(
+          bounds &&
+            source &&
+            source.top >= bounds.top - 1 &&
+            element.getBoundingClientRect().bottom <= bounds.bottom + 1,
+        )
+      })
+    await expect(preview.locator('svg')).toBeVisible()
+    await expect.poll(visible).toBe(true)
+    expect(await page.evaluate(() => window.previewLifetime.snapshot().selection)).toBe(
+      text.indexOf('flowchart'),
+    )
+    const before = await scroller.evaluate((element) => element.scrollTop)
+    await scroller.hover({ position: { x: 10, y: 20 } })
+    await page.mouse.wheel(0, -180)
+    await expect
+      .poll(() => scroller.evaluate((element) => element.scrollTop))
+      .toBeLessThan(before - 100)
+    await preview.locator('svg').evaluate((element) => {
+      element.setAttribute('height', '240')
+    })
+    await expect.poll(visible).toBe(false)
+    expect(await page.evaluate(() => window.previewLifetime.snapshot().selection)).toBe(
+      text.indexOf('flowchart'),
+    )
+    expect(fixture.errors).toEqual([])
+  } finally {
+    await fixture.page
+      .evaluate(() => {
+        window.previewLifetime.settleDiagrams({
+          ok: false,
+          error: 'Stopped',
+          code: 'diagram-process',
+        })
+        window.previewLifetime.settleCancellations()
+      })
+      .catch(() => {})
     await fixture.close()
   }
 })

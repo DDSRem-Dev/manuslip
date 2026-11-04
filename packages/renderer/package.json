@@ -10,6 +10,7 @@
     "./math": "./src/math.ts",
     "./urls": "./src/urls.ts",
     "./diagram": "./src/diagram.ts",
+    "./diagram-source": "./src/diagram-source.ts",
     "./legacy-diagram": "./src/legacy-diagram.ts",
     "./export": "./src/export.ts",
     "./export-style": "./src/export-style.ts",

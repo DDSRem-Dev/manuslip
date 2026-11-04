@@ -42,6 +42,7 @@ export function proseProjection(kind: string): boolean {
 }
 export interface LiveOptions {
   sourceLabel(): string
+  previewLabel?(): string
   taskLabel(): string
   render(container: HTMLElement, block: LiveBlock, signal: AbortSignal, measure: () => void): void
   openLink(url: string): void

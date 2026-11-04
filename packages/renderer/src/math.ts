@@ -22,6 +22,7 @@ import '@mathjax/src/js/input/tex/enclose/EncloseConfiguration.js'
 import '@mathjax/src/js/input/tex/extpfeil/ExtpfeilConfiguration.js'
 import { mathjax } from '@mathjax/src/js/mathjax.js'
 import { SVG } from '@mathjax/src/js/output/svg.js'
+import { markMathSource } from './math-source'
 
 const adaptor = liteAdaptor()
 RegisterHTMLHandler(adaptor)
@@ -56,6 +57,7 @@ export function renderMath(tex: string, display: boolean): string {
       throw error
     },
   })
+  input.postFilters.add(() => markMathSource(input.parseOptions.root, tex))
   // A worker/export result is one standalone image. MathJax otherwise splits
   // inline formulas at operators into multiple SVG siblings.
   const output = new SVG({

@@ -65,3 +65,45 @@ it('keeps the source editor open when changing a diagram fence to an ordinary co
   expect(refreshed.selection.main.empty).toBe(true)
   expect(refreshed.selection.main.head).toBe(5)
 })
+
+it('keeps inline math ownership exact when refreshed on a whitespace-padded source line', () => {
+  const block: LiveBlock = {
+    id: 'math',
+    from: 2,
+    to: 7,
+    kind: 'inlineMath',
+    value: 'x^2',
+    html: '',
+    lines: 1,
+  }
+  let state = EditorState.create({
+    doc: '  $x^2$  \n\nAfter',
+    extensions: [liveModel, liveEditing],
+  })
+  state = state.update({
+    effects: [setLiveModel.of({ blocks: [block] }), editLiveBlock.of({ from: 2, to: 7, block })],
+    selection: { anchor: 4 },
+  }).state
+  const refreshed = state.update({
+    effects: setLiveModel.of({ blocks: [{ ...block, id: 'refreshed' }] }),
+  }).state
+  expect(editingBlock(refreshed)).toMatchObject({ from: 2, to: 7 })
+  expect(refreshed.selection.main.head).toBe(4)
+})
+
+it('does not rescan semantic blocks during caret movement or unrelated effects', () => {
+  const { state, block } = fixture()
+  let scans = 0
+  const blocks = new Proxy([block], {
+    get(target, key, receiver) {
+      if (key === 'find') scans++
+      return Reflect.get(target, key, receiver)
+    },
+  })
+  const ready = state.update({ effects: setLiveModel.of({ blocks }) }).state
+  scans = 0
+  const moved = ready.update({ selection: { anchor: 13 } }).state
+  const unchanged = moved.update({}).state
+  expect(scans).toBe(0)
+  expect(editingBlock(unchanged)).toBe(editingBlock(ready))
+})

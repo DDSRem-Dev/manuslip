@@ -8,6 +8,8 @@ import { frontmatterDecorations } from './live-frontmatter'
 import { inlineDecorations } from './live-inline'
 import { liveInteractions } from './live-interactions'
 import type { LiveOptions } from './live-model'
+import { livePreviewPlacement } from './live-preview-layout'
+import { livePreviewScroll } from './live-preview-scroll'
 import { tableEditing } from './live-table'
 
 export { navigateLiveAnchor } from './live-anchors'
@@ -28,10 +30,12 @@ export function livePreview(options: LiveOptions): Extension[] {
     syntaxHighlighting(codeHighlightStyle),
     frontmatterDecorations,
     liveEditing,
+    livePreviewPlacement,
     blockDecorations(options),
     inlineDecorations(options),
     tableEditing,
     liveInteractions(),
+    livePreviewScroll(options),
     EditorView.editorAttributes.of({ 'data-mode': 'live' }),
     EditorView.theme({ '.cm-gutters': { display: 'none' } }),
   ]

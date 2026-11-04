@@ -1,6 +1,5 @@
 import { type EditorState, type Range, StateField } from '@codemirror/state'
 import { Decoration, type DecorationSet, EditorView, WidgetType } from '@codemirror/view'
-import { mountDiagramEditing } from './live-diagram'
 import { editingBlock } from './live-editing'
 import { activateRendered } from './live-interactions'
 import { preserveProseLineBreaks } from './live-line-breaks'
@@ -14,6 +13,13 @@ import {
   proseProjection,
 } from './live-model'
 import { proseNavigation, revealProse } from './live-navigation'
+import { hasEditingPreview, previewIsDocked } from './live-preview-layout'
+import {
+  cancelPreviewPointer,
+  capturePreviewPointer,
+  completesPreviewPointer,
+  releasePreviewPointer,
+} from './live-preview-position'
 import { rangeTouches } from './live-selection'
 import { LiveTable } from './live-table'
 import { taskCheckboxes } from './live-task-changes'
@@ -69,27 +75,98 @@ export class RenderedWidget extends WidgetType {
       this.inline ? 'span' : this.block.kind === 'footnoteDefinition' ? 'ol' : 'div',
     )
     content.className = 'cm-live-rendered'
+    if (!this.preview && (this.block.kind === 'math' || this.block.kind === 'inlineMath')) {
+      content.setAttribute('aria-description', this.options.sourceLabel())
+      content.setAttribute('aria-keyshortcuts', 'Enter Space')
+    }
     if (this.block.kind === 'footnoteDefinition') content.classList.add('markdown-footnote-list')
     if (this.block.kind === 'footnoteDefinition' && this.block.listStart)
       content.setAttribute('start', String(this.block.listStart))
     container.append(content)
-    if (this.preview)
+    if (!this.preview && this.block.kind !== 'table') {
       container.addEventListener(
-        'mousedown',
+        'pointerdown',
         (event) => {
           if (
-            event instanceof MouseEvent &&
+            event instanceof PointerEvent &&
+            event.isPrimary &&
             event.button === 0 &&
-            !(event.target instanceof Element && event.target.closest('button, input, a[href]'))
-          ) {
-            event.preventDefault()
-            event.stopPropagation()
-          }
+            !event.shiftKey &&
+            !event.ctrlKey &&
+            !event.metaKey &&
+            !event.altKey &&
+            !view.composing &&
+            !view.state.field(isComposing) &&
+            event.target instanceof Element &&
+            (!proseProjection(this.block.kind) ||
+              Boolean(event.target.closest('[role="math"], [data-render-kind="diagram"]'))) &&
+            !event.target.closest('button, input, select, textarea, a[href]')
+          )
+            capturePreviewPointer(view, container, event)
         },
         { signal: lifetime.signal },
       )
+      container.addEventListener(
+        'pointermove',
+        (event) => {
+          if (event instanceof PointerEvent) releasePreviewPointer(container, event)
+        },
+        { signal: lifetime.signal },
+      )
+      for (const event of ['pointercancel', 'lostpointercapture'])
+        container.addEventListener(event, () => cancelPreviewPointer(container), {
+          signal: lifetime.signal,
+        })
+      container.addEventListener(
+        'pointerup',
+        (event) => {
+          if (
+            !(event instanceof PointerEvent) ||
+            view.compositionStarted ||
+            view.state.field(isComposing) ||
+            !completesPreviewPointer(container, event)
+          )
+            return
+          event.preventDefault()
+          event.stopPropagation()
+          activateRendered(view, container, event)
+        },
+        { signal: lifetime.signal },
+      )
+    }
+    container.addEventListener(
+      'mousedown',
+      (event) => {
+        if (
+          event instanceof MouseEvent &&
+          event.button === 0 &&
+          !event.shiftKey &&
+          !event.ctrlKey &&
+          !event.metaKey &&
+          !event.altKey &&
+          !view.compositionStarted &&
+          !view.state.field(isComposing) &&
+          (this.preview ||
+            (!proseProjection(this.block.kind) && this.block.kind !== 'table') ||
+            (event.target instanceof Element &&
+              Boolean(event.target.closest('[role="math"], [data-render-kind="diagram"]')))) &&
+          !(
+            event.target instanceof Element &&
+            event.target.closest(
+              'button, input, select, textarea, label, a[data-footnote-ref], a[data-footnote-backref], .markdown-toc a[href]',
+            )
+          )
+        ) {
+          event.preventDefault()
+          event.stopPropagation()
+        }
+      },
+      { signal: lifetime.signal },
+    )
     if (
       !this.inline &&
+      !this.preview &&
+      this.block.kind !== 'math' &&
       (!proseProjection(this.block.kind) || this.block.kind === 'footnoteDefinition')
     ) {
       container.tabIndex = 0
@@ -104,9 +181,12 @@ export class RenderedWidget extends WidgetType {
       (event) => {
         if (
           !(event instanceof KeyboardEvent) ||
-          event.target !== container ||
+          (event.target !== container &&
+            !(
+              event.target instanceof HTMLElement &&
+              event.target.matches('[role="math"], [data-render-kind="diagram"]')
+            )) ||
           this.block.kind === 'table' ||
-          this.block.kind === 'diagram' ||
           view.composing ||
           view.state.field(isComposing)
         )
@@ -114,7 +194,7 @@ export class RenderedWidget extends WidgetType {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault()
           event.stopPropagation()
-          activateRendered(view, container)
+          activateRendered(view, container, event)
         }
       },
       { signal: lifetime.signal },
@@ -154,7 +234,6 @@ export class RenderedWidget extends WidgetType {
           !event.metaKey &&
           !event.altKey &&
           this.block.kind !== 'table' &&
-          this.block.kind !== 'diagram' &&
           !event.target.matches('.render-table-scroll, [data-math-scroll]')
         ) {
           event.preventDefault()
@@ -163,8 +242,6 @@ export class RenderedWidget extends WidgetType {
       },
       { signal: lifetime.signal },
     )
-    if (this.block.kind === 'diagram')
-      mountDiagramEditing(container, view, this.block, lifetime.signal)
     try {
       if (this.block.kind === 'table') {
         const table = new LiveTable(
@@ -182,6 +259,14 @@ export class RenderedWidget extends WidgetType {
           if (!lifetime.signal.aborted) view.requestMeasure()
         })
       if (proseProjection(this.block.kind)) preserveProseLineBreaks(content)
+      if (proseProjection(this.block.kind))
+        for (const diagram of content.querySelectorAll<HTMLElement>(
+          '[data-render-kind="diagram"]',
+        )) {
+          diagram.tabIndex = 0
+          diagram.setAttribute('aria-description', this.options.sourceLabel())
+          diagram.setAttribute('aria-keyshortcuts', 'Enter Space')
+        }
       if (proseProjection(this.block.kind))
         mountTaskControls(content, this.block, view, this.options.taskLabel(), lifetime.signal)
     } catch (error) {
@@ -337,27 +422,6 @@ function build(state: EditorState, options: LiveOptions): BlockState {
         (proseProjection(block.kind) && editing.from >= block.from && editing.to <= block.to)) &&
       block.kind !== 'table'
     ) {
-      if (['code', 'diagram', 'math', 'html'].includes(block.kind)) {
-        const first = state.doc.lineAt(source.from).number
-        const last = state.doc.lineAt(source.to).number
-        for (let number = first; number <= last; number++)
-          ranges.push(
-            Decoration.line({
-              class: `cm-live-edit-source${number === first ? ' cm-live-edit-start' : ''}${number === last ? ' cm-live-edit-end' : ''}`,
-              virtual: true,
-            }).range(state.doc.line(number).from),
-          )
-      }
-      if (block.kind === 'diagram' || block.kind === 'math')
-        ranges.push(
-          Decoration.widget({
-            block: true,
-            side: 1,
-            widget: new RenderedWidget(block, options, false, state.readOnly, true),
-            occurrence: block.id,
-            virtual: true,
-          }).range(source.to),
-        )
       renderedEnd = source.to
       continue
     }
@@ -375,7 +439,20 @@ function build(state: EditorState, options: LiveOptions): BlockState {
     renderedEnd = source.to
     byId.set(block.id, range)
   }
-  if (editing?.block.kind === 'inlineMath')
+  // A projected paragraph/list may own the active block's DOM. Editing source
+  // and its companion belong to the session, independently of that outer widget.
+  if (editing && ['code', 'diagram', 'math', 'html'].includes(editing.block.kind)) {
+    const first = state.doc.lineAt(editing.from).number
+    const last = state.doc.lineAt(editing.to).number
+    for (let number = first; number <= last; number++)
+      ranges.push(
+        Decoration.line({
+          class: `cm-live-edit-source${number === first ? ' cm-live-edit-start' : ''}${number === last ? ' cm-live-edit-end' : ''}`,
+          virtual: true,
+        }).range(state.doc.line(number).from),
+      )
+  }
+  if (editing && hasEditingPreview(editing.block) && !previewIsDocked(state))
     ranges.push(
       Decoration.widget({
         block: true,
@@ -406,6 +483,7 @@ export function blockDecorations(options: LiveOptions): StateField<BlockState> {
         transaction.startState.field(liveModel) !== transaction.state.field(liveModel) ||
         transaction.startState.field(isComposing) !== transaction.state.field(isComposing) ||
         editingBlock(transaction.startState) !== editingBlock(transaction.state) ||
+        previewIsDocked(transaction.startState) !== previewIsDocked(transaction.state) ||
         transaction.startState.readOnly !== transaction.state.readOnly
       )
         return build(transaction.state, options)

@@ -13,6 +13,7 @@ import { cellHighlightStyle, codeHighlightStyle } from './highlight'
 import { SourceInputSynchronization } from './input-synchronization'
 import { activateLiveBlock, editingBlock, editLiveBlock } from './live-editing'
 import { isComposing, type LiveBlock, type LiveOptions } from './live-model'
+import { renderedTextHit, sourcePositionAtText } from './live-position'
 import { type LiveCell, tableCellInput, tableSourceCells } from './live-table-source'
 import { sourceSyntax } from './syntax'
 
@@ -37,6 +38,8 @@ export const tableEditing = ViewPlugin.define(() => ({
 export class LiveTable {
   private editor: EditorView | null = null
   private cell: LiveCell | null = null
+  private cellContent: DocumentFragment | undefined
+  private sourceCells: { doc: EditorState['doc']; block: LiveBlock; rows: LiveCell[][] } | undefined
   private renderLifetime = new AbortController()
   private unregister: (() => void) | undefined
   private syncing = false
@@ -60,6 +63,10 @@ export class LiveTable {
           event.ctrlKey ||
           event.metaKey ||
           event.shiftKey ||
+          event.altKey ||
+          this.editor?.compositionStarted ||
+          this.view.compositionStarted ||
+          this.view.state.field(isComposing) ||
           this.view.state.readOnly
         )
           return
@@ -97,7 +104,11 @@ export class LiveTable {
     this.pendingRender = false
     const focused = this.editor?.hasFocus
     const dom = this.editor?.dom
+    const scrollLeft = this.content.querySelector('.render-table-scroll')?.scrollLeft ?? 0
+    const table = this.content.querySelector('table')
+    const layout = dom && table ? this.tableLayout(table) : undefined
     if (dom) dom.remove()
+    this.cellContent = undefined
     this.renderLifetime.abort()
     this.renderLifetime = new AbortController()
     this.options.render(this.content, this.block, this.renderLifetime.signal, () =>
@@ -110,10 +121,15 @@ export class LiveTable {
         cell.tabIndex = 0
       }
     if (dom && this.cell) {
-      this.element(this.cell.row, this.cell.column)?.replaceChildren(dom)
-      this.element(this.cell.row, this.cell.column)?.classList.add('cm-live-cell-active')
-      if (focused) queueMicrotask(() => !this.signal.aborted && this.editor?.focus())
+      const target = this.element(this.cell.row, this.cell.column)
+      if (target) {
+        this.lockColumns(target, layout)
+        this.mountCell(target, dom)
+        if (focused) this.editor?.focus()
+      }
     }
+    const scroll = this.content.querySelector('.render-table-scroll')
+    if (scroll) scroll.scrollLeft = scrollLeft
     this.container.addEventListener('keydown', this.keydown, { signal: this.signal })
   }
 
@@ -150,52 +166,56 @@ export class LiveTable {
 
   private cells(): LiveCell[][] {
     const block = editingBlock(this.view.state)?.block
-    return tableSourceCells(
-      this.view.state,
-      block?.kind === 'table' && block.from === this.block.from ? block : this.block,
-    )
+    const current = block?.kind === 'table' && block.from === this.block.from ? block : this.block
+    if (this.sourceCells?.doc !== this.view.state.doc || this.sourceCells.block !== current)
+      this.sourceCells = {
+        doc: this.view.state.doc,
+        block: current,
+        rows: tableSourceCells(this.view.state, current),
+      }
+    return this.sourceCells.rows
   }
 
   private open(row: number, column: number, event?: MouseEvent): void {
     const cell = this.cells()[row]?.[column]
     if (!cell) return
+    if (this.editor && this.cell?.row === row && this.cell.column === column) {
+      if (event) {
+        const bounds = this.editor.contentDOM.getBoundingClientRect()
+        const position = this.editor.posAtCoords({
+          x: event.clientX,
+          y: Math.max(bounds.top + 1, Math.min(bounds.bottom - 1, event.clientY)),
+        })
+        if (position !== null) this.editor.dispatch({ selection: { anchor: position } })
+      }
+      this.editor.focus()
+      return
+    }
+    const target = this.element(row, column)
+    if (!target) return
+    const text = this.view.state.doc.sliceString(cell.from, cell.to)
+    const hit = event && renderedTextHit(target, event, text)
+    const at = (hit && sourcePositionAtText(text, hit, 'table')) ?? 0
     const current = editingBlock(this.view.state)?.block
     activateLiveBlock(
       this.view,
       current?.kind === 'table' && current.from === this.block.from ? current : this.block,
-      cell.from,
+      cell.from + at,
+      { focus: false, scrollIntoView: false },
     )
-    if (this.editor && this.cell?.row === row && this.cell.column === column) {
-      this.editor.focus()
-      return
-    }
-    this.editor?.destroy()
-    this.unregister?.()
-    this.editor = null
+    this.closeCell(true)
     this.cell = cell
-    this.render()
-    const target = this.element(row, column)
-    if (!target) return
-    const table = target.closest('table')
-    if (table) {
-      const columns = document.createElement('colgroup')
-      for (const header of table.rows[0]?.cells ?? []) {
-        const column = document.createElement('col')
-        column.style.width = `${header.getBoundingClientRect().width}px`
-        columns.append(column)
-      }
-      table.style.width = `${table.getBoundingClientRect().width}px`
-      table.style.tableLayout = 'fixed'
-      table.prepend(columns)
-    }
-    target.replaceChildren()
+    this.lockColumns(target)
+    this.cellContent = document.createDocumentFragment()
+    this.cellContent.append(...target.childNodes)
     target.classList.add('cm-live-cell-active')
     activeTables.set(this.view, this)
     const label = `${this.options.sourceLabel()} · ${row + 1}:${column + 1}`
     const inner = new EditorView({
       parent: target,
       state: EditorState.create({
-        doc: this.view.state.doc.sliceString(cell.from, cell.to),
+        doc: text,
+        selection: { anchor: at },
         extensions: [
           sourceSyntax,
           syntaxHighlighting(codeHighlightStyle),
@@ -300,11 +320,38 @@ export class LiveTable {
       inner,
       new SourceInputSynchronization(inner),
     )
-    if (event) {
-      const position = inner.posAtCoords({ x: event.clientX, y: event.clientY })
-      inner.dispatch({ selection: { anchor: position ?? inner.state.doc.length } })
-    }
+    if (!event) inner.dispatch({ scrollIntoView: true })
     inner.focus()
+  }
+
+  private tableLayout(table: HTMLTableElement): { width: number; columns: number[] } {
+    return {
+      width: table.getBoundingClientRect().width,
+      columns: [...(table.rows[0]?.cells ?? [])].map((cell) => cell.getBoundingClientRect().width),
+    }
+  }
+
+  private lockColumns(target: HTMLElement, layout?: { width: number; columns: number[] }): void {
+    const table = target.closest('table')
+    if (!table || table.querySelector('colgroup[data-live-columns]')) return
+    const measured = layout ?? this.tableLayout(table)
+    const columns = document.createElement('colgroup')
+    columns.dataset.liveColumns = 'true'
+    for (const width of measured.columns) {
+      const column = document.createElement('col')
+      column.style.width = `${width}px`
+      columns.append(column)
+    }
+    table.style.width = `${measured.width}px`
+    table.style.tableLayout = 'fixed'
+    table.prepend(columns)
+  }
+
+  private mountCell(target: HTMLElement, dom: HTMLElement): void {
+    this.cellContent = document.createDocumentFragment()
+    this.cellContent.append(...target.childNodes)
+    target.replaceChildren(dom)
+    target.classList.add('cm-live-cell-active')
   }
 
   map(changes: ChangeDesc): void {
@@ -339,18 +386,26 @@ export class LiveTable {
     if (this.cell.prefix || parsed.prefix) this.cell = parsed
     const cell = this.cell
     const text = this.view.state.doc.sliceString(cell.from, cell.to)
-    const selection = this.view.state.selection.main
+    const main = this.view.state.selection.main
+    const selection = EditorSelection.single(
+      Math.max(0, Math.min(text.length, main.anchor - cell.from)),
+      Math.max(0, Math.min(text.length, main.head - cell.from)),
+    )
+    const changed = text !== this.editor.state.doc.toString()
+    const editableChanged = this.editor.state.readOnly !== this.view.state.readOnly
+    if (!changed && !editableChanged && this.editor.state.selection.eq(selection)) return
     this.syncing = true
     try {
       this.editor.dispatch({
-        ...(text === this.editor.state.doc.toString()
-          ? {}
-          : { changes: { from: 0, to: this.editor.state.doc.length, insert: text } }),
-        selection: EditorSelection.single(
-          Math.max(0, Math.min(text.length, selection.anchor - cell.from)),
-          Math.max(0, Math.min(text.length, selection.head - cell.from)),
-        ),
-        effects: this.editable.reconfigure(EditorState.readOnly.of(this.view.state.readOnly)),
+        ...(changed
+          ? { changes: { from: 0, to: this.editor.state.doc.length, insert: text } }
+          : {}),
+        selection,
+        ...(editableChanged
+          ? {
+              effects: this.editable.reconfigure(EditorState.readOnly.of(this.view.state.readOnly)),
+            }
+          : {}),
       })
     } finally {
       this.syncing = false
@@ -359,19 +414,25 @@ export class LiveTable {
 
   private move(delta: number): boolean {
     if (!this.cell || this.editor?.composing) return false
-    const cells = this.cells().flat()
-    const at = cells.findIndex(
-      (cell) => cell.row === this.cell?.row && cell.column === this.cell.column,
-    )
-    const next = cells[at + delta]
+    const cells = this.cells()
+    const columns = cells[0]?.length ?? 1
+    const at = this.cell.row * columns + this.cell.column + delta
+    const next = at < 0 ? undefined : cells[Math.floor(at / columns)]?.[at % columns]
     if (next) this.open(next.row, next.column)
-    else this.finish()
+    else this.finish(delta < 0)
     return true
   }
 
-  private finish(): void {
-    const to = editingBlock(this.view.state)?.to ?? this.block.to
-    this.view.dispatch({ effects: editLiveBlock.of(null), selection: { anchor: to } })
+  private finish(backward = false): void {
+    const editing = editingBlock(this.view.state)
+    const edge = backward ? (editing?.from ?? this.block.from) : (editing?.to ?? this.block.to)
+    // A replacement block has no native text caret. Use its neighboring line,
+    // so the browser cannot reinterpret a boundary caret on the opposite side.
+    const at = Math.max(0, Math.min(this.view.state.doc.length, edge + (backward ? -1 : 1)))
+    this.view.dispatch({
+      effects: editLiveBlock.of(null),
+      selection: EditorSelection.create([EditorSelection.cursor(at, backward ? -1 : 1)]),
+    })
     this.view.focus()
   }
 
@@ -380,7 +441,14 @@ export class LiveTable {
     this.closeCell()
   }
 
-  private closeCell(): void {
+  private closeCell(keepCells = false): void {
+    if (!keepCells) this.sourceCells = undefined
+    const target = this.cell && this.element(this.cell.row, this.cell.column)
+    if (target && this.cellContent) {
+      target.replaceChildren(this.cellContent)
+      target.classList.remove('cm-live-cell-active')
+    }
+    this.cellContent = undefined
     this.editor?.destroy()
     this.unregister?.()
     this.editor = null

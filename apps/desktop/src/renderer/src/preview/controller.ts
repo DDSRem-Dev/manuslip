@@ -122,6 +122,7 @@ export class DocumentPreview {
   private readonly occurrences = new OccurrenceTracker()
   private readonly options = {
     sourceLabel: () => i18next.t('revealSource'),
+    previewLabel: () => i18next.t('liveMode'),
     taskLabel: () => i18next.t('toggleTask'),
     render: (...args: Parameters<LiveOptions['render']>): void => {
       const images = this.document.images

@@ -169,7 +169,9 @@ for (const theme of ['light', 'dark']) {
       await editor.press('Escape')
       await editor.press(`${modifier}+a`)
       await editor.press(`${modifier}+c`)
-      expect(await application.evaluate(({ clipboard }) => clipboard.readText())).toBe(source)
+      await expect
+        .poll(() => application.evaluate(({ clipboard }) => clipboard.readText()))
+        .toBe(source)
       await editor.press('ArrowRight')
       await editor.press(`${modifier}+s`)
       await expect.poll(() => readFile(path, 'utf8')).toBe(source)

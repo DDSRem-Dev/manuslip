@@ -1,5 +1,6 @@
 import { utf8Bytes } from '@manuslip/core/text'
 import { diagramLimits } from '@manuslip/renderer/diagram'
+import { diagramSourceLocator } from '@manuslip/renderer/diagram-source'
 import { restoreLegacyLabelText } from '@manuslip/renderer/legacy-diagram'
 import createDOMPurify from 'dompurify'
 
@@ -23,7 +24,12 @@ const presentation = [
   'color',
 ]
 /** Freeze Mermaid's own CSS into an inert SVG without style blocks or foreign HTML. */
-export function flattenDiagram(markup: string, legacyFlowchart = false): string {
+export function flattenDiagram(
+  markup: string,
+  legacyFlowchart = false,
+  source?: string,
+  nodes?: ReadonlyMap<string, string>,
+): string {
   if (utf8Bytes(markup) > diagramLimits.svg) throw new Error('diagram-limit')
   const purifier = createDOMPurify(window)
   const fragment = purifier.sanitize(markup, {
@@ -72,6 +78,19 @@ export function flattenDiagram(markup: string, legacyFlowchart = false): string 
     for (let node = text.nextNode(); node; node = text.nextNode()) {
       if (node.parentElement?.closest('text, title, desc'))
         node.textContent = restoreLegacyLabelText(node.textContent ?? '')
+    }
+  }
+  if (source) {
+    const locate = diagramSourceLocator(source)
+    for (const text of svg.querySelectorAll('text')) {
+      const node = text.closest('.node')
+      const id = node && nodes?.get(node.id)
+      const range = locate(text.textContent ?? '', id ?? undefined)
+      if (!range) continue
+      for (const element of node ? [text, node] : [text]) {
+        element.setAttribute('data-source-from', String(range.from))
+        element.setAttribute('data-source-to', String(range.to))
+      }
     }
   }
   const container = document.querySelector('#diagrams')

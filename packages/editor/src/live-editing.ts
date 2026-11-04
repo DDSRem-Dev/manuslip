@@ -7,6 +7,7 @@ import {
   liveModel,
   setLiveModel,
 } from './live-model'
+import { delimitedSourcePosition } from './live-source-position'
 
 export interface LiveEditing {
   from: number
@@ -15,6 +16,17 @@ export interface LiveEditing {
 }
 
 export const editLiveBlock = StateEffect.define<LiveEditing | null>()
+
+function sourceRange(state: EditorState, block: LiveBlock): { from: number; to: number } {
+  if (block.placement === 'after-document')
+    return { from: Math.max(0, block.from - 1), to: block.to }
+  return (
+    (!inlineProjection(block.kind) && blockSourceRange(state, block)) || {
+      from: block.from,
+      to: block.to,
+    }
+  )
+}
 
 /** Editing is an explicit, mapped session. A collapsed caret and a pending semantic
  * refresh must never close the source that the user is currently typing into.
@@ -55,6 +67,11 @@ export const liveEditing = StateField.define<LiveEditing | null>({
       )
     )
       return null
+    // Pointer/keyboard selections don't change semantic ownership. Resolve the
+    // block only when the model changes, rather than walking it on every caret
+    // movement.
+    if (transaction.startState.field(liveModel) === transaction.state.field(liveModel))
+      return editing
     const blocks = transaction.state.field(liveModel)?.blocks
     const sourceKinds = ['code', 'diagram', 'math', 'html']
     const block =
@@ -67,11 +84,7 @@ export const liveEditing = StateField.define<LiveEditing | null>({
           )
         : undefined)
     if (block && block !== editing.block) {
-      const range =
-        block.placement === 'after-document'
-          ? { from: Math.max(0, block.from - 1), to: block.to }
-          : blockSourceRange(transaction.state, block)
-      editing = { from: range ? range.from : block.from, to: range ? range.to : block.to, block }
+      editing = { ...sourceRange(transaction.state, block), block }
     }
     return editing
   },
@@ -81,31 +94,36 @@ export function editingBlock(state: EditorState): LiveEditing | null {
   return state.field(liveEditing, false) ?? null
 }
 
-export function activateLiveBlock(view: EditorView, block: LiveBlock, at?: number): void {
-  const range = !inlineProjection(block.kind) && blockSourceRange(view.state, block)
-  const from =
-    block.placement === 'after-document'
-      ? Math.max(0, block.from - 1)
-      : range
-        ? range.from
-        : block.from
-  const to = range ? range.to : block.to
+export function activateLiveBlock(
+  view: EditorView,
+  block: LiveBlock,
+  at?: number,
+  options: { focus?: boolean; scrollIntoView?: boolean } = {},
+): void {
+  const { from, to } = sourceRange(view.state, block)
   const current = editingBlock(view.state)
   if (current?.from === from && current.block.kind === block.kind) {
-    view.focus()
+    if (at !== undefined) view.dispatch({ selection: { anchor: Math.max(from, Math.min(to, at)) } })
+    if (options.focus !== false) view.focus()
     return
   }
   let anchor = at ?? from
   if (at === undefined && ['diagram', 'code', 'math'].includes(block.kind)) {
+    const position = delimitedSourcePosition(
+      view.state.doc.sliceString(block.from, block.to),
+      block.value,
+      0,
+    )
     const first = view.state.doc.lineAt(from)
-    if (/^\s*(?:`{3,}|~{3,}|\$\$)/.test(first.text)) anchor = Math.min(first.to + 1, to)
+    if (position !== undefined) anchor = block.from + position
+    else if (/^\s*(?:`{3,}|~{3,}|\$\$)/.test(first.text)) anchor = Math.min(first.to + 1, to)
   }
   view.dispatch({
     effects: editLiveBlock.of({ from, to, block }),
     selection: { anchor: Math.max(from, Math.min(to, anchor)) },
-    scrollIntoView: true,
+    scrollIntoView: options.scrollIntoView ?? true,
   })
-  view.focus()
+  if (options.focus !== false) view.focus()
 }
 
 export function caretTouches(state: EditorState, from: number, to: number): boolean {

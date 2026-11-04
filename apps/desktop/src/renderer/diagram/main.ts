@@ -56,8 +56,10 @@ window.manuslipDiagramHost.onJob((request) => {
         ],
       })
       const diagram = await mermaid.mermaidAPI.getDiagramFromText(source)
+      const renderId = `diagram-${request.jobId}`
       // Mermaid diagram databases expose different collections; bound known node sets before layout.
       const db = diagram.db as Record<string, unknown>
+      const sourceNodes = new Map<string, string>()
       for (const name of [
         'getVertices',
         'getActors',
@@ -78,9 +80,20 @@ window.manuslipDiagramHost.onJob((request) => {
                 ? Object.keys(nodes).length
                 : 0
         if (count > diagramLimits.nodes) throw new Error('diagram-limit')
+        if (name === 'getVertices' && nodes instanceof Map) {
+          for (const node of nodes.values()) {
+            if (node && typeof node.domId === 'string' && typeof node.id === 'string')
+              sourceNodes.set(`${renderId}-${node.domId}`, node.id)
+          }
+        }
       }
-      const { svg } = await mermaid.render(`diagram-${request.jobId}`, source)
-      const flattened = flattenDiagram(svg, request.syntax === 'flowchart')
+      const { svg } = await mermaid.render(renderId, source)
+      const flattened = flattenDiagram(
+        svg,
+        request.syntax === 'flowchart',
+        request.source,
+        sourceNodes,
+      )
       const fragment = sanitizer.diagram(flattened)
       const root = fragment.querySelector('svg')
       if (!root) throw new Error('diagram-render')

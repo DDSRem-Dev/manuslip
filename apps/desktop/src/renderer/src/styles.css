@@ -1839,6 +1839,28 @@ main.editing {
   padding-block: 16px;
   border-block-end: 1px solid var(--border);
 }
+.cm-live-preview-panel {
+  border-block-start: 1px solid var(--border);
+  background: var(--paper);
+  font-family: var(--font-ui);
+  font-size: 17px;
+  line-height: 1.8;
+}
+.cm-live-preview-panel:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.cm-live-preview-panel .cm-live-edit-preview {
+  box-sizing: border-box;
+  max-width: 808px;
+  width: 100%;
+  margin-inline: auto;
+  padding: 16px 36px;
+  border-block-end: 0;
+}
+.cm-live-rendered [data-source-from] {
+  pointer-events: bounding-box;
+}
 .cm-live-inlineMath.cm-live-edit-preview {
   padding: 8px 0 12px;
   padding-inline-start: var(--inline-math-offset, 0px);
@@ -2762,7 +2784,8 @@ dialog:not([open])::backdrop {
   }
 }
 @media (max-width: 44rem) {
-  .cm-editor[data-mode="live"] .cm-content {
+  .cm-editor[data-mode="live"] .cm-content,
+  .cm-live-preview-panel .cm-live-edit-preview {
     padding-inline: 24px;
   }
   .preferences-header {

@@ -26,7 +26,7 @@ export function preserveProseLineBreaks(container: HTMLElement): void {
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     if (!/[\r\n]/.test(node.textContent ?? '')) continue
     const parent = node.parentElement
-    if (!parent || parent.closest('pre, code, svg, math')) continue
+    if (!parent || parent.closest('pre, code, svg, math, [role="math"]')) continue
     if (!parent.closest('p, h1, h2, h3, h4, h5, h6, li, dt, dd, a')) continue
     // Serializers also put newlines between block elements; those are not prose.
     if (!(node.textContent ?? '').trim()) {
@@ -42,7 +42,11 @@ export function preserveProseLineBreaks(container: HTMLElement): void {
       text.previousSibling?.nodeName === 'BR' ? text.data.replace(/^(?:\r\n|\r|\n)/, '') : text.data
     const fragment = container.ownerDocument.createDocumentFragment()
     for (const [index, line] of value.split(/\r\n|\r|\n/).entries()) {
-      if (index) fragment.append(container.ownerDocument.createElement('br'))
+      if (index) {
+        const br = container.ownerDocument.createElement('br')
+        br.dataset.sourceBreak = ''
+        fragment.append(br)
+      }
       fragment.append(container.ownerDocument.createTextNode(line))
     }
     text.replaceWith(fragment)
