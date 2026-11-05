@@ -14,6 +14,7 @@ import {
   resources,
   settled,
   stop,
+  waitForStartup,
 } from './helpers'
 
 test('retained source and semantic resources after 50 open/close cycles', async () => {
@@ -35,9 +36,7 @@ test('retained source and semantic resources after 50 open/close cycles', async 
   const samples = []
   try {
     const page = await application.firstWindow()
-    await expect(
-      page.getByRole('heading', { name: 'A little space for your next idea.' }),
-    ).toBeVisible()
+    await waitForStartup(page)
     await attachHeapProbe(application)
     const settledResources = async () => {
       let snapshot: Awaited<ReturnType<typeof resources>> | undefined

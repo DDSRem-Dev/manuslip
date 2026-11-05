@@ -93,8 +93,9 @@ and `revert`; use `!` and explain breaking changes when applicable.
 Sign off commits with `git commit -s` under the Developer Certificate of Origin. Describe
 the resulting behavior and relevant verification in the PR. Run `npm run check` and the
 affected tests; CI runs source, unit/integration/packaging checks and builds application
-assets on Linux x64, Windows x64 and macOS x64/arm64. Real Pandoc conversions and export
-E2E run in separate jobs on the same targets. Dependency security runs separately
-on Linux and also runs daily. Run desktop E2E and native installer checks on the target
-platform before release; see [testing](docs/testing/testing.md).
+assets on Linux x64, Windows x64 and macOS x64/arm64. The manual Pandoc and Packaged
+desktop workflows run real Pandoc conversions/exports and packaged desktop/Windows
+installer checks on the same targets. Dependency security runs separately on Linux
+and also runs daily. Run the manual workflows before release; see
+[testing](docs/testing/testing.md).
 A maintainer review is required before merge. Contributions use the [MIT license](LICENSE).

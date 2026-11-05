@@ -8,16 +8,7 @@ import type { Debugger } from 'electron'
 
 export const MiB = 1024 * 1024
 export const modifier = process.platform === 'darwin' ? 'Meta' : 'Control'
-export function percentile(values: readonly number[], fraction = 0.95): number | null {
-  const sorted = [...values].sort((a, b) => a - b)
-  return sorted.length ? (sorted[Math.ceil(sorted.length * fraction) - 1] ?? null) : null
-}
-export const summary = (values: readonly number[]) => ({
-  n: values.length,
-  p50: percentile(values, 0.5),
-  p95: percentile(values),
-  max: values.length ? Math.max(...values) : null,
-})
+export { percentile, summary } from './statistics'
 export async function report(test: TestInfo, name: string, result: unknown): Promise<void> {
   const text = JSON.stringify(result, null, 2)
   const path = test.outputPath(`${name}.json`)
@@ -58,6 +49,9 @@ export async function stop(application: ElectronApplication): Promise<void> {
     .catch(() => {})
   await application.close()
 }
+export async function waitForStartup(page: Page): Promise<void> {
+  await expect(page.getByRole('button', { name: 'Open file…', exact: true }).first()).toBeEnabled()
+}
 export async function openFile(
   application: ElectronApplication,
   page: Page,
@@ -66,19 +60,23 @@ export async function openFile(
   await application.evaluate(({ dialog }, path) => {
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] })
   }, path)
-  await page.evaluate(() => {
+  const button = page.getByRole('button', { name: 'Open file…', exact: true }).first()
+  await button.evaluate((button, filename) => {
     performance.clearMeasures()
     Reflect.set(window, '__benchmarkOpen', null)
-    const button = [...document.querySelectorAll('button')].find(
-      (button) => button.textContent === 'Open file…',
-    )
-    if (!button) throw new Error('Missing Open command')
     button.addEventListener(
       'click',
       () => {
         const start = performance.now()
         const observer = new MutationObserver(() => {
-          if (!document.querySelector('.cm-content[contenteditable="true"]')) return
+          const tab = document.querySelector('[role="tab"][aria-selected="true"]')
+          const panel = document.querySelector('[role="tabpanel"]')
+          if (
+            tab?.querySelector('.tab-title')?.textContent !== filename ||
+            panel?.getAttribute('aria-labelledby') !== tab.id ||
+            !panel.querySelector('.cm-content[contenteditable="true"]')
+          )
+            return
           observer.disconnect()
           requestAnimationFrame(() =>
             Reflect.set(window, '__benchmarkOpen', performance.now() - start),
@@ -93,8 +91,8 @@ export async function openFile(
       },
       { once: true, capture: true },
     )
-  })
-  await page.getByRole('button', { name: 'Open file…', exact: true }).first().click()
+  }, basename(path))
+  await button.click()
   await expect
     .poll(() => page.evaluate(() => Reflect.get(window, '__benchmarkOpen')))
     .not.toBeNull()
@@ -107,6 +105,19 @@ export async function openFile(
 export async function closeFile(page: Page, path: string): Promise<void> {
   await page.getByRole('button', { name: `Close ${basename(path)}`, exact: true }).click()
   await expect(page.getByRole('tab', { name: basename(path), exact: true })).toHaveCount(0)
+}
+export async function expectCharacterCount(page: Page, count: number): Promise<void> {
+  const button = page.getByRole('button', { name: /Document details$/ })
+  await button.click()
+  const details = page.getByRole('group', { name: 'Document details', exact: true })
+  await expect(
+    details
+      .getByRole('term')
+      .filter({ hasText: /^Characters$/ })
+      .locator('..')
+      .getByRole('definition'),
+  ).toHaveText(count.toLocaleString('en'))
+  await button.click()
 }
 export async function settled(page: Page, after = 0): Promise<'ready' | 'fallback'> {
   await expect

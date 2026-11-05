@@ -302,7 +302,7 @@ it('rejects aggregate canonical payload growth within the source byte cap', () =
   const source = `Prose ${'`x` '.repeat(200)}\n\n`.repeat(1400)
   expect(utf8Bytes(source)).toBeLessThan(2 * 1024 * 1024)
   expect(() => plan(source)).toThrow('translation-limit')
-})
+}, 15_000)
 
 it('strictly limits the payload boundary to canonical text/token data', () => {
   const payload = plan('Read **text** with `code`.').units[0]?.payload

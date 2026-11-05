@@ -3,7 +3,17 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, test } from '@playwright/test'
 import { launchDesktop } from '../e2e/helpers'
-import { closeFile, fixture, MiB, machine, modifier, openFile, report, stop } from './helpers'
+import {
+  closeFile,
+  fixture,
+  MiB,
+  machine,
+  modifier,
+  openFile,
+  report,
+  stop,
+  waitForStartup,
+} from './helpers'
 
 const fill = (chunk: string) => chunk.repeat(Math.ceil((5 * MiB) / Buffer.byteLength(chunk)))
 
@@ -12,9 +22,7 @@ test('5 MiB source stress preserves edits, paste, replace-all and cap rejection'
   const application = await launchDesktop(join(directory, 'profile'))
   try {
     const page = await application.firstWindow()
-    await expect(
-      page.getByRole('heading', { name: 'A little space for your next idea.' }),
-    ).toBeVisible()
+    await waitForStartup(page)
     const results = []
     for (const entry of [
       { name: 'long-line', source: fill('A long line must remain editable. ') },

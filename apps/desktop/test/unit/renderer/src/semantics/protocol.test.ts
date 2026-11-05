@@ -71,7 +71,10 @@ describe('whole-root transferable semantic messages', () => {
       parseResponse({ ...encoded, metadata: { ...encoded.metadata, bytes: 1 } }, request),
     ).toThrow()
     expect(() =>
-      parseResponse({ ...encoded, payload: new ArrayBuffer(semanticLimits.messageBytes) }, request),
+      parseResponse(
+        { ...encoded, payload: new ArrayBuffer(semanticLimits.snapshotMessageBytes) },
+        request,
+      ),
     ).toThrow()
     expect(() => parseResponse({ ...encoded, padding: 'x'.repeat(1025) }, request)).toThrow()
     expect(() =>
@@ -118,7 +121,7 @@ describe('whole-root transferable semantic messages', () => {
     expect(() =>
       encodeSnapshot({
         document,
-        projection: { ...projection, html: 'x'.repeat(semanticLimits.messageBytes) },
+        projection: { ...projection, html: 'x'.repeat(semanticLimits.snapshotMessageBytes) },
       }),
     ).toThrow('transport limit')
   })

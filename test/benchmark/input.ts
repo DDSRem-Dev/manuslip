@@ -13,7 +13,8 @@ export async function instrumentInput(page: Page): Promise<void> {
           const frame = (): void => {
             const selected = [...document.querySelectorAll('button')].some(
               (button) =>
-                button.textContent === label && button.getAttribute('aria-pressed') === 'true',
+                button.getAttribute('aria-label') === label &&
+                button.getAttribute('aria-pressed') === 'true',
             )
             if (!selected && performance.now() - start < 5000) {
               requestAnimationFrame(frame)

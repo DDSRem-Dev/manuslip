@@ -77,8 +77,8 @@ for (const gfm of [false, true])
     `preserves complete native inline events (GFM ${gfm}) for $label`,
     ({ source }) => compare(source, gfm),
     // Long paired runs also exercise the quadratic ordinary native baseline.
-    // This is a complete-fidelity check, not a product elapsed-time gate.
-    60_000,
+    // Allow instrumentation overhead for this complete-fidelity oracle comparison.
+    120_000,
   )
 
 it.each([false, true])('preserves native single-tilde configuration %s', (single) => {

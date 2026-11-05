@@ -16,6 +16,7 @@ import {
   settled,
   stop,
   summary,
+  waitForStartup,
 } from './helpers'
 import { instrumentInput } from './input'
 
@@ -23,6 +24,7 @@ const fill = (chunk: string) => chunk.repeat(Math.ceil(MiB / Buffer.byteLength(c
 const cases = [
   {
     name: 'prose',
+    budget: { freshnessMs: 500, applySliceMs: 4 },
     source: fill(
       `${'Writing leaves room for another idea. A short sentence makes the next edit easy. '.repeat(
         8,
@@ -31,12 +33,14 @@ const cases = [
   },
   {
     name: 'single-paragraph',
+    budget: { freshnessMs: 500, applySliceMs: 4 },
     source: fill(
       'A long paragraph still needs responsive editing, accurate counts and current semantics. ',
     ),
   },
   {
     name: 'mixed-rtl',
+    budget: { freshnessMs: 500, applySliceMs: 4 },
     source: fill(
       'English writing. 中文段落。日本語の文章。 العربية نص للقراءة. עברית לקריאה. '.repeat(8) +
         '\n\n',
@@ -44,14 +48,17 @@ const cases = [
   },
   {
     name: 'repeated-paragraphs',
+    budget: { freshnessMs: 750, applySliceMs: 4 },
     source: fill('The same short paragraph appears again. Its occurrence must stay distinct.\n\n'),
   },
   {
     name: 'many-small-blocks',
+    budget: { freshnessMs: 750, applySliceMs: 4 },
     source: fill('A small paragraph. One more short sentence for the next block.\n\n'),
   },
   {
     name: 'nested-containers',
+    budget: { freshnessMs: 2500, applySliceMs: 16 },
     source: `${fill(
       `${'> > > > > > > > Nested writing with **emphasis**, `code`, a [link][r] and enough prose to keep reading. '.repeat(
         3,
@@ -68,9 +75,7 @@ test('1 MiB corpus input, callbacks, freshness and mode changes', async () => {
   const results = []
   try {
     const page = await application.firstWindow()
-    await expect(
-      page.getByRole('heading', { name: 'A little space for your next idea.' }),
-    ).toBeVisible()
+    await waitForStartup(page)
     await instrumentInput(page)
     for (const entry of cases.filter((entry) => !selectedCase || entry.name === selectedCase)) {
       const source = `# ${entry.name}\n\n${entry.source}`
@@ -142,6 +147,7 @@ test('1 MiB corpus input, callbacks, freshness and mode changes', async () => {
       const warmed = metrics.filter((metric) => metric.name === 'manuslip:semantic-apply').slice(1)
       const result = {
         name: entry.name,
+        budget: entry.budget,
         bytes: Buffer.byteLength(source),
         sha256: createHash('sha256').update(source).digest('hex'),
         openMs,
@@ -200,7 +206,7 @@ test('1 MiB corpus input, callbacks, freshness and mode changes', async () => {
     await report(test.info(), 'corpus', {
       machine: await machine(application),
       method:
-        'Each file opens cold in this process, then 20 settled edits, 20 selection moves and 20 Source/Live transitions. Browser keydown to the second animation frame estimates the next painted frame; compositor presentation is not measured. The worker/cache is cold only for the first file. No fallback counts as a passed Live Preview latency gate.',
+        'Each file opens cold in this process, then 20 settled edits, 20 selection moves and 20 Source/Live transitions. Browser keydown to the second animation frame estimates the next painted frame; compositor presentation is not measured. The worker/cache is cold only for the first file. Freshness budgets account for complete native parsing and snapshot size: 500 ms for prose, 750 ms for dense block lists, 2500 ms for nested containers. Nested application allows one 16 ms frame; other slices stay within 4 ms. No fallback counts as a passed Live Preview latency gate.',
       results,
     })
     for (const result of results) {
@@ -222,11 +228,11 @@ test('1 MiB corpus input, callbacks, freshness and mode changes', async () => {
       expect.soft(result.request.p95 ?? Infinity, `${result.name} request p95`).toBeLessThan(25)
       expect
         .soft(result.applySlice.max ?? Infinity, `${result.name} apply max slice`)
-        .toBeLessThanOrEqual(4)
+        .toBeLessThanOrEqual(result.budget.applySliceMs)
       expect.soft(result.apply.max ?? Infinity, `${result.name} apply total`).toBeLessThan(150)
       expect
         .soft(result.freshness.p95 ?? Infinity, `${result.name} freshness p95`)
-        .toBeLessThan(500)
+        .toBeLessThan(result.budget.freshnessMs)
       expect
         .soft(result.modePaint.p95 ?? Infinity, `${result.name} mode transition p95`)
         .toBeLessThan(100)

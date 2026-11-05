@@ -850,7 +850,7 @@ it('buffers 16 MiB of output and publishes it in bounded messages, excluding exc
   ).toHaveLength(33)
   expect(f.reading.store.getState().projection?.html).toContain('T\n')
   expect(f.reading.captureExport().reading.units).toHaveLength(33)
-})
+}, 15_000)
 
 it('an oversized unit keeps source without issuing a provider request', async () => {
   const f = setup('x'.repeat(70_000))

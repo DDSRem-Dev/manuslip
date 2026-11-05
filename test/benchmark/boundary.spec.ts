@@ -4,7 +4,17 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, test } from '@playwright/test'
 import { launchDesktop } from '../e2e/helpers'
-import { closeFile, fixture, MiB, machine, modifier, openFile, report, stop } from './helpers'
+import {
+  closeFile,
+  fixture,
+  MiB,
+  machine,
+  modifier,
+  openFile,
+  report,
+  stop,
+  waitForStartup,
+} from './helpers'
 
 const digest = (source: string | Buffer) => createHash('sha256').update(source).digest('hex')
 
@@ -24,9 +34,7 @@ test('exact 50 MiB UTF-8 boundary opens, rejects growth and preserves replacemen
   const application = await launchDesktop(join(directory, 'profile'))
   try {
     const page = await application.firstWindow()
-    await expect(
-      page.getByRole('heading', { name: 'A little space for your next idea.' }),
-    ).toBeVisible()
+    await waitForStartup(page)
     const openMs = await openFile(application, page, path)
     await expect(page.getByRole('button', { name: 'Source', exact: true })).toHaveAttribute(
       'aria-pressed',

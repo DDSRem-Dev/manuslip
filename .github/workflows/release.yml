@@ -154,8 +154,8 @@ jobs:
           retention-days: 14
           compression-level: 0
 
-  draft:
-    name: Assemble draft release
+  publish:
+    name: Publish release
     needs: [validate, package]
     runs-on: ubuntu-22.04
     environment: release
@@ -183,7 +183,7 @@ jobs:
         env:
           MANUSLIP_RELEASE_TAG: ${{ needs.validate.outputs.tag }}
           MANUSLIP_RELEASE_VERSION: ${{ needs.validate.outputs.version }}
-      - name: Verify provenance and create draft
+      - name: Verify provenance and publish release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -203,4 +203,4 @@ jobs:
           fi
           flags=()
           if [ "$RELEASE_PRERELEASE" = true ]; then flags+=(--prerelease); fi
-          gh release create "$RELEASE_TAG" test/packaging/result/staged/* --verify-tag --draft --title "$RELEASE_TAG" --generate-notes "${flags[@]}"
+          gh release create "$RELEASE_TAG" test/packaging/result/staged/* --verify-tag --title "$RELEASE_TAG" --generate-notes "${flags[@]}"

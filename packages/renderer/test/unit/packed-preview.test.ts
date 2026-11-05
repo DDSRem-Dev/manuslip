@@ -507,6 +507,7 @@ describe('validated packed input for existing preview preparation', () => {
       }
     },
   )
+  // Validate all 15,000 blocks before testing native-copy admission, including under coverage.
   it('rejects native output capacity before copying, even when complete validation fits', () => {
     const context = fixture('p\n\n'.repeat(15000)),
       budget = { ...limits, retained: 8 * MiB }
@@ -536,7 +537,7 @@ describe('validated packed input for existing preview preparation', () => {
     } finally {
       context.owner.dispose()
     }
-  })
+  }, 15_000)
   it('copies queued paths, options and limits and rejects a foreign source object', () => {
     const context = fixture(widgetText),
       before = context.owner.stats

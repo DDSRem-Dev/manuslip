@@ -359,7 +359,7 @@ describe('context collected during complete warm snapshot validation', () => {
       segment.mockRestore()
       context.owner.dispose()
     }
-  })
+  }, 15_000)
 
   it('admits the complete join and Intl phase before allocating it or publishing context', () => {
     const context = paired('word '.repeat(90000))

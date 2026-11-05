@@ -70,16 +70,17 @@ launch mode, Node environment options, CLI inspector and extra `file://` privile
 and load application code only from ASAR. Windows/macOS also enable embedded ASAR
 integrity validation; Electron does not implement that validation on Linux.
 
-CI reads fuses from packaged binaries and smoke tests an unchanged executable with
-Node environment injection attempts. Playwright's main-process automation uses a
-temporary copy with only its inspector fuse re-enabled; that copy is never a release
-asset. The original executable and installer remain untouched.
+The manual Packaged desktop workflow and release packaging read fuses from packaged
+binaries and smoke test an unchanged executable with Node environment injection attempts.
+Playwright's main-process automation uses a temporary copy with only its inspector fuse
+re-enabled; that copy is never a release asset. The original executable and installer
+remain untouched.
 
 Version-tag releases require matching workspace versions, a tag commit on `main`,
-the full CI suite, verified runtime fuses, signed Windows packages, notarized macOS
-packages, and complete artifacts for all four supported targets. SHA-256 checksums,
-dependency SBOMs and GitHub build attestations accompany the candidate.
-The final job verifies hashes and provenance before creating a draft release.
+CI dependency and source verification, verified runtime fuses, signed Windows packages,
+notarized macOS packages, and complete artifacts for all four supported targets.
+SHA-256 checksums, dependency SBOMs and GitHub build attestations accompany the candidate.
+The final job verifies hashes and provenance before automatically publishing the release.
 Repository administrators must configure the protected environments and signing secrets
 described in the [distribution guide](docs/development/distribution.md). This repository
 does not configure those account settings or supply certificates.

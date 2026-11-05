@@ -51,7 +51,7 @@ export function encodeSnapshot(
   const payload = new TextEncoder().encode(JSON.stringify(snapshot)).buffer
   // Reserve metadata/envelope space in both the transport and retained-snapshot ledger.
   const bytes = payload.byteLength + 1024
-  if (bytes > semanticLimits.messageBytes)
+  if (bytes > semanticLimits.snapshotMessageBytes)
     throw new Error('Semantic result exceeds transport limit')
   return { payload, bytes, serializeMs: performance.now() - started }
 }
@@ -102,7 +102,7 @@ export function parseResponse(value: unknown, request: ParseRequest): ParseRespo
     if (
       !(value.payload instanceof ArrayBuffer) ||
       !object(value.metadata) ||
-      value.payload.byteLength + 1024 > semanticLimits.messageBytes ||
+      value.payload.byteLength + 1024 > semanticLimits.snapshotMessageBytes ||
       messageSize({ ...value, payload: undefined }) > 1024 ||
       value.sequence !== request.sequence ||
       value.generation !== request.generation ||

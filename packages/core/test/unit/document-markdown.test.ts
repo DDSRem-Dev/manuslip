@@ -52,6 +52,20 @@ describe('document conventions', () => {
       expect(document.counts.characters).toBe([...source].length)
     }
   })
+  it.each([
+    ['&quot;Hello&quot; &apos;world&apos;', '“Hello” ‘world’'],
+    ['\\"Hello\\"', '“Hello”'],
+    ['Wait . . .', 'Wait …'],
+    ['Hello -- world', 'Hello — world'],
+  ])(
+    'keeps smart punctuation after plain prose without reusing its processor: %j',
+    (source, text) => {
+      for (let index = 0; index < 2; index++) {
+        expect(plainText(parseDocumentMarkdown('Plain prose.').root)).toBe('Plain prose.')
+        expect(plainText(parseDocumentMarkdown(source).root)).toBe(text)
+      }
+    },
+  )
   it.each(
     ['\n', '\r\n'].flatMap((newline) => ['---', '...'].map((closing) => ({ newline, closing }))),
   )(

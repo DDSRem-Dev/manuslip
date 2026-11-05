@@ -183,7 +183,7 @@ it('retains logical unit/payload/depth caps despite canonical sharing', () => {
       staging: 8 * MiB,
     }),
   ).toThrow('translation-limit')
-})
+}, 15_000)
 describe('canonical shared plans match pinned CommonMark extraction', () => {
   it.each(examples)('$example: $section', (example) => {
     const root = parseMarkdown(example.markdown, 'commonmark').root

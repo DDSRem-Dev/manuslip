@@ -915,6 +915,7 @@ it('rejects malformed endpoint controls before disturbing a valid transferred of
   }
 })
 
+// These capacity cases parse beyond the full block limit under coverage instrumentation.
 it('returns a correlated semantic limit error for a valid request exceeding parser capacity', () => {
   const context = fixture()
   try {
@@ -926,7 +927,7 @@ it('returns a correlated semantic limit error for a valid request exceeding pars
   } finally {
     context.close()
   }
-})
+}, 15_000)
 
 it('bounds full resync attempts when the complete result cannot fit receiver admission', () => {
   const context = fixture(makeReceiver(80 * 1024))
@@ -1255,7 +1256,7 @@ it('keeps a packed worker after a throwing semantic-limit consumer', async () =>
     receiver.dispose()
     expect(receiver.stats.retainedBytes).toBe(0)
   }
-})
+}, 15_000)
 
 it('applies the service watchdog/restart limit to packed workers and supports explicit retry', async () => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })

@@ -18,7 +18,7 @@ import { remarkLatexDelimiters } from './latex-delimiters'
 import { compileMarkdownRoot } from './markdown-compile'
 import { describeMarkdownRoot } from './parse'
 
-function createProcessor(plugins: MarkdownPlugins, yamlClose: '---' | '...') {
+function createProcessor(plugins: MarkdownPlugins, yamlClose: '---' | '...', smartypants: boolean) {
   const processor = unified()
     .data('settings', { _manuslipEventSpans: true })
     .use(remarkParse)
@@ -70,7 +70,8 @@ function createProcessor(plugins: MarkdownPlugins, yamlClose: '---' | '...') {
           : { ...extension, transforms: undefined }
       data.fromMarkdownExtensions = data.fromMarkdownExtensions?.map(withoutAutolinks)
     })
-  return processor.use(remarkSmartypants).freeze()
+  if (smartypants) processor.use(remarkSmartypants)
+  return processor.freeze()
 }
 
 const processors = new Map<number, ReturnType<typeof createProcessor>>()
@@ -96,15 +97,19 @@ export function parseDocumentMarkdown(
     throw new SemanticLimitError('Document exceeds Live Preview size limit')
   const started = performance.now()
   const yamlClose = plugins.typora ? yamlClosingFence(source) : '---'
+  // Retext tokenizes the complete prose even when no punctuation can change.
+  // Keep entities and escapes conservative: they can decode into punctuation.
+  const smartypants = /["'`&\\]|--|\.\s*\.\s*\./.test(source)
   const key =
     Number(plugins.opt) +
     2 * Number(plugins.latex) +
     4 * Number(plugins.github) +
     8 * Number(plugins.typora) +
-    16 * Number(yamlClose === '...')
+    16 * Number(yamlClose === '...') +
+    32 * Number(smartypants)
   let processor = processors.get(key)
   if (!processor) {
-    processor = createProcessor(plugins, yamlClose)
+    processor = createProcessor(plugins, yamlClose, smartypants)
     processors.set(key, processor)
   }
   const root = compileMarkdownRoot(source, { processor, gfm: true, autolinks: plugins.github })

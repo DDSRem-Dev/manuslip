@@ -53,10 +53,17 @@ test('missing and invalid Pandoc choices keep normal export and source editing u
   if (!directory.startsWith(resolve('test/e2e/result') + sep))
     throw new Error('Unsafe fixture path')
   const path = join(directory, 'missing.md')
+  const invalid = join(
+    directory,
+    process.platform === 'win32' ? 'invalid-pandoc.exe' : 'invalid-pandoc',
+  )
   await writeFile(path, '# Unmodified source\r\n')
+  await writeFile(invalid, 'This is not a Pandoc executable.\n')
   const application = await launchDesktop(join(directory, 'profile'), [path])
   try {
     const page = await application.firstWindow()
+    const editor = page.getByRole('textbox', { name: 'Markdown source' })
+    await expect(editor).toContainText('Unmodified source')
     await clickDocumentAction(page, 'Export with Pandoc…')
     const dialog = page.getByRole('dialog', { name: 'Export with Pandoc', exact: true })
     await expect(dialog.getByRole('button', { name: 'Choose Pandoc…', exact: true })).toBeEnabled()
@@ -68,20 +75,30 @@ test('missing and invalid Pandoc choices keep normal export and source editing u
     await expect(dialog.getByRole('button', { name: 'Choose Pandoc…', exact: true })).toBeEnabled()
     await application.evaluate(({ dialog }, path) => {
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path] })
-    }, path)
+    }, invalid)
     await dialog.getByRole('button', { name: 'Choose Pandoc…', exact: true }).click()
     await expect(dialog.getByRole('alert')).toContainText('Choose a working Pandoc 3 application')
     await audit(page, 'pandoc-missing')
     await page.keyboard.press('Escape')
     await expect(dialog).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Document actions', exact: true })).toBeFocused()
-    const output = join(directory, 'normal.html')
+    // Keep exported artifacts outside the watched source fixture directory.
+    const output = test.info().outputPath('normal.html')
     await application.evaluate(({ dialog }, target) => {
       dialog.showSaveDialog = async () => ({ canceled: false, filePath: target })
     }, output)
     await clickDocumentAction(page, 'Export HTML…')
-    await expect(page.getByText(`Exported to ${output}`, { exact: true })).toBeVisible()
+    await expect(page.getByText(`Exported to ${output}`, { exact: true })).toBeVisible({
+      timeout: 15_000,
+    })
     expect(await readFile(output, 'utf8')).toContain('Unmodified source')
+    expect(await readFile(path, 'utf8')).toBe('# Unmodified source\r\n')
+    await editor.focus()
+    await editor.press(`${modifier}+End`)
+    await page.keyboard.insertText('Still editable.')
+    await expect(editor).toContainText('Still editable.')
+    await editor.press(`${modifier}+z`)
+    await expect(editor).not.toContainText('Still editable.')
     expect(await readFile(path, 'utf8')).toBe('# Unmodified source\r\n')
   } finally {
     await stop(application, directory)

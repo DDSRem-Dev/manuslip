@@ -8,6 +8,8 @@ export const semanticLimits = {
   previewBytes: 2 * 1024 * 1024,
   blocks: 50000,
   messageBytes: 8 * 1024 * 1024,
+  // Native JSON snapshots retain twice their wire size within the snapshot budget.
+  snapshotMessageBytes: readingBudgets.snapshot / 2,
   workerCacheBytes: 16 * 1024 * 1024,
   rendererBytes: 64 * 1024 * 1024,
   snapshotBytes: readingBudgets.snapshot,

@@ -13,6 +13,7 @@ import {
   settled,
   stop,
   summary,
+  waitForStartup,
 } from './helpers'
 import { instrumentInput } from './input'
 
@@ -21,9 +22,7 @@ test('cold math and diagram rendering permits concurrent source typing', async (
   const application = await launchDesktop(join(directory, 'profile'))
   try {
     const page = await application.firstWindow()
-    await expect(
-      page.getByRole('heading', { name: 'A little space for your next idea.' }),
-    ).toBeVisible()
+    await waitForStartup(page)
     await instrumentInput(page)
     // A compact document keeps both heavy widgets mounted while its heading is edited.
     const source =

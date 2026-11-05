@@ -4,9 +4,13 @@ Ordinary builds produce unsigned native installers without selecting an update f
 or publishing. Targets are Windows x64 NSIS, Linux x64 AppImage and macOS x64/arm64 DMG.
 Build and test on the target platform and architecture before release. Routine CI checks
 source and builds application assets on Linux x64, Windows x64 and macOS x64/arm64.
-Separate CI jobs run real Pandoc conversions and desktop export workflows on the same targets.
-CI also packages and exercises the full desktop E2E suite on these targets. Interactive
-OS integration and signing require their native platform checks.
+The manual [Pandoc](../../.github/workflows/pandoc.yml) workflow runs real conversions
+and desktop exports on the same targets. The manual
+[Packaged desktop](../../.github/workflows/packaged.yml) workflow builds unsigned
+installers and runs the full common desktop E2E suite, plus Windows installation and
+uninstallation checks. Select each workflow in GitHub Actions and use **Run workflow**
+on the branch to test. Interactive OS integration and signing require their native
+platform checks.
 
 All packages disable Node launch mode, `NODE_OPTIONS`, Node CLI inspection and extra
 `file://` privileges, and require loading from ASAR. Windows/macOS validate embedded
@@ -128,8 +132,11 @@ dispatched with an existing tag. For manual runs, select that same tag under **U
 workflow from**, so GitHub's provenance identity binds to the release tag. The tag
 must be a semantic version matching the root,
 desktop and every workspace package, and its commit must belong to `origin/main`.
-It checks out the validated commit for all jobs, reuses the complete CI workflow,
-then builds on Windows x64, Linux x64 and macOS x64/arm64.
+It checks out the validated commit for all jobs, reuses CI for dependency and source
+verification, then builds on Windows x64, Linux x64 and macOS x64/arm64. Run the manual
+Pandoc and Packaged desktop workflows separately before release; the release workflow
+does not invoke them. Release candidates still undergo native signature verification
+and packaged security smoke tests before attestation.
 
 Before using it, configure these GitHub environments. Required reviewers and deployment
 branch/tag restrictions are repository settings; creating a workflow file does not
@@ -139,7 +146,7 @@ especially workflows, packaging scripts, lockfiles and Electron security code.
 | Environment | Configuration |
 | --- | --- |
 | `release-signing` | Allow only reviewed `v*` tags, require a release maintainer, and store the secrets below. |
-| `release` | Allow only release tags and require a release maintainer before creating the draft. |
+| `release` | Allow only release tags and require a release maintainer before publication. |
 
 | Environment secret | Purpose |
 | --- | --- |
@@ -160,12 +167,13 @@ blockmap is disabled because stapling changes its bytes after packaging. Checksu
 and provenance cover the final stapled disk image.
 
 After native signature checks and packaged security flows pass, the workflow attests
-each installer, blockmap and SBOM through GitHub OIDC. The assembly job requires the
+each installer, blockmap and SBOM through GitHub OIDC. The publishing job requires the
 complete matrix, recomputes every checksum, rejects unsigned/modified/duplicate assets,
 and verifies attestations against this repository, release workflow, tag and source
-commit. It then creates a **draft**, preserving an existing release instead of replacing
-its files. Review the draft and publish it through GitHub Releases. Automatic updating
-remains unavailable in the application.
+commit. After all checks pass, it uploads the verified assets and publishes the GitHub
+Release automatically. Tags with prerelease versions are marked as prereleases. An
+existing release for the tag causes the run to fail without replacing its assets.
+Automatic updating remains unavailable in the application.
 
 Artifact attestations require a supported GitHub plan (public repositories are supported
 on current Free/Pro/Team plans). Signing, notarization, hosted runners and attestations

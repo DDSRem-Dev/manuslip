@@ -1,7 +1,8 @@
-import { parseMarkdown, semanticLimits } from '@manuslip/core'
+import { parseDocumentMarkdown, parseMarkdown, semanticLimits } from '@manuslip/core'
 import { renderMarkdown } from '@manuslip/renderer'
 import { expect, it } from 'vitest'
 import { encodeSemanticSnapshot } from '../../../../../src/renderer/src/semantics/snapshot'
+import { parseResponse } from '../../../../../src/renderer/src/semantics/protocol'
 
 const options = { rawHtml: false, footnotesLabel: 'Footnotes', footnoteBackLabel: 'Back' }
 
@@ -31,3 +32,37 @@ it('preserves the native transport capacity for a dense document near the messag
   expect(body.document.counts).toEqual(document.counts)
   expect(body.projection.html).toBe(renderMarkdown(document.root, options).html)
 })
+
+it('transports the complete 1 MiB nested corpus within the retained snapshot budget', () => {
+  const chunk = `${'> > > > > > > > Nested writing with **emphasis**, `code`, a [link][r] and enough prose to keep reading. '.repeat(3)}\n\nSeparate context.\n\n`
+  const source = `# nested-containers\n\n${chunk.repeat(Math.ceil(1048576 / Buffer.byteLength(chunk)))}\n[r]: https://example.invalid/\n`
+  const document = parseDocumentMarkdown(source)
+  const encoded = encodeSemanticSnapshot(document, source.length, options)
+  expect(encoded.bytes).toBeGreaterThan(semanticLimits.messageBytes)
+  expect(encoded.bytes * 2).toBeLessThanOrEqual(semanticLimits.snapshotBytes)
+  const identity = {
+    sequence: 1,
+    generation: 1,
+    documentId: 'nested',
+    revision: 1,
+    sentAt: 0,
+  }
+  const request = { kind: 'parse' as const, ...identity, source, options }
+  const response = parseResponse(
+    {
+      ...identity,
+      kind: 'encoded-result',
+      payload: encoded.payload,
+      metadata: {
+        bytes: encoded.bytes,
+        cached: false,
+        transportInMs: 0,
+        serializeMs: encoded.serializeMs,
+      },
+    },
+    request,
+  )
+  if (response.kind !== 'result') throw new Error('Missing complete nested snapshot')
+  expect(response.snapshot.document.root).toEqual(document.root)
+  expect(response.snapshot.projection.html).toBe(renderMarkdown(document.root, options).html)
+}, 30_000)

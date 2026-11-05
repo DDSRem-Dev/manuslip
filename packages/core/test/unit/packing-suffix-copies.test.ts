@@ -145,6 +145,8 @@ for (const kind of ['offset', 'range'] as const)
         )
         expect(Object.isFrozen(actual.value)).toBe(true)
       },
+      // Complete 4,097-value comparisons also run under coverage instrumentation.
+      15_000,
     )
 
 for (const kind of ['offset', 'range'] as const) {

@@ -14,7 +14,7 @@ Run commands from the repository root.
 | Packaged workflows | `test/e2e/` | `npm run build`, then `npm run test:packaged` |
 | Packaged runtime hardening | `test/packaging/hardened-smoke.mjs` | `npm run verify:package`, then `node test/packaging/hardened-smoke.mjs` |
 | Performance and resource gates | `test/benchmark/` | `npm run test:performance` |
-| Main-process source performance gates | `test/benchmark/search.spec.ts`, `test/benchmark/workspace.spec.ts` | `npm run test:performance:main` |
+| Main-process source performance gates | `test/benchmark/search.spec.ts`, `test/benchmark/workspace.spec.ts`, `test/benchmark/resources.spec.ts` | `npm run test:performance:main` |
 
 `npm run check` covers lint, repository layout/local links, lockfile policy, runtime boundaries,
 dependency patch guards, formatting and types. `npm test` runs the common Vitest projects,
@@ -94,6 +94,10 @@ specs. Reports identify the hardware, runtime and executable/ASAR hashes. Input-
 measurements estimate browser frame timing, not physical display presentation. Passing
 correctness tests alone does not establish these hardware-dependent budgets.
 
+The corpus gate keeps 500 ms freshness for prose, allows 750 ms for dense block lists,
+and 2500 ms for deeply nested containers. Nested apply slices allow 16 ms; other slices
+allow 4 ms. Every shape still requires Live Preview, all 20 edit samples, and exact saved bytes.
+
 Keep automated performance checks tied to explicit assertions. Use DevTools for exploratory
 profiles; keep measurement-only specs and historical benchmark baselines out of test suites.
 
@@ -104,6 +108,20 @@ budget. Fixture setup is excluded from measurements. Reports include
 CPU, platform and Node versions. These checks complement the packaged desktop gates;
 run them serially without competing builds or tests. Search unit tests also enforce linear
 byte-copy, delimiter-scan and UTF-8 decoding budgets independently of hardware speed.
+
+Separate memory gates exercise twenty distinct search records with 500 matches each and
+ten fresh catalogs listing 5,000 files. Observed memory growth (Node heap plus external
+storage, including buffers) must stay below 16 MiB for search and 32 MiB for workspace
+catalogs. After each cycle, two garbage collections must leave less than 4 MiB of growth;
+disposed catalogs must also return native watcher counts to baseline. Memory probes and
+garbage collection run separately from latency measurements. These observations cover
+the Node source process at workload checkpoints, rather than whole-application peak RSS.
+
+Benchmark summaries reject missing, non-finite and negative timing samples. Desktop
+probe regressions run with `npm run test:e2e -- test/e2e/benchmark-probes.spec.ts`, checking
+startup readiness, successive file opens, document counts, mode shortcuts and typing
+through accessible controls. Counts are read from the Document details disclosure;
+probes do not depend on welcome copy or icon button text.
 
 ## Outputs and CI
 
@@ -124,10 +142,18 @@ CI runs verification on Linux x64, Windows x64 and macOS x64/arm64. Each verify 
 validates the lockfile before `npm ci`, then runs `npm run check`, `npm run test:unit`,
 `npm run test:integration`, `npm run test:packaging` and `npm run build:app`.
 Each verify job also runs the missing/invalid Pandoc UI workflow without installing Pandoc.
-Separate Pandoc jobs use the same platform matrix, install Pandoc 3.13, select its absolute
-executable path, then run `npm run test:pandoc`, build the app and run `npm run test:pandoc:e2e`.
-Linux desktop tests use Xvfb. The common and Pandoc jobs run independently, so a Pandoc
-failure does not prevent common verification or the other platform results.
+
+Real Pandoc conversions and the full packaged desktop E2E suite run through separate
+manual workflows. In GitHub Actions, select [Pandoc](../../.github/workflows/pandoc.yml) or
+[Packaged desktop](../../.github/workflows/packaged.yml), choose **Run workflow** and
+select the branch to test. Each workflow checks out the selected commit and runs the
+same four-platform matrix independently of CI, including release-triggered CI.
+The Pandoc workflow installs Pandoc 3.13, selects its absolute executable path, runs
+`npm run test:pandoc`, builds the app and runs `npm run test:pandoc:e2e`.
+The Packaged desktop workflow builds unsigned installers, verifies runtime fuses and
+runs the full common desktop E2E suite. Windows also runs installation and uninstallation
+checks. Failed packaged jobs retain test evidence for seven days. Linux desktop tests
+use Xvfb in all workflows.
 
 Dependency security runs once on Linux for pull requests, pushes to `main`, manual runs
 and daily at 03:23 UTC. Scheduled runs execute only this job, without installing dependencies.

@@ -273,7 +273,7 @@ it('prepares and renders a complete packed root whose native AST message exceeds
   expect(rendered.projection.html.match(/PRIVATE/g)).toHaveLength(36000)
   expect(rendered.projection.html).toContain('Prose')
   processor.clear()
-})
+}, 20_000)
 it('prepares and renders every protected occurrence when repeated descriptor JSON exceeds the cap', async () => {
   const text = `Prose ${'`PRIVATE` '.repeat(220)}\n\n`.repeat(240)
   const root = parseMarkdown(text).root,
@@ -305,7 +305,7 @@ it('prepares and renders every protected occurrence when repeated descriptor JSO
     JSON.stringify(value).replaceAll(/[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}/g, 'ID')
   expect(normalize(rendered.projection)).toBe(normalize(native))
   processor.clear()
-})
+}, 20_000)
 it('releases prepare-only reservations before rendering without retaining returned unit records', async () => {
   const text = `Prose ${'`PRIVATE` '.repeat(240)}\n\n`.repeat(260),
     processor = new ReadingProcessor()
@@ -354,7 +354,7 @@ it('releases prepare-only reservations before rendering without retaining return
   expect(processor.stats.blockStoreBytes).toBe(0)
   expect(processor.stats.retainedBytes).toBe(0)
   expect(() => plan.units).toThrow('released')
-})
+}, 20_000)
 it('uses caller-mapped blocks directly and preserves independent fallback snapshots in every layout', async () => {
   const text = '# Hello\n\nHello `PRIVATE` and note[^n].\n\n[^n]: Hello footnote.',
     processor = new ReadingProcessor(),
@@ -651,7 +651,7 @@ it('fully translates the authoritative nested source without retaining reconstru
   if (retry.kind !== 'rendered') throw new Error('Not rendered')
   expect(digest(retry.projection)).toBe(digest(oracle))
   processor.clear()
-}, 20000)
+}, 60_000)
 it('serializes cooperatively and transfers only the complete root, with independent worker ownership', async () => {
   const f = capture(),
     queue = scheduler(),

@@ -4,6 +4,7 @@ import { basename, join } from 'node:path'
 import { expect, test } from '@playwright/test'
 import { launchDesktop } from '../e2e/helpers'
 import {
+  expectCharacterCount,
   fixture,
   MiB,
   machine,
@@ -14,6 +15,7 @@ import {
   settled,
   stop,
   summary,
+  waitForStartup,
 } from './helpers'
 import { instrumentInput } from './input'
 
@@ -22,9 +24,7 @@ test('continuous dense typing and rapid tabs keep one semantic request in flight
   const application = await launchDesktop(join(directory, 'profile'))
   try {
     const page = await application.firstWindow()
-    await expect(
-      page.getByRole('heading', { name: 'A little space for your next idea.' }),
-    ).toBeVisible()
+    await waitForStartup(page)
     await instrumentInput(page)
     await page.evaluate(() => {
       const outstanding = new Set<number>()
@@ -108,9 +108,7 @@ test('continuous dense typing and rapid tabs keep one semantic request in flight
     // Keep edits arriving faster than the idle debounce, long enough to publish at maxDelay.
     await page.keyboard.type(appended, { delay: 40 })
     expect(await settled(page)).toBe('ready')
-    await expect(
-      page.getByText(`${source.length + appended.length} characters`, { exact: true }),
-    ).toBeVisible()
+    await expectCharacterCount(page, source.length + appended.length)
     const typed = await measures(page)
     const inputPaint = summary(
       typed
@@ -150,9 +148,7 @@ test('continuous dense typing and rapid tabs keep one semantic request in flight
         ?.startTime ?? 0
     await page.getByRole('tab', { name: basename(first), exact: true }).click()
     expect(await settled(page, beforeFinal)).toBe('ready')
-    await expect(
-      page.getByText(`${source.length + appended.length} characters`, { exact: true }),
-    ).toBeVisible()
+    await expectCharacterCount(page, source.length + appended.length)
     const result = await page.evaluate(() => {
       const stats = Reflect.get(window, '__semanticTraffic') as {
         posts: number

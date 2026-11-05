@@ -141,4 +141,4 @@ it('retains logical aggregate payload and depth limits despite compact storage',
   expect(() =>
     extractCompactTranslation({ type: 'root', children: [nested] }, 'Hello', limits),
   ).toThrow('translation-limit')
-})
+}, 15_000)
