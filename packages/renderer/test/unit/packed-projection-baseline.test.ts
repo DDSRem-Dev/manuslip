@@ -833,10 +833,10 @@ describe('verified packed projection reuse', () => {
       expect(receiver.stats.retainedBytes).toBe(0)
     },
   )
-  it.each(['commonmark', 'manuslip'] as const)(
+  describe.each(['commonmark', 'manuslip'] as const)(
     'validates shared-record revisions for every CommonMark example in %s',
     (syntax) => {
-      for (const example of examples) {
+      it.each(examples)('CommonMark $example: $section', (example) => {
         const context = fixture(example.markdown, syntax)
         try {
           const next = context.delta([], [])
@@ -858,7 +858,7 @@ describe('verified packed projection reuse', () => {
         } finally {
           context.owner.dispose()
         }
-      }
+      })
     },
   )
   it.each([false, true])(

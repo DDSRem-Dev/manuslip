@@ -141,12 +141,12 @@ function paired(text = body, syntax: 'commonmark' | 'manuslip' = 'manuslip') {
 }
 
 describe('context collected during complete warm snapshot validation', () => {
-  it.each(['commonmark', 'manuslip'] as const)(
+  describe.each(['commonmark', 'manuslip'] as const)(
     'preserves every CommonMark example and its complete Intl input in %s',
     (syntax) => {
-      const segment = vi.spyOn(Intl.Segmenter.prototype, 'segment')
-      try {
-        for (const example of examples) {
+      it.each(examples)('CommonMark $example: $section', (example) => {
+        const segment = vi.spyOn(Intl.Segmenter.prototype, 'segment')
+        try {
           const context = paired(example.markdown, syntax)
           try {
             const next = context.delta()
@@ -158,10 +158,10 @@ describe('context collected during complete warm snapshot validation', () => {
           } finally {
             context.owner.dispose()
           }
+        } finally {
+          segment.mockRestore()
         }
-      } finally {
-        segment.mockRestore()
-      }
+      })
     },
   )
 

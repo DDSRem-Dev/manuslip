@@ -68,10 +68,10 @@ const widgetText =
   '# Heading\n\n~~~mermaid\ngraph LR; A-->B\n~~~\n\n~~~js\nx()\n~~~\n\n$$\nx^2\n$$\n\ninline $x$ ![image](local.png) and [^a].\n\n| a | b |\n| - | - |\n| a | b |\n\n<div>raw</div>\n\n[^a]: Footer ![note](note.png).\n'
 
 describe('validated packed input for existing preview preparation', () => {
-  it.each(['commonmark', 'manuslip'] as const)(
+  describe.each(['commonmark', 'manuslip'] as const)(
     'prepares every CommonMark widget from exact range-matched descriptors in %s',
     (syntax) => {
-      for (const example of examples) {
+      it.each(examples)('CommonMark $example: $section', (example) => {
         const context = fixture(example.markdown, syntax)
         let output: PackedValue<PreparedPackedPreviewInput> | undefined
         try {
@@ -112,7 +112,7 @@ describe('validated packed input for existing preview preparation', () => {
           output?.release()
           context.owner.dispose()
         }
-      }
+      })
     },
   )
   it('validates unselected semantic descriptors before a widget-free model can be prepared', () => {
@@ -250,10 +250,10 @@ describe('validated packed input for existing preview preparation', () => {
       context.owner.dispose()
     }
   })
-  it.each(['commonmark', 'manuslip'] as const)(
+  describe.each(['commonmark', 'manuslip'] as const)(
     'copies exact descriptors and widgets for every CommonMark example in %s',
     (syntax) => {
-      for (const example of examples) {
+      it.each(examples)('CommonMark $example: $section', (example) => {
         const context = fixture(example.markdown, syntax)
         const before = context.owner.stats
         let inspected = false
@@ -311,7 +311,7 @@ describe('validated packed input for existing preview preparation', () => {
         } finally {
           context.owner.dispose()
         }
-      }
+      })
     },
   )
   it.each([false, true])(

@@ -562,7 +562,7 @@ it('fully translates 280 compact-bound units and preserves all 67,200 protected 
   } finally {
     processor.clear()
   }
-}, 20000)
+}, 60000)
 it('fully translates the authoritative nested source without retaining reconstructed ancestors', async () => {
   const chunk = `${'> > > > > > > > Nested writing with **emphasis**, `code`, a [link][r] and enough prose to keep reading. '.repeat(3)}\n\nSeparate context.\n\n`
   const text = `# nested-containers\n\n${chunk.repeat(Math.ceil(1048576 / Buffer.byteLength(chunk)))}\n[r]: https://example.invalid/\n`

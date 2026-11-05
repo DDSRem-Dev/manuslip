@@ -112,11 +112,11 @@ it('seeds a verified offline dictionary, preserves valid caches and replaces dam
   const target = join(profile, 'Dictionaries', 'en-US-10-2.bdic')
   expect(await prepareDictionary(assets, profile)).toBe(true)
   const expected = await readFile(join(assets, 'en-US-10-2.bdic'))
-  expect(await readFile(target)).toEqual(expected)
+  expect((await readFile(target)).equals(expected)).toBe(true)
   expect(await prepareDictionary(assets, profile)).toBe(true)
   await writeFile(target, 'damaged')
   expect(await prepareDictionary(assets, profile)).toBe(true)
-  expect(await readFile(target)).toEqual(expected)
+  expect((await readFile(target)).equals(expected)).toBe(true)
 })
 it('disables spelling when the packaged dictionary is missing or fails size/hash verification', async () => {
   const assets = await mkdtemp(join(tmpdir(), 'manuslip-dictionary-assets-'))

@@ -1,4 +1,14 @@
-import { mkdir, mkdtemp, readdir, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises'
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  realpath,
+  rename,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -20,7 +30,7 @@ describe('main-owned local image capabilities and imports', () => {
   let path: string
   const clipboard = vi.fn<() => Promise<Buffer>>(async () => Buffer.from(png))
   beforeEach(async () => {
-    directory = await mkdtemp(join(tmpdir(), 'manuslip-assets-'))
+    directory = await realpath(await mkdtemp(join(tmpdir(), 'manuslip-assets-')))
     path = join(directory, 'doc.md')
     await writeFile(path, '# Doc')
     files = new FileSessions(() => {})

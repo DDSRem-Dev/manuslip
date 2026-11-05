@@ -27,13 +27,18 @@ describe('atomic document replacement', () => {
     await rm(directory, { recursive: true, force: true, maxRetries: 3 })
   })
 
-  it('publishes a new file exclusively, then replaces it without temporary debris', async () => {
-    const first = await atomicWrite(path, Buffer.from('first\r\n'), null)
-    const result = await atomicWrite(path, Buffer.from('第二版\r\n'), first.fingerprint)
-    expect(result.bytes.toString()).toBe('第二版\r\n')
-    expect(result.fingerprint).not.toBe(first.fingerprint)
-    expect(await readdir(directory)).toEqual(['文档.md'])
-  })
+  it.each(['文档.md', `${'a'.repeat(159)}🚀.md`])(
+    'publishes and replaces %s without temporary debris',
+    async (name) => {
+      path = join(directory, name)
+      const first = await atomicWrite(path, Buffer.from('first\r\n'), null)
+      const result = await atomicWrite(path, Buffer.from('第二版\r\n'), first.fingerprint)
+      expect(result.bytes.toString()).toBe('第二版\r\n')
+      expect(result.fingerprint).not.toBe(first.fingerprint)
+      expect(await readFile(path, 'utf8')).toBe('第二版\r\n')
+      expect(await readdir(directory)).toEqual([name])
+    },
+  )
   it.each(['beforeWrite', 'beforeReplace'] as const)(
     'retains the original and cleans a failed temporary write at %s',
     async (phase) => {

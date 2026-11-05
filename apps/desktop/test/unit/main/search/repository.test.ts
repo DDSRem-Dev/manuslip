@@ -21,10 +21,14 @@ function request(query: string, mode: SearchRequest['mode'] = 'text'): SearchReq
 }
 async function completed(repository: SearchRepository, id: string): Promise<SearchPage> {
   let page = repository.poll(1, id, 0)
-  await vi.waitFor(() => {
-    page = repository.poll(1, id, 0)
-    expect(page.state).not.toBe('running')
-  })
+  // A real ripgrep process can take longer than waitFor's 1s default to start on CI.
+  await vi.waitFor(
+    () => {
+      page = repository.poll(1, id, 0)
+      expect(page.state).not.toBe('running')
+    },
+    { timeout: 5000 },
+  )
   return page
 }
 describe('workspace search', () => {
@@ -84,7 +88,7 @@ describe('workspace search', () => {
     const utf16 = page.entries.find((entry) => entry.path.startsWith('chapters/'))
     if (!utf16) throw new Error('Missing UTF-16 result')
     expect((await repository.open(1, query.id, utf16.id)).anchor?.text).toBe('UTF16 needle')
-  })
+  }, 15000)
   it('finds unexpanded files with fuzzy paths and revokes results on new queries', async () => {
     await mkdir(join(root, 'chapters'))
     await writeFile(join(root, 'chapters', 'Writing-notes.md'), '# Body')
@@ -100,7 +104,7 @@ describe('workspace search', () => {
     expect((await completed(repository, newer.id)).entries.map((entry) => entry.path)).toEqual([
       'other.TXT',
     ])
-  })
+  }, 15000)
   it('returns each normalized file path once across result pages without exhausting the result limit', async () => {
     await mkdir(join(root, 'chapters'))
     await writeFile(join(root, 'notes.md'), 'Root notes')

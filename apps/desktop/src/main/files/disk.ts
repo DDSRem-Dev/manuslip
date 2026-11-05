@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
 import { constants } from 'node:fs'
 import { copyFile, link, lstat, open, realpath, rename, rm } from 'node:fs/promises'
-import { basename, dirname, join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import { promisify } from 'node:util'
 import { documentLimit } from '../../shared/file-contracts'
@@ -154,7 +154,8 @@ export async function atomicWrite(
 ): Promise<DiskSnapshot> {
   const maximumBytes = hooks.maximumBytes ?? documentLimit
   if (bytes.byteLength > maximumBytes) throw new FileOperationError('file-large')
-  const temporary = join(dirname(path), `.${basename(path)}.manuslip-${randomUUID()}.tmp`)
+  // Keep the sibling name bounded even when the destination is near a path/name limit.
+  const temporary = join(dirname(path), `.manuslip-${randomUUID()}.tmp`)
   const check = async (): Promise<void> => {
     const current = await maybeDisk(path, maximumBytes)
     if ((current?.fingerprint || null) !== expected) throw new FileOperationError('file-changed')

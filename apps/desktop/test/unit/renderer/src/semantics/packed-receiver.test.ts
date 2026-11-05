@@ -383,6 +383,7 @@ describe('application packed semantic receiver', () => {
     expect(receiver.stats.retainedBytes).toBe(0)
   })
 
+  // Building 20,000 real blocks crosses the admission boundary; this is not a latency gate.
   it('returns capacity resync for an unadmitted incoming payload and retains the old consumer', () => {
     const context = fixture(2 * MiB)
     try {
@@ -415,7 +416,7 @@ describe('application packed semantic receiver', () => {
     } finally {
       context.close()
     }
-  })
+  }, 30000)
 
   it('reclaims optional prose cache under consumer pressure and accepts the same delta', () => {
     const context = fixture()

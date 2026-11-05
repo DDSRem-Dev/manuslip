@@ -1,3 +1,4 @@
+import { deepStrictEqual } from 'node:assert'
 import { expect, it } from 'vitest'
 import { MarkdownEventBudget, MarkdownEventBuffer } from '../../src/markdown-event-buffer'
 
@@ -26,10 +27,19 @@ it('matches native array edits across 2,048 seeded gap movements, copies and rep
       model.splice(at, count, ...inserted)
       finish(buffer.splice(at, count, inserted, budget))
       expect(buffer.length).toBe(model.length)
-      expect(finish(buffer.slice(0, buffer.length, budget))).toEqual(model)
+      // Preserve the stateful sequence and every element check without recursive matcher overhead.
+      deepStrictEqual(
+        finish(buffer.slice(0, buffer.length, budget)),
+        model,
+        `Complete buffer after seeded edit ${edit}`,
+      )
       const from = random(model.length + 1)
       const to = from + random(model.length - from + 1)
-      expect(finish(buffer.slice(from, to, budget, [-1]))).toEqual([-1, ...model.slice(from, to)])
+      deepStrictEqual(
+        finish(buffer.slice(from, to, budget, [-1])),
+        [-1, ...model.slice(from, to)],
+        `Prefixed slice after seeded edit ${edit}`,
+      )
     }
   } finally {
     buffer.close()

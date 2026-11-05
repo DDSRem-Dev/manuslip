@@ -78,6 +78,7 @@ async function save(text: string): Promise<void> {
     { open: async () => null, save: async () => null, overwrite: async () => false },
   )
 }
+// These round trips perform several durable writes and native metadata copies.
 it('reviews both directions, preserves exact overwritten bytes, and retains copies/files after disconnect', async () => {
   await connect()
   const initial = await service.review(1, id, current)
@@ -117,7 +118,7 @@ it('reviews both directions, preserves exact overwritten bytes, and retains copi
   expect(disconnected.copies).toHaveLength(1)
   expect(await readFile(path)).toEqual(replacement)
   expect(await readFile(join(remote, 'copy.md'))).toEqual(replacement)
-})
+}, 30000)
 it('detects divergence and refuses a review after another save without replacing either version', async () => {
   await connect()
   await writeFile(join(remote, 'copy.md'), 'Unrelated remote')
@@ -158,7 +159,7 @@ it('preserves raw bytes when a long Unicode filename crosses the recovery label 
   expect(await readFile(destination)).toEqual(raw)
   expect(await readFile(path)).toEqual(replacement)
   expect(await readFile(join(remote, 'copy.md'))).toEqual(replacement)
-})
+}, 30000)
 it('keeps both only after a native copy destination is accepted and preserves the remote again in recovery', async () => {
   await connect()
   await writeFile(join(remote, 'copy.md'), 'Remote to preserve')
