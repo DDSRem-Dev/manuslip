@@ -27,9 +27,16 @@ const values = Array.from({ length: 4097 }, (_, index) => ({
 }))
 const arena = open(values)
 const base: PackedNode = { arena, id: arena.root }
-const segments: PackedSegment[] = values.map((_, from) =>
-  Object.freeze({ arena, id: arena.root, from, length: 1 }),
-)
+// Keep all 4,097 segments, but bound the backing-array prefixes scanned by the
+// test decoder. Each chunk still exercises shared arenas and nonzero slice starts.
+const segments: PackedSegment[] = []
+for (let from = 0; from < values.length; from += 256) {
+  const chunk = values.slice(from, from + 256)
+  const arena = open(chunk)
+  segments.push(
+    ...chunk.map((_, from) => Object.freeze({ arena, id: arena.root, from, length: 1 })),
+  )
+}
 const segmented: PackedNode = Object.freeze({ segments: Object.freeze(segments), length: 4097 })
 const singletonArena = open(values[0])
 const singletons: PackedNode = Object.freeze({
@@ -133,8 +140,9 @@ for (const kind of ['offset', 'range'] as const)
                   to: (value.to as number) + offset,
                 },
         )
-        expect(read(new PackedView(actual.value))).toEqual(native)
-        expect(read(new PackedView(actual.value))).toEqual(read(new PackedView(expected)))
+        const decoded = read(new PackedView(actual.value))
+        expect(decoded).toEqual(native)
+        expect(decoded).toEqual(read(new PackedView(expected)))
         expect(read(new PackedView(original))).toEqual(before)
         expect(newCharges).toEqual(oldCharges)
         expect(newStages).toEqual(oldStages)

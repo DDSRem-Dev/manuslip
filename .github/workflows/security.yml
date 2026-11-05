@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   codeql:
-    name: CodeQL (JavaScript and TypeScript)
+    name: CodeQL
     runs-on: ubuntu-22.04
     timeout-minutes: 20
     permissions:

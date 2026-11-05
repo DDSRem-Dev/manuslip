@@ -29,7 +29,11 @@ const normalize = (value: unknown) =>
  * copies, reconstruction, paired HAST construction, serialization and persistent output
  * all have session admission. This is weighted admission, not physical calibration.
  */
-function check(text: string, syntax: 'commonmark' | 'manuslip', all = false) {
+function check(
+  text: string,
+  syntax: 'commonmark' | 'manuslip',
+  translationModes: readonly boolean[] = [false],
+) {
   const document = parseMarkdown(text, syntax)
   const source = new PackedSource(
     {
@@ -85,67 +89,73 @@ function check(text: string, syntax: 'commonmark' | 'manuslip', all = false) {
       expect(owner.stats).toEqual(beforeCopy)
     }
     const native = extractTranslation(document.root, text, occurrence)
-    const values = new Map(
-      native.units.map((unit, index) => [
-        unit.occurrenceId,
-        !all && index % 4 === 1
-          ? undefined
-          : !all && index % 4 === 2
-            ? '⟪broken⟫'
-            : unit.payload
-              ? `Changed ${unit.payload.text}`
-              : undefined,
-      ]),
-    )
-    const rebuilt = reconstructTranslation(native, values)
-    const before = owner.stats
-    let held: PackedTranslationProjection | undefined
-    finishPackedSteps(
-      plan.inspectProjection(
-        (unit) => values.get(unit.occurrenceId),
-        limits,
-        function* (projected) {
-          held = projected
-          expect(native.units.map((_, index) => projected.status(index))).toEqual(
-            rebuilt.statuses.map((status) => status.status),
-          )
-          for (const layout of ['replace', 'side-by-side', 'interlinear'] as const) {
-            const reading = {
-              layout,
-              blocks,
-              units: plan.units,
-              translated: new Set(
-                plan.units
-                  .filter((_, index) => projected.status(index) === 'translated')
-                  .map((unit) => `${unit.from}:${unit.to}`),
-              ),
-              sourceLanguage: 'en',
-              targetLanguage: 'ar',
-              labels: { original: 'Original', translation: 'Translation' },
-              indexAboveBytes: 0,
-            }
-            const expected = renderReading(document.root, rebuilt.root, options, reading)
-            yield* inspectPackedReading(
-              capture,
-              source,
-              rootPath,
-              options,
-              reading,
-              limits,
-              projected,
-              function* (actual, cost) {
-                expect(normalize(actual)).toBe(normalize(expected))
-                expect(cost.retainedPeakBytes).toBeLessThanOrEqual(limits.retained)
-                expect(cost.stagingPeakBytes).toBeLessThanOrEqual(limits.staging)
-                yield
-              },
+    // Exercise each translation state against the same immutable capture and plan.
+    // The stats/closed-handle checks below also catch state retained between runs.
+    for (const all of translationModes) {
+      const values = new Map(
+        native.units.map((unit, index) => [
+          unit.occurrenceId,
+          !all && index % 4 === 1
+            ? undefined
+            : !all && index % 4 === 2
+              ? '⟪broken⟫'
+              : unit.payload
+                ? `Changed ${unit.payload.text}`
+                : undefined,
+        ]),
+      )
+      const rebuilt = reconstructTranslation(native, values)
+      const before = owner.stats
+      let held: PackedTranslationProjection | undefined
+      finishPackedSteps(
+        plan.inspectProjection(
+          (unit) => values.get(unit.occurrenceId),
+          limits,
+          function* (projected) {
+            held = projected
+            expect(native.units.map((_, index) => projected.status(index))).toEqual(
+              rebuilt.statuses.map((status) => status.status),
             )
-          }
-        },
-      ),
-    )
-    expect(owner.stats).toEqual(before)
-    expect(() => held?.status(0)).toThrow('closed')
+            for (const layout of ['replace', 'side-by-side', 'interlinear'] as const) {
+              const reading = {
+                layout,
+                blocks,
+                units: plan.units,
+                translated: new Set(
+                  plan.units
+                    .filter((_, index) => projected.status(index) === 'translated')
+                    .map((unit) => `${unit.from}:${unit.to}`),
+                ),
+                sourceLanguage: 'en',
+                targetLanguage: 'ar',
+                labels: { original: 'Original', translation: 'Translation' },
+                indexAboveBytes: 0,
+              }
+              const expected = renderReading(document.root, rebuilt.root, options, reading)
+              yield* inspectPackedReading(
+                capture,
+                source,
+                rootPath,
+                options,
+                reading,
+                limits,
+                projected,
+                function* (actual, cost) {
+                  expect(normalize(actual), `${layout}, fully translated: ${all}`).toBe(
+                    normalize(expected),
+                  )
+                  expect(cost.retainedPeakBytes).toBeLessThanOrEqual(limits.retained)
+                  expect(cost.stagingPeakBytes).toBeLessThanOrEqual(limits.staging)
+                  yield
+                },
+              )
+            }
+          },
+        ),
+      )
+      expect(owner.stats).toEqual(before)
+      expect(() => held?.status(0)).toThrow('closed')
+    }
   } finally {
     plan.release()
     metadata.release()
@@ -171,19 +181,14 @@ it('keeps occurrence-specific secrets, footnotes and raw fragments across all re
   )
 })
 
-it.each([
-  ['commonmark', false],
-  ['manuslip', false],
-  ['commonmark', true],
-  ['manuslip', true],
-] as const)(
-  'renders the complete 1 MiB nested packed document in %s (fully translated: %s) without a native root copy',
-  (syntax, all) => {
+it.each(['commonmark', 'manuslip'] as const)(
+  'renders partial and full translations of the complete 1 MiB nested packed document in %s without a native root copy',
+  (syntax) => {
     const chunk = `${'> > > > > > > > Nested writing with **emphasis**, `code`, a [link][r] and enough prose to keep reading. '.repeat(3)}\n\nSeparate context.\n\n`
     check(
       `# nested-containers\n\n${chunk.repeat(Math.ceil(MiB / Buffer.byteLength(chunk)))}\n[r]: https://example.invalid/\n`,
       syntax,
-      all,
+      [false, true],
     )
   },
   60000,

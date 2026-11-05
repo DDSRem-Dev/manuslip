@@ -37,8 +37,8 @@ it.each([
   (index: number) => ({ [`field${index % 7}`]: index }),
   (index: number) => (index % 2 ? { a: index, b: true } : { b: false, a: index }),
   (index: number) => ({ ['__proto__']: index, constructor: index + 1 }),
-  (index: number) => ({ ['"\\\n界😀']: index }),
-  (index: number) => ({ ['7']: index, ['2']: index + 1, value: index }),
+  (index: number) => ({ '"\\\n界😀': index }),
+  (index: number) => ({ '7': index, '2': index + 1, value: index }),
   (index: number) => (index % 2 ? {} : { nested: { value: index } }),
 ])('preserves canonical ordered key spelling through repeated and evicted shapes %#', (make) => {
   const value = Array.from({ length: 80 }, (_, index) => make(index))

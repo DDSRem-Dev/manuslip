@@ -1357,13 +1357,6 @@ main.editing {
   padding-inline-start: 16px;
   border-inline-start: 2px solid var(--input-border);
 }
-.cm-live-rendered dd > :first-child,
-.reading-article dd > :first-child {
-  margin-block-start: 0;
-}
-.reading-layout :is(.reading-original, .reading-translation) > :first-child {
-  margin-block-start: 0;
-}
 @media (max-width: 44rem) {
   .reading-side-by-side > .reading-pair {
     grid-template-columns: minmax(0, 1fr);
@@ -1721,6 +1714,13 @@ main.editing {
   text-align: center;
 }
 .cm-live-rendered > :first-child {
+  margin-block-start: 0;
+}
+.cm-live-rendered dd > :first-child,
+.reading-article dd > :first-child {
+  margin-block-start: 0;
+}
+.reading-layout :is(.reading-original, .reading-translation) > :first-child {
   margin-block-start: 0;
 }
 .cm-live-rendered > :last-child {

@@ -1,3 +1,4 @@
+import { deepStrictEqual } from 'node:assert'
 import { parse, preprocess } from 'micromark'
 import type { Chunk, Event, Extension, Resolver, TokenizeContext } from 'micromark-util-types'
 import remarkGfm from 'remark-gfm'
@@ -38,7 +39,9 @@ function values(events: Event[]) {
 function compare(source: string, gfm = true, singleTilde = true) {
   const before = create(false, gfm, [], singleTilde).context
   const after = create(true, gfm, [], singleTilde).context
-  expect(values(finish(after._manuslipWriteSteps(preprocess()(source, undefined, true))))).toEqual(
+  // Compare every token and serialized slice without Vitest's recursive matcher overhead.
+  deepStrictEqual(
+    values(finish(after._manuslipWriteSteps(preprocess()(source, undefined, true)))),
     values(before.write(preprocess()(source, undefined, true))),
   )
 }

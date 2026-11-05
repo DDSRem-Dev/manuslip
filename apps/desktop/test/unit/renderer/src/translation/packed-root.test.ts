@@ -511,11 +511,12 @@ it('reprojects changed raw-HTML policy and localized footnotes from the same val
   }
 })
 
-it.each(['replace', 'side-by-side', 'interlinear'] as const)(
-  'fully translates 280 compact-bound units and preserves all 67,200 protected occurrences in %s',
-  async (layout) => {
-    const text = `Prose ${'`PRIVATE` '.repeat(240)}\n\n`.repeat(280),
-      processor = new ReadingProcessor()
+// Includes complete native reconstruction/rendering of 134,400 protected occurrences.
+// Worker latency is measured separately in packaged tests.
+it('fully translates 280 compact-bound units and preserves all 67,200 protected occurrences across reading layouts', async () => {
+  const text = `Prose ${'`PRIVATE` '.repeat(240)}\n\n`.repeat(280),
+    processor = new ReadingProcessor()
+  try {
     const prepared = await processor.execute(operation(text))
     if (prepared.kind !== 'prepared') throw new Error('Not prepared')
     const first = prepared.units[0]
@@ -524,17 +525,6 @@ it.each(['replace', 'side-by-side', 'interlinear'] as const)(
     expect(new Set(prepared.units.map((unit) => unit.key)).size).toBe(1)
     const output = first.payload.text.replace('Prose', 'Translated')
     expect(JSON.stringify(first.payload)).not.toContain('PRIVATE')
-    const rendered = await processor.execute({
-      kind: 'render',
-      outputs: [{ key: first.key, output }],
-      layout,
-      options,
-    })
-    if (rendered.kind !== 'rendered') throw new Error('Not rendered')
-    expect(rendered.projection.html.match(/Translated/g)).toHaveLength(280)
-    expect(rendered.projection.html.match(/PRIVATE/g)).toHaveLength(
-      layout === 'replace' ? 67200 : 134400,
-    )
     const root = parseMarkdown(text).root,
       plan = extractTranslation(root, text),
       rebuilt = reconstructTranslation(
@@ -543,24 +533,36 @@ it.each(['replace', 'side-by-side', 'interlinear'] as const)(
       )
     expect(rebuilt.statuses.every((status) => status.status === 'translated')).toBe(true)
     const { renderReading } = await import('@manuslip/renderer/reading')
-    const oracle = renderReading(root, rebuilt.root, options, {
-      layout,
-      blocks: prepared.blocks,
-      units: prepared.units,
-      translated: new Set(plan.units.map((unit) => `${unit.from}:${unit.to}`)),
-      labels: { original: 'Original', translation: 'Translation' },
-      sourceLanguage: settings.sourceLanguage,
-      targetLanguage: settings.targetLanguage,
-    })
     const normalize = (value: unknown) =>
       JSON.stringify(value).replaceAll(/[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}/g, 'ID')
-    expect(normalize(rendered.projection)).toBe(normalize(oracle))
+    // Preparation and the independent native reconstruction are layout-independent.
+    for (const layout of ['replace', 'side-by-side', 'interlinear'] as const) {
+      const rendered = await processor.execute({
+        kind: 'render',
+        outputs: [{ key: first.key, output }],
+        layout,
+        options,
+      })
+      if (rendered.kind !== 'rendered') throw new Error('Not rendered')
+      expect(rendered.projection.html.match(/Translated/g), layout).toHaveLength(280)
+      expect(rendered.projection.html.match(/PRIVATE/g), layout).toHaveLength(
+        layout === 'replace' ? 67200 : 134400,
+      )
+      const oracle = renderReading(root, rebuilt.root, options, {
+        layout,
+        blocks: prepared.blocks,
+        units: prepared.units,
+        translated: new Set(plan.units.map((unit) => `${unit.from}:${unit.to}`)),
+        labels: { original: 'Original', translation: 'Translation' },
+        sourceLanguage: settings.sourceLanguage,
+        targetLanguage: settings.targetLanguage,
+      })
+      expect(normalize(rendered.projection), layout).toBe(normalize(oracle))
+    }
+  } finally {
     processor.clear()
-  },
-  // This includes independent full parsing/reconstruction/rendering of 134,400
-  // protected occurrences; worker latency is measured separately in packaged tests.
-  20000,
-)
+  }
+}, 20000)
 it('fully translates the authoritative nested source without retaining reconstructed ancestors', async () => {
   const chunk = `${'> > > > > > > > Nested writing with **emphasis**, `code`, a [link][r] and enough prose to keep reading. '.repeat(3)}\n\nSeparate context.\n\n`
   const text = `# nested-containers\n\n${chunk.repeat(Math.ceil(1048576 / Buffer.byteLength(chunk)))}\n[r]: https://example.invalid/\n`

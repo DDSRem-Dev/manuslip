@@ -37,6 +37,12 @@ report asynchronous handler failures to the owning test. Tests use isolated prof
 temporary files. Set `MANUSLIP_PACKAGED_EXECUTABLE` to select another executable for desktop workflows.
 Headless Linux Electron tests need Xvfb.
 
+Keep the complete CommonMark corpus and size-dependent admission/boundary fixtures.
+For expensive immutable inputs, share parsing and preparation across translation states
+or layouts, compare every complete output against the independent native oracle, and
+check resource cleanup between runs. Segmented fixtures can use small shared backing
+arrays to avoid repeatedly scanning a large prefix just to decode test results.
+
 Real Pandoc tests have their own Vitest project and tagged desktop cases. `npm test`,
 `npm run test:integration` and `npm run test:e2e` exclude them, even when Pandoc is configured.
 Set `MANUSLIP_TEST_PANDOC` to a trusted local Pandoc 3 executable before running the dedicated
