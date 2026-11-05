@@ -33,6 +33,8 @@ Atomic writes reserve a UUID-named temporary sibling without copying the destina
 basename, so long filenames do not inflate temporary paths beyond filesystem/native-tool
 limits. Replacement still preserves metadata, rechecks the destination fingerprint and
 removes temporary files on failure.
+The Windows ACL-copy process has a 15-second deadline including cold PowerShell/module
+startup; timeout or a differing security descriptor still rejects replacement.
 
 Parsing, translation preparation, replacement matching and export preparation use disposable
 workers. Mermaid and printing use separate sandboxed Electron processes and sessions.

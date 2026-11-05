@@ -258,7 +258,7 @@ it.each(['png', 'jpeg'] as const)(
     expect(stage.raster).toHaveBeenLastCalledWith(format, expect.any(AbortSignal))
   },
   // Real atomic replacement includes native ACL preservation on Windows.
-  15000,
+  30000,
 )
 
 it('presents without a destination picker, keeps the captured revision and releases preparation resources while viewing', async () => {

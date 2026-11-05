@@ -55,3 +55,7 @@ original/patched processes under both export conditions and compares complete ro
 metadata, renders and public events. Core tests cover cancellation, cleanup, extension
 semantics and the pinned CommonMark corpus. Run these checks whenever patch sources or
 parser dependencies change; update hashes only after reviewing the changed upstream source.
+Each equivalence helper has a three-minute process deadline for its four serial
+full-corpus processes, including the complete 1 MiB nested document. The owning test
+allows five additional seconds to report process termination; neither deadline is a
+parser latency budget.

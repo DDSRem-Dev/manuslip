@@ -201,10 +201,11 @@ it.each(patches)(
         cwd: root,
         windowsHide: true,
         encoding: 'utf8',
-        timeout: 60000,
+        // Four isolated full-corpus processes run serially, including the 1 MiB oracle.
+        timeout: 180000,
       },
     )
-    expect(result.status, result.stderr || result.stdout).toBe(0)
+    expect(result.status, result.error?.message || result.stderr || result.stdout).toBe(0)
   },
-  65000,
+  185000,
 )

@@ -103,7 +103,8 @@ async function copyWithMetadata(source: string, target: string): Promise<void> {
         ],
         {
           windowsHide: true,
-          timeout: 5000,
+          // Cold PowerShell/module startup can exceed 5s on a busy Windows host.
+          timeout: 15000,
           maxBuffer: 64 * 1024,
           env: {
             ...process.env,
