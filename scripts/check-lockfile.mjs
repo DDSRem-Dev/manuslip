@@ -1,6 +1,6 @@
 import { glob, lstat, readFile, realpath } from 'node:fs/promises'
 import { isAbsolute, relative, resolve, sep } from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { fileURLToPath } from 'node:url'
 
 const registries = new Set(['https://registry.npmjs.org', 'https://registry.npmmirror.com'])
 
@@ -100,7 +100,7 @@ export async function checkLockfile(root) {
   if (failures.length) throw new Error(failures.join('\n'))
 }
 
-if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
+if (import.meta.main) {
   checkLockfile(fileURLToPath(new URL('..', import.meta.url))).then(
     () => console.log('Lockfile registry, integrity and workspace policy passed'),
     (error) => {

@@ -1,3 +1,4 @@
+import { deepStrictEqual } from 'node:assert'
 import { describe, expect, it, vi } from 'vitest'
 import { sourceHash } from '../../../core/src/contracts'
 import { packValue, unpackValue } from '../../../core/src/packing'
@@ -103,7 +104,7 @@ function verify(text: string, syntax: 'manuslip' | 'commonmark', rawHtml: boolea
     if (!result) throw new Error('Missing encoded projection')
     try {
       const expected = renderProjectionLayout(document.root, render, 64 * MiB)
-      expect(decode(result.value.payload)).toEqual({
+      deepStrictEqual(decode(result.value.payload), {
         layout: expected.layout,
         projection: { ...expected.projection, renderMs: 0 },
       })
@@ -130,7 +131,9 @@ function verify(text: string, syntax: 'manuslip' | 'commonmark', rawHtml: boolea
             projection: { ...expected.projection, renderMs: expect.any(Number) },
             layout: expected.layout,
           })
-          expect(output.value.payload).toEqual(
+          // Compare every wire byte without routing the complete packet through recursive matchers.
+          deepStrictEqual(
+            output.value.payload,
             packValue(
               {
                 document: { ...document, timings: actual.document.timings },
@@ -168,9 +171,10 @@ describe.each([
   { syntax: 'commonmark', rawHtml: false },
   { syntax: 'commonmark', rawHtml: true },
 ] as const)('complete $syntax render spools (raw HTML: $rawHtml)', ({ syntax, rawHtml }) => {
-  for (const example of examples)
-    it(`matches full HTML/widgets/layout for CommonMark ${example.example}`, () =>
-      verify(example.markdown, syntax, rawHtml))
+  it.each(examples)(
+    'matches full HTML/widgets/layout for CommonMark $example: $section',
+    (example) => verify(example.markdown, syntax, rawHtml),
+  )
   it.each([
     '',
     '\ufeff# Heading\r\n\r\n界😀\ud800 \udfff\r\n',
@@ -182,10 +186,11 @@ describe.each([
   )
 })
 
+// This full one-MiB oracle parses, validates and encodes both projection and snapshot output.
 it('preserves a complete one-MiB paragraph within the actual 64-slot Worker limit', () => {
   const sentence = 'A long paragraph keeps every word and its complete HTML output. '
   verify(`# Heading\n\n${sentence.repeat(Math.ceil(MiB / sentence.length))}`, 'manuslip', false)
-})
+}, 15_000)
 
 it.each(['before', 'body', 'release', 'dispose', 'wire failure'] as const)(
   'closes the render/encoding graph after %s',

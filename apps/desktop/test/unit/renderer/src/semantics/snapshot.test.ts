@@ -28,10 +28,10 @@ it('preserves the native transport capacity for a dense document near the messag
   const body = JSON.parse(new TextDecoder().decode(encoded.payload))
   expect(encoded.bytes).toBeLessThan(semanticLimits.messageBytes)
   expect(body.layout).toBeUndefined()
-  expect(body.document.root).toEqual(document.root)
+  expect(JSON.stringify(body.document.root)).toBe(JSON.stringify(document.root))
   expect(body.document.counts).toEqual(document.counts)
   expect(body.projection.html).toBe(renderMarkdown(document.root, options).html)
-})
+}, 20_000)
 
 it('transports the complete 1 MiB nested corpus within the retained snapshot budget', () => {
   const chunk = `${'> > > > > > > > Nested writing with **emphasis**, `code`, a [link][r] and enough prose to keep reading. '.repeat(3)}\n\nSeparate context.\n\n`

@@ -298,11 +298,12 @@ it('bounds aggregate reconstructed output and extraction depth without dropping 
   expect(() => plan(`${'> '.repeat(translationLimits.depth + 1)}Deep`)).toThrow('translation-limit')
 })
 
+// Preserve all 1,400 paragraphs and 280,000 code spans needed for the aggregate boundary.
 it('rejects aggregate canonical payload growth within the source byte cap', () => {
   const source = `Prose ${'`x` '.repeat(200)}\n\n`.repeat(1400)
   expect(utf8Bytes(source)).toBeLessThan(2 * 1024 * 1024)
   expect(() => plan(source)).toThrow('translation-limit')
-}, 15_000)
+}, 60_000)
 
 it('strictly limits the payload boundary to canonical text/token data', () => {
   const payload = plan('Read **text** with `code`.').units[0]?.payload

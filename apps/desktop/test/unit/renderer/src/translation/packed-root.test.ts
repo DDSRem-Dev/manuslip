@@ -50,8 +50,8 @@ const source =
 function operation(
   text = source,
   syntax: 'manuslip' | 'commonmark' = 'manuslip',
+  document = parseMarkdown(text, syntax),
 ): Extract<ReadingOperation, { kind: 'prepare-packed' }> {
-  const document = parseMarkdown(text, syntax)
   return {
     kind: 'prepare-packed',
     payload: packValue(document.root, 8 * MiB),
@@ -161,7 +161,7 @@ it('preserves every pinned CommonMark example through worker source validation a
     )
   }
 })
-it.each([
+for (const failure of [
   'hash',
   'source',
   'parser',
@@ -175,46 +175,53 @@ it.each([
   'bytes',
   'envelope',
   'expanded',
-] as const)('rejects %s without retaining a previous translation plan', async (failure) => {
-  const processor = new ReadingProcessor()
-  await processor.execute({
-    kind: 'prepare',
-    root: parseMarkdown('old').root,
-    source: 'old',
-    settings,
-  })
-  const op = operation()
-  if (failure === 'hash') op.identity.sourceHash = 'wrong'
-  if (failure === 'source') op.source = op.source.replace('Hello', 'Other')
-  if (failure === 'parser') op.identity.parserVersion = 'unknown'
-  if (failure === 'renderer') op.identity.rendererVersion = 'unknown'
-  if (failure === 'options-json') op.identity.options = '{'
-  if (failure === 'options-schema')
-    op.identity.options = JSON.stringify({ ...options, extra: true })
-  if (failure === 'geometry' || failure === 'schema') {
-    const root = structuredClone(parseMarkdown(source).root)
-    if (failure === 'geometry' && root.position) root.position.end.column++
-    if (failure === 'schema') Object.assign(root, { extra: true })
-    op.payload = packValue(root, 8 * MiB)
-  }
-  if (failure === 'wire') new Uint8Array(op.payload)[0] = 0
-  if (failure === 'trailing') {
-    const bytes = new Uint8Array(op.payload.byteLength + 1)
-    bytes.set(new Uint8Array(op.payload))
-    op.payload = bytes.buffer
-  }
-  if (failure === 'bytes') op.payload = new ArrayBuffer(8 * MiB)
-  if (failure === 'envelope') op.settings = { ...settings, targetLanguage: 'x'.repeat(8 * MiB) }
-  if (failure === 'expanded') {
-    // Tiny deduplicated wire, large logical tree: decoding alone is not a capacity proof.
-    const text = 'Hello\n\n'.repeat(20000)
-    Object.assign(op, operation(text))
-  }
-  await expect(processor.execute(op)).rejects.toThrow(/translation-(view-limit|view-worker|limit)/)
-  await expect(processor.execute({ kind: 'render', outputs: [], options })).rejects.toThrow(
-    'translation-view-worker',
+] as const)
+  it(
+    `rejects ${failure} without retaining a previous translation plan`,
+    async () => {
+      const processor = new ReadingProcessor()
+      await processor.execute({
+        kind: 'prepare',
+        root: parseMarkdown('old').root,
+        source: 'old',
+        settings,
+      })
+      const op = operation()
+      if (failure === 'hash') op.identity.sourceHash = 'wrong'
+      if (failure === 'source') op.source = op.source.replace('Hello', 'Other')
+      if (failure === 'parser') op.identity.parserVersion = 'unknown'
+      if (failure === 'renderer') op.identity.rendererVersion = 'unknown'
+      if (failure === 'options-json') op.identity.options = '{'
+      if (failure === 'options-schema')
+        op.identity.options = JSON.stringify({ ...options, extra: true })
+      if (failure === 'geometry' || failure === 'schema') {
+        const root = structuredClone(parseMarkdown(source).root)
+        if (failure === 'geometry' && root.position) root.position.end.column++
+        if (failure === 'schema') Object.assign(root, { extra: true })
+        op.payload = packValue(root, 8 * MiB)
+      }
+      if (failure === 'wire') new Uint8Array(op.payload)[0] = 0
+      if (failure === 'trailing') {
+        const bytes = new Uint8Array(op.payload.byteLength + 1)
+        bytes.set(new Uint8Array(op.payload))
+        op.payload = bytes.buffer
+      }
+      if (failure === 'bytes') op.payload = new ArrayBuffer(8 * MiB)
+      if (failure === 'envelope') op.settings = { ...settings, targetLanguage: 'x'.repeat(8 * MiB) }
+      if (failure === 'expanded') {
+        // Tiny deduplicated wire, large logical tree: decoding alone is not a capacity proof.
+        const text = 'Hello\n\n'.repeat(20000)
+        Object.assign(op, operation(text))
+      }
+      await expect(processor.execute(op)).rejects.toThrow(
+        /translation-(view-limit|view-worker|limit)/,
+      )
+      await expect(processor.execute({ kind: 'render', outputs: [], options })).rejects.toThrow(
+        'translation-view-worker',
+      )
+    },
+    failure === 'expanded' ? 20_000 : undefined,
   )
-})
 it('produces the same provider units and final reading copy from packed and native captures', async () => {
   const engines = [new ReadingProcessor(), new ReadingProcessor()]
   const native = { kind: 'prepare' as const, root: parseMarkdown(source).root, source, settings }
@@ -569,8 +576,11 @@ it('fully translates the authoritative nested source without retaining reconstru
   expect(createHash('sha256').update(text).digest('hex')).toBe(
     '93840405600f54e8014aa52af0dbb30d5e844e3fbfe9656296330807064026c3',
   )
-  const processor = new ReadingProcessor(),
-    prepared = await processor.execute(operation(text))
+  // Packing and every native layout oracle share this immutable parse; the worker
+  // receives only the independently validated packed bytes.
+  const document = parseMarkdown(text),
+    processor = new ReadingProcessor(),
+    prepared = await processor.execute(operation(text, 'manuslip', document))
   if (prepared.kind !== 'prepared') throw new Error('Not prepared')
   expect(prepared.units).toHaveLength(6299)
   const outputs = [
@@ -592,7 +602,7 @@ it('fully translates the authoritative nested source without retaining reconstru
   if (rendered.kind !== 'rendered') throw new Error('Not rendered')
   expect(rendered.projection.html.match(/Translated /g)).toHaveLength(6299)
   expect(rendered.projection.html.match(/<code>code<\/code>/g)).toHaveLength(9447)
-  const root = parseMarkdown(text).root,
+  const root = document.root,
     plan = extractTranslation(root, text)
   const rebuilt = reconstructTranslation(
     plan,
@@ -600,20 +610,24 @@ it('fully translates the authoritative nested source without retaining reconstru
   )
   expect(rebuilt.statuses.every((status) => status.status === 'translated')).toBe(true)
   const { renderReading } = await import('@manuslip/renderer/reading')
-  const oracle = renderReading(root, rebuilt.root, options, {
-    layout: 'replace',
+  const nativeOptions = {
     blocks: prepared.blocks,
     units: plan.units,
     translated: new Set(plan.units.map((unit) => `${unit.from}:${unit.to}`)),
     labels: { original: 'Original', translation: 'Translation' },
     sourceLanguage: settings.sourceLanguage,
     targetLanguage: settings.targetLanguage,
+  }
+  const oracle = renderReading(root, rebuilt.root, options, {
+    ...nativeOptions,
+    layout: 'replace',
   })
   const digest = (value: unknown) =>
     createHash('sha256')
       .update(JSON.stringify(value).replace(/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}/g, 'UUID'))
       .digest('hex')
-  expect(digest(rendered.projection)).toBe(digest(oracle))
+  const oracleDigest = digest(oracle)
+  expect(digest(rendered.projection)).toBe(oracleDigest)
   expect(messageSize(rendered.projection) * 2).toBe(7941406)
   expect(processor.stats.retainedBytes).toBeLessThan(readingLimits.worker)
   for (const layout of ['side-by-side', 'interlinear'] as const) {
@@ -627,15 +641,7 @@ it('fully translates the authoritative nested source without retaining reconstru
     if (result.kind !== 'rendered') throw new Error('Not rendered')
     expect(result.projection.indexed?.order).toHaveLength(6299)
     expect(readingProjectionBytes(result.projection)).toBeLessThan(readingLimits.projection)
-    const native = renderReading(root, rebuilt.root, options, {
-      layout,
-      blocks: prepared.blocks,
-      units: plan.units,
-      translated: new Set(plan.units.map((unit) => `${unit.from}:${unit.to}`)),
-      labels: { original: 'Original', translation: 'Translation' },
-      sourceLanguage: settings.sourceLanguage,
-      targetLanguage: settings.targetLanguage,
-    })
+    const native = renderReading(root, rebuilt.root, options, { ...nativeOptions, layout })
     expect(
       digest({
         ...result.projection,
@@ -651,9 +657,9 @@ it('fully translates the authoritative nested source without retaining reconstru
     options,
   })
   if (retry.kind !== 'rendered') throw new Error('Not rendered')
-  expect(digest(retry.projection)).toBe(digest(oracle))
+  expect(digest(retry.projection)).toBe(oracleDigest)
   processor.clear()
-}, 60_000)
+}, 180_000)
 it('serializes cooperatively and transfers only the complete root, with independent worker ownership', async () => {
   const f = capture(),
     queue = scheduler(),

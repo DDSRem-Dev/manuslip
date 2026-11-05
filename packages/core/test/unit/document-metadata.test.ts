@@ -123,7 +123,8 @@ describe('complete fragment parser metadata', () => {
       context.capture.release()
       context.owner.dispose()
     }
-  })
+    // Full 1 MiB parsing, oracle counts and both staging-boundary passes are correctness work.
+  }, 30_000)
 
   it.each([
     'Ordinary writing.\n\n# Last\n',

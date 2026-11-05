@@ -167,15 +167,21 @@ it.each(['prose', 'tokens', 'protected-whitespace'] as const)(
     else expect(shared.units[0]).toMatchObject({ payload: null, error: 'translation-unit-large' })
   },
 )
-it('retains logical unit/payload/depth caps despite canonical sharing', () => {
+// Exercise each logical cap independently without reducing the full boundary fixtures.
+it('retains the logical unit cap despite canonical sharing', () => {
   const units = 'Hello\n\n'.repeat(translationLimits.units + 1)
   expect(() => extractSharedTranslation(parseMarkdown(units).root, units, limits)).toThrow(
     'translation-limit',
   )
+}, 15_000)
+it('retains the logical depth cap despite canonical sharing', () => {
   const depth = `${'> '.repeat(translationLimits.depth + 1)}Hello`
   expect(() => extractSharedTranslation(parseMarkdown(depth).root, depth, limits)).toThrow(
     'translation-limit',
   )
+})
+// All 1,400 paragraphs and 280,000 code spans are needed to reach the aggregate payload cap.
+it('retains the logical payload cap despite canonical sharing', () => {
   const payloads = `Prose ${'`x` '.repeat(200)}\n\n`.repeat(1400)
   expect(() =>
     extractSharedTranslation(parseMarkdown(payloads).root, payloads, {
@@ -183,7 +189,7 @@ it('retains logical unit/payload/depth caps despite canonical sharing', () => {
       staging: 8 * MiB,
     }),
   ).toThrow('translation-limit')
-}, 15_000)
+}, 60_000)
 describe('canonical shared plans match pinned CommonMark extraction', () => {
   it.each(examples)('$example: $section', (example) => {
     const root = parseMarkdown(example.markdown, 'commonmark').root

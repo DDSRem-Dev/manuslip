@@ -42,6 +42,9 @@ deriving child paths or authorization grants. macOS temporary roots can pass thr
 `/var` symlinks; Windows temporary roots can use 8.3 aliases. Production grants require
 canonical paths, so fixtures must use the same path identity rather than weakening
 authorization checks.
+The lockfile CLI regression also invokes the script through an aliased directory and
+requires unsafe inputs to exit nonzero. Its entrypoint uses Node 24's `import.meta.main`;
+comparing the raw argument path with the canonical module URL can silently skip validation.
 
 Keep the complete CommonMark corpus and size-dependent admission/boundary fixtures.
 For expensive immutable inputs, share parsing and preparation across translation states

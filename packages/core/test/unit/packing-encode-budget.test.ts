@@ -1,4 +1,5 @@
-import { expect, it, vi } from 'vitest'
+import { deepStrictEqual } from 'node:assert'
+import { describe, expect, it, vi } from 'vitest'
 import { packValue, packValueSteps, unpackValue } from '../../src/packing'
 import { PackedWriter } from '../../src/packing-bytes'
 import { PackedEncodingBudget } from '../../src/packing-encode-budget'
@@ -124,16 +125,18 @@ it('preserves independently written record IDs across high/low halves, order, le
   for (const reference of [0, 1, 2, 3, 4, 2, 5, 6, 6, 7, 7]) oracle.uint(count + reference)
   oracle.uint(count + 8)
   const payload = packValue(input, 2 * MiB, limits)
-  expect(new Uint8Array(payload)).toEqual(new Uint8Array(oracle.finish()))
+  // Compare all wire bytes and 65,538 seed values without recursive matcher overhead.
+  deepStrictEqual(new Uint8Array(payload), new Uint8Array(oracle.finish()))
   const decoded = unpackValue(payload, { bytes: 2 * MiB, retained: 16 * MiB, staging: 8 * MiB })
     .value as unknown[]
-  expect(decoded).toEqual(input)
+  deepStrictEqual(decoded, input)
   expect(decoded[5]).toBe(decoded[2])
   expect(decoded[7]).toBe(decoded[8])
   expect(decoded[9]).toBe(decoded[10])
   expect(decoded[6]).not.toBe(decoded[7])
   expect(new Set(decoded.slice(1, 5)).size).toBe(4)
-})
+  // The full-width boundary fixture also completes encoding and independent decoding.
+}, 30_000)
 
 it('can cancel while hashing a wide record without publishing a buffer', () => {
   const original = PackedRecordIndex.prototype.lookupSteps
@@ -199,20 +202,20 @@ it('interns full-width position coordinates exactly and preserves the independen
   expect(packValue(decoded, MiB, limits)).toEqual(payload)
 })
 
-it.each(['commonmark', 'manuslip'] as const)(
-  'preserves exact legacy bytes and complete parser roots for every CommonMark example in %s',
-  (syntax) => {
-    for (const example of examples) {
-      const document = parseMarkdown(example.markdown, syntax)
+describe.each(['commonmark', 'manuslip'] as const)('budgeted %s CommonMark encoding', (syntax) => {
+  it.each(examples)(
+    'preserves exact legacy bytes and the complete parser root for CommonMark $example',
+    ({ markdown }) => {
+      const document = parseMarkdown(markdown, syntax)
       const input = { root: document.root, counts: document.counts }
       const encoded = packValue(input, 8 * MiB, limits)
-      expect(new Uint8Array(encoded)).toEqual(new Uint8Array(packValue(input, 8 * MiB)))
+      deepStrictEqual(new Uint8Array(encoded), new Uint8Array(packValue(input, 8 * MiB)))
       expect(
         unpackValue(encoded, { bytes: 8 * MiB, retained: 32 * MiB, staging: 8 * MiB }).value,
       ).toEqual(input)
-    }
-  },
-)
+    },
+  )
+})
 
 it('preserves Unicode, hostile own fields, shared references and compact positions', () => {
   const text = Array.from({ length: 65536 }, (_, unit) => String.fromCharCode(unit)).join('')

@@ -196,13 +196,13 @@ describe('complete word collection with paired document and text baselines', () 
     }
   })
 
-  it.each(['commonmark', 'manuslip'] as const)(
-    'preserves every CommonMark document and its complete Intl input with paired %s caches',
-    (syntax) => {
-      for (const example of examples) {
-        const context = fixture(example.markdown, syntax)
+  describe.each(['commonmark', 'manuslip'] as const)('paired %s caches', (syntax) => {
+    it.each(examples)(
+      'preserves CommonMark $example and its complete Intl input',
+      ({ markdown }) => {
+        const context = fixture(markdown, syntax)
         const words = pairedWords(context)
-        const next = context.delta(example.markdown, {}, () => [])
+        const next = context.delta(markdown, {}, () => [])
         const before = context.owner.stats
         const segment = vi.spyOn(Intl.Segmenter.prototype, 'segment')
         try {
@@ -225,9 +225,9 @@ describe('complete word collection with paired document and text baselines', () 
           segment.mockRestore()
           context.owner.dispose()
         }
-      }
-    },
-  )
+      },
+    )
+  })
 
   it.each([false, true])(
     'joins edited text and shifted cached multilingual subtrees with shared metadata=%s',

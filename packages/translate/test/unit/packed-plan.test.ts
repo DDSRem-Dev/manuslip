@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { deepStrictEqual } from 'node:assert'
 import { parseMarkdown, sourceHash } from '@manuslip/core'
 import { expect, it } from 'vitest'
 import { packValue } from '../../../core/src/packing'
@@ -23,7 +23,6 @@ const limits = {
 }
 const occurrence = ({ from, to, kind }: { from: number; to: number; kind: UnitKind }) =>
   `${kind}:${from}:${to}`
-const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex')
 const path = ['document', 'root'] as const
 function fixture(text: string, syntax: 'commonmark' | 'manuslip' = 'manuslip', prepared = false) {
   const document = parseMarkdown(text, syntax)
@@ -74,8 +73,9 @@ function fixture(text: string, syntax: 'commonmark' | 'manuslip' = 'manuslip', p
   }
 }
 
-it('preserves all CommonMark occurrence metadata and re-reads exact private bindings', () => {
-  for (const example of examples) {
+it.each(examples)(
+  'preserves CommonMark $example: $section occurrence metadata and exact private bindings',
+  (example) => {
     const f = fixture(example.markdown, 'commonmark')
     let plan: PackedTranslationPlan | undefined
     try {
@@ -103,8 +103,8 @@ it('preserves all CommonMark occurrence metadata and re-reads exact private bind
       plan?.release()
       f.close()
     }
-  }
-}, 30000)
+  },
+)
 
 it('shares provider payloads while reconstructing each occurrence with its own private nodes', async () => {
   const f = fixture(
@@ -364,6 +364,7 @@ it('finishes revoking every inspection when an inspector throws during cancellat
   }
 })
 
+// Keep the complete one-MiB nested fixture, native extraction and all 6,299 private-unit reads.
 it('keeps all complete nested occurrences and rehydrates every unit within the original session limits', () => {
   const chunk = `${'> > > > > > > > Nested writing with **emphasis**, `code`, a [link][r] and enough prose to keep reading. '.repeat(3)}\n\nSeparate context.\n\n`
   const text = `# nested-containers\n\n${chunk.repeat(Math.ceil(1048576 / Buffer.byteLength(chunk)))}\n[r]: https://example.invalid/\n`
@@ -380,9 +381,10 @@ it('keeps all complete nested occurrences and rehydrates every unit within the o
     expect(plan.cost.peakBytes).toBeLessThan(limits.retained)
     const retained = f.owner.stats
     let index = 0
+    // Check every field directly instead of serializing and hashing both units for each occurrence.
     finishPackedSteps(
       plan.inspectUnits(function* (unit) {
-        expect(hash(unit)).toBe(hash(native.units[index++]))
+        deepStrictEqual(unit, native.units[index++])
         yield
       }),
     )
@@ -394,7 +396,7 @@ it('keeps all complete nested occurrences and rehydrates every unit within the o
     plan?.release()
     f.close()
   }
-}, 30000)
+}, 60_000)
 
 it.each(['cancel', 'release', 'dispose', 'throw'] as const)(
   'revokes borrowed projections and restores ownership after %s',
