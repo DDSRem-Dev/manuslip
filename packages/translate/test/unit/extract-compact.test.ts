@@ -20,16 +20,15 @@ const values = (plan: TranslationPlan) =>
   new Map(
     plan.units.map((unit) => [unit.occurrenceId, unit.payload?.text.replaceAll('Hello', '你好')]),
   )
+function makeId() {
+  let id = 0
+  return () => `unit-${id++}`
+}
 function plans(source: string) {
   const root = parseMarkdown(source).root
-  const makeId = () => {
-    let id = 0
-    return () => `unit-${id++}`
-  }
   return {
     root,
     compact: extractCompactTranslation(root, source, limits, makeId()),
-    shared: extractSharedTranslation(root, source, limits, makeId()),
     native: extractTranslation(root, source, makeId()),
   }
 }
@@ -47,7 +46,8 @@ it.each(examples)('preserves all values and reconstruction for CommonMark $examp
 it('stores private node references while snapshots expose exact immutable binding values', async () => {
   const source =
     'Hello **world** with `FIRST` and [label](https://first.invalid/).\n\nHello **world** with `SECOND` and [label](https://second.invalid/).'
-  const { root, compact, shared, native } = plans(source),
+  const { root, compact, native } = plans(source),
+    shared = extractSharedTranslation(root, source, limits, makeId()),
     first = compact.units[0],
     second = compact.units[1]
   if (!first?.payload || !second?.payload) throw new Error('No prose')
@@ -95,9 +95,12 @@ it('preserves grouped HTML, literals, Unicode, whitespace and source-only fallba
   )
   expect(result.statuses.at(-1)?.status).toBe('limit')
 })
-it('enforces complete extraction admission, logical token/unit/payload limits and source reuse', () => {
+// Keep the complete 100 × 200-binding fixture; combined admission checks took 5.6s on Intel CI.
+it('enforces complete extraction admission and source reuse', () => {
   const source = `Hello ${'`PRIVATE` '.repeat(200)}\n\n`.repeat(100),
-    { root, compact, shared } = plans(source),
+    root = parseMarkdown(source).root,
+    compact = extractCompactTranslation(root, source, limits, makeId()),
+    shared = extractSharedTranslation(root, source, limits, makeId()),
     before = JSON.stringify(root)
   expect(compact.cost.retainedBytes).toBeLessThan(shared.cost.retainedBytes / 2)
   expect(() =>
@@ -108,22 +111,26 @@ it('enforces complete extraction admission, logical token/unit/payload limits an
         retained: compact.cost.peakBytes - 1,
         staging: limits.staging,
       },
-      (() => {
-        let id = 0
-        return () => `unit-${id++}`
-      })(),
+      makeId(),
     ),
   ).toThrow('translation-limit')
   expect(JSON.stringify(root)).toBe(before)
   expect(extractCompactTranslation(root, source, limits).units).toHaveLength(100)
-  const oversized = `Hello ${'`x` '.repeat(translationLimits.tokens + 1)}`
-  expect(plans(oversized).compact.units[0]?.error).toBe('translation-unit-large')
-  const units = 'Hello\n\n'.repeat(translationLimits.units + 1)
-  expect(() => extractCompactTranslation(parseMarkdown(units).root, units, limits)).toThrow(
+}, 30_000)
+it('enforces the logical token limit despite compact storage', () => {
+  const source = `Hello ${'`x` '.repeat(translationLimits.tokens + 1)}`
+  const compact = extractCompactTranslation(parseMarkdown(source).root, source, limits, makeId())
+  expect(compact.units[0]?.error).toBe('translation-unit-large')
+})
+// Parse all 10,001 paragraphs before checking admission, independently of token-heavy setup.
+it('enforces the logical unit limit despite source reuse', () => {
+  const source = 'Hello\n\n'.repeat(translationLimits.units + 1)
+  expect(() => extractCompactTranslation(parseMarkdown(source).root, source, limits)).toThrow(
     'translation-limit',
   )
-})
-it('retains logical aggregate payload and depth limits despite compact storage', () => {
+}, 30_000)
+// The complete aggregate-payload/depth check took 12.6s on Intel CI.
+it('retains the logical aggregate payload limit despite compact storage', () => {
   const chunk = `Hello ${'`x` '.repeat(256)}\n\n`,
     payload = extractTranslation(parseMarkdown(chunk).root, chunk).units[0]?.payload
   if (!payload) throw new Error('No payload')
@@ -133,6 +140,8 @@ it('retains logical aggregate payload and depth limits despite compact storage',
   const root = parseMarkdown(source).root
   expect(() => extractCompactTranslation(root, source, limits)).toThrow('translation-limit')
   expect(() => extractTranslation(root, source)).toThrow('translation-limit')
+}, 30_000)
+it('retains the logical depth limit despite compact storage', () => {
   const paragraph = parseMarkdown('Hello').root.children[0]
   if (paragraph?.type !== 'paragraph') throw new Error('No prose')
   let nested: Extract<Root['children'][number], { type: 'paragraph' | 'blockquote' }> = paragraph
@@ -141,4 +150,4 @@ it('retains logical aggregate payload and depth limits despite compact storage',
   expect(() =>
     extractCompactTranslation({ type: 'root', children: [nested] }, 'Hello', limits),
   ).toThrow('translation-limit')
-}, 15_000)
+})

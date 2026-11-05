@@ -44,7 +44,7 @@ jobs:
     name: Verify (${{ matrix.os }})
     if: github.event_name != 'schedule'
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -70,7 +70,9 @@ jobs:
 
       - run: npm run check
 
-      - run: npm run test:unit
+      # Dense correctness fixtures need CPU/memory headroom on shared runners.
+      # Keep failure reports bounded instead of expanding every passed corpus case.
+      - run: npm run test:unit -- --maxWorkers=2 --reporter=dot
 
       - run: npm run test:integration
 

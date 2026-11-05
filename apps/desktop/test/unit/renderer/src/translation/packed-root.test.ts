@@ -518,13 +518,14 @@ it('reprojects changed raw-HTML policy and localized footnotes from the same val
   }
 })
 
-// Includes complete native reconstruction/rendering of 134,400 protected occurrences.
+// All three complete layout/native-oracle pairs took 60.6 s on instrumented Intel CI.
 // Worker latency is measured separately in packaged tests.
 it('fully translates 280 compact-bound units and preserves all 67,200 protected occurrences across reading layouts', async () => {
   const text = `Prose ${'`PRIVATE` '.repeat(240)}\n\n`.repeat(280),
+    document = parseMarkdown(text),
     processor = new ReadingProcessor()
   try {
-    const prepared = await processor.execute(operation(text))
+    const prepared = await processor.execute(operation(text, 'manuslip', document))
     if (prepared.kind !== 'prepared') throw new Error('Not prepared')
     const first = prepared.units[0]
     if (!first?.payload || !first.key) throw new Error('No prose')
@@ -532,7 +533,7 @@ it('fully translates 280 compact-bound units and preserves all 67,200 protected 
     expect(new Set(prepared.units.map((unit) => unit.key)).size).toBe(1)
     const output = first.payload.text.replace('Prose', 'Translated')
     expect(JSON.stringify(first.payload)).not.toContain('PRIVATE')
-    const root = parseMarkdown(text).root,
+    const root = document.root,
       plan = extractTranslation(root, text),
       rebuilt = reconstructTranslation(
         plan,
@@ -540,8 +541,13 @@ it('fully translates 280 compact-bound units and preserves all 67,200 protected 
       )
     expect(rebuilt.statuses.every((status) => status.status === 'translated')).toBe(true)
     const { renderReading } = await import('@manuslip/renderer/reading')
-    const normalize = (value: unknown) =>
-      JSON.stringify(value).replaceAll(/[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}/g, 'ID')
+    const digest = (value: unknown) =>
+      createHash('sha256')
+        .update(
+          JSON.stringify(value).replaceAll(/[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}/g, 'ID'),
+        )
+        .digest('hex')
+    const translated = new Set(plan.units.map((unit) => `${unit.from}:${unit.to}`))
     // Preparation and the independent native reconstruction are layout-independent.
     for (const layout of ['replace', 'side-by-side', 'interlinear'] as const) {
       const rendered = await processor.execute({
@@ -559,17 +565,17 @@ it('fully translates 280 compact-bound units and preserves all 67,200 protected 
         layout,
         blocks: prepared.blocks,
         units: prepared.units,
-        translated: new Set(plan.units.map((unit) => `${unit.from}:${unit.to}`)),
+        translated,
         labels: { original: 'Original', translation: 'Translation' },
         sourceLanguage: settings.sourceLanguage,
         targetLanguage: settings.targetLanguage,
       })
-      expect(normalize(rendered.projection), layout).toBe(normalize(oracle))
+      expect(digest(rendered.projection), layout).toBe(digest(oracle))
     }
   } finally {
     processor.clear()
   }
-}, 60000)
+}, 180_000)
 it('fully translates the authoritative nested source without retaining reconstructed ancestors', async () => {
   const chunk = `${'> > > > > > > > Nested writing with **emphasis**, `code`, a [link][r] and enough prose to keep reading. '.repeat(3)}\n\nSeparate context.\n\n`
   const text = `# nested-containers\n\n${chunk.repeat(Math.ceil(1048576 / Buffer.byteLength(chunk)))}\n[r]: https://example.invalid/\n`

@@ -127,34 +127,41 @@ function verify(text: string, syntax: 'commonmark' | 'manuslip', render = option
 }
 
 describe('capture-owned packed projection output', () => {
-  it.each(['commonmark', 'manuslip'] as const)(
+  describe.each(['commonmark', 'manuslip'] as const)(
     'renders complete HTML, widgets and layout for all CommonMark fixtures in %s',
     (syntax) => {
-      for (const example of examples) verify(example.markdown, syntax)
+      it.each(examples)('CommonMark $example: $section', (example) => {
+        verify(example.markdown, syntax)
+      })
     },
   )
-  it.each([false, true])(
+  const cases = [
+    '',
+    '\ufeff',
+    '\ufeff# title\r\n\r\nparagraph\r\n',
+    '---\nheading: hidden\n---\n\n[r]: /first\n\n[a][r]\n\n[r]: /second\n\n![b][r]\n',
+    '> [r]: /nested\n>\n> definition\n\n[a][r]\n\n[r]: /later\n',
+    'First[^a].\n\nSecond[^b] and again[^a].\n\n[^a]: A with [^c]\n\n[^b]: B with [^c] and [^a]\n\n[^c]: C with [^a]\n',
+    '[^x]: first\n\n[^x]: duplicate\n\nOne[^x].\n\nTwo[^x].\n',
+    '[^unused]: ```mermaid\n    graph TD; A-->B\n    ```\n\nText only\n',
+    'a[^x]\n\n[^x]: note\n\n    > [r]: /inside-note\n    >\n    > $x$ and ![a][r]\n\n[a][r]\n',
+    '| ![a](https://example.com/a.png) |\n| - |\n| $x$ |\n\n$$\ny^2\n$$\n',
+    '- [x] task\n- [ ] task\n\n> > ```ts\n> > const x = 1\n> > ```\n',
+    '<script>alert(1)</script>\n\n[a](javascript:alert(1)) ![](../../local.png) <i>x</i>\n',
+    '[x](https://例え.test/界 "a & b ` c") ![a](data:image/png;base64,YQ==)\n',
+    '[Straße]: /url\n\n[a][STRASSE]\n\n[^界😀\ud800]: note\n\nx[^界😀\ud800]\n',
+    `~~~${'x'.repeat(20000)}\ncode\n~~~\n`,
+    '| a | b | c |\n| - | - | - |\n| short |\n',
+  ]
+  describe.each([false, true])(
     'preserves all extensions and global context with rawHtml=%s',
     (rawHtml) => {
-      for (const text of [
-        '',
-        '\ufeff',
-        '\ufeff# title\r\n\r\nparagraph\r\n',
-        '---\nheading: hidden\n---\n\n[r]: /first\n\n[a][r]\n\n[r]: /second\n\n![b][r]\n',
-        '> [r]: /nested\n>\n> definition\n\n[a][r]\n\n[r]: /later\n',
-        'First[^a].\n\nSecond[^b] and again[^a].\n\n[^a]: A with [^c]\n\n[^b]: B with [^c] and [^a]\n\n[^c]: C with [^a]\n',
-        '[^x]: first\n\n[^x]: duplicate\n\nOne[^x].\n\nTwo[^x].\n',
-        '[^unused]: ```mermaid\n    graph TD; A-->B\n    ```\n\nText only\n',
-        'a[^x]\n\n[^x]: note\n\n    > [r]: /inside-note\n    >\n    > $x$ and ![a][r]\n\n[a][r]\n',
-        '| ![a](https://example.com/a.png) |\n| - |\n| $x$ |\n\n$$\ny^2\n$$\n',
-        '- [x] task\n- [ ] task\n\n> > ```ts\n> > const x = 1\n> > ```\n',
-        '<script>alert(1)</script>\n\n[a](javascript:alert(1)) ![](../../local.png) <i>x</i>\n',
-        '[x](https://例え.test/界 "a & b ` c") ![a](data:image/png;base64,YQ==)\n',
-        '[Straße]: /url\n\n[a][STRASSE]\n\n[^界😀\ud800]: note\n\nx[^界😀\ud800]\n',
-        `~~~${'x'.repeat(20000)}\ncode\n~~~\n`,
-        '| a | b | c |\n| - | - | - |\n| short |\n',
-      ])
-        verify(text, 'manuslip', { ...options, rawHtml })
+      it.each(cases.map((text, index) => ({ text, example: index + 1 })))(
+        'extension case $example',
+        ({ text }) => {
+          verify(text, 'manuslip', { ...options, rawHtml })
+        },
+      )
     },
   )
   it('keeps a 400,000-unit Unicode widget within simultaneous local admission', () => {

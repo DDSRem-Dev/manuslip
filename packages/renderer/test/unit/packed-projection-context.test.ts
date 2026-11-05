@@ -122,10 +122,12 @@ function validate(text: string, syntax: 'commonmark' | 'manuslip' = 'manuslip', 
 }
 
 describe('capture-owned packed projection context', () => {
-  it.each(['commonmark', 'manuslip'] as const)(
+  describe.each(['commonmark', 'manuslip'] as const)(
     'collects exact context for every CommonMark fixture in %s',
     (syntax) => {
-      for (const example of examples) validate(example.markdown, syntax)
+      it.each(examples)('CommonMark $example: $section', (example) => {
+        validate(example.markdown, syntax)
+      })
     },
   )
   const cases = [
@@ -142,10 +144,15 @@ describe('capture-owned packed projection context', () => {
     '[Straße]: /url\n\n[a][STRASSE]\n\n[^界😀]: note\n\nx[^界😀]\n',
     `text[^a]\n\n[^a]: ${'a界😀\ud800'.repeat(3000)}\n`,
   ]
-  it.each([false, true])(
+  describe.each([false, true])(
     'preserves duplicate/nested definitions and complete footnotes with rawHtml=%s',
     (rawHtml) => {
-      for (const text of cases) validate(text, 'manuslip', { ...options, rawHtml })
+      it.each(cases.map((text, index) => ({ text, example: index + 1 })))(
+        'extension case $example',
+        ({ text }) => {
+          validate(text, 'manuslip', { ...options, rawHtml })
+        },
+      )
     },
   )
   it('does not decode unrelated prose while collecting context', () => {

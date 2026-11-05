@@ -10,7 +10,6 @@ import {
   type ReadingEngine,
   type ReadingOperation,
   readingLimits,
-  readingOperationBytes,
 } from '../../../../../src/renderer/src/translation/protocol'
 import type { Result } from '../../../../../src/shared/contracts'
 import type {
@@ -818,20 +817,21 @@ it('composition and stale Retry Failed are blocked without sending prose', async
   expect(f.reading.store.getState().error).toBe('translation-refresh-first')
 })
 
+// The complete output-budget boundary took 17.2 s on the instrumented Intel CI runner.
 it('buffers 16 MiB of output and publishes it in bounded messages, excluding excess units', async () => {
   const f = setup(Array.from({ length: 40 }, (_, index) => `Paragraph ${index}.`).join('\n\n'))
   await f.reading.start(true)
   const engine = f.engines[0]
   if (!engine) throw new Error('No engine')
   const original = engine.request.bind(engine)
-  const renders: ReadingOperation[] = []
-  engine.request = vi.fn((operation) => {
-    if (operation.kind !== 'render') return original(operation)
-    renders.push(operation)
+  const renders: Extract<ReadingOperation, { kind: 'render' }>[] = []
+  engine.request = (operation) => {
+    if (operation.kind === 'render') renders.push(operation)
     return original(operation)
-  })
+  }
+  const output = `T${'\n'.repeat(249_999)}`
   for (let index = 0; index < 40; index++) {
-    f.finish(index, `T${'\n'.repeat(249_999)}`)
+    f.finish(index, output)
     await vi.advanceTimersByTimeAsync(1)
   }
   await vi.advanceTimersByTimeAsync(1600)
@@ -842,15 +842,16 @@ it('buffers 16 MiB of output and publishes it in bounded messages, excluding exc
     failed: 7,
     unitError: 'translation-view-limit',
   })
+  // Native JSON sizing is independent of the incremental production byte counter.
   expect(
-    renders.every((operation) => readingOperationBytes(operation) <= readingLimits.message),
+    renders.every(
+      (operation) => Buffer.byteLength(JSON.stringify(operation)) <= readingLimits.message,
+    ),
   ).toBe(true)
-  expect(
-    renders.flatMap((operation) => (operation.kind === 'render' ? operation.outputs : [])),
-  ).toHaveLength(33)
+  expect(renders.flatMap((operation) => operation.outputs)).toHaveLength(33)
   expect(f.reading.store.getState().projection?.html).toContain('T\n')
   expect(f.reading.captureExport().reading.units).toHaveLength(33)
-}, 15_000)
+}, 30_000)
 
 it('an oversized unit keeps source without issuing a provider request', async () => {
   const f = setup('x'.repeat(70_000))

@@ -319,6 +319,7 @@ describe('context collected during complete warm snapshot validation', () => {
     }
   })
 
+  // Full 1 MiB parse/render, three baselines and collection took 23.9s on Intel CI.
   it('admits a complete 1 MiB dense warm document without restarting validation', () => {
     const paragraph = 'A small paragraph. One more short sentence for the next block.\n\n'
     const context = paired(paragraph.repeat(Math.ceil(MiB / paragraph.length)))
@@ -359,7 +360,7 @@ describe('context collected during complete warm snapshot validation', () => {
       segment.mockRestore()
       context.owner.dispose()
     }
-  }, 15_000)
+  }, 60_000)
 
   it('admits the complete join and Intl phase before allocating it or publishing context', () => {
     const context = paired('word '.repeat(90000))

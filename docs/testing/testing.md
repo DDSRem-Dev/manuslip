@@ -164,6 +164,10 @@ CI runs verification on Linux x64, Windows x64 and macOS x64/arm64. Each verify 
 validates the lockfile before `npm ci`, then runs `npm run check`, `npm run test:unit`,
 `npm run test:integration`, `npm run test:packaging` and `npm run build:app`.
 Each verify job also runs the missing/invalid Pandoc UI workflow without installing Pandoc.
+The CI unit command adds `--maxWorkers=2 --reporter=dot`: fewer simultaneous dense
+fixtures leave CPU/memory headroom, and failed corpus cases do not expand every passing
+example in the log. Each verify job has a 25-minute ceiling covering installation, all
+suites, build and desktop smoke; individual correctness tests remain separately bounded.
 
 Real Pandoc conversions and the full packaged desktop E2E suite run through separate
 manual workflows. In GitHub Actions, select [Pandoc](../../.github/workflows/pandoc.yml) or

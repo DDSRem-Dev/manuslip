@@ -400,21 +400,20 @@ describe('isolated SQLite translation persistence', () => {
     })
     expect(cache.execute({ kind: 'clear' }).status).toBe('ready')
   })
+  // Exercise all 400 durable SQLite writes; this is a storage boundary, not a latency gate.
   it('evicts under physical page pressure before the logical budget is full', async () => {
     const { path } = await location()
     // Scale 256:320 MiB down to 1:1.25 MiB, including real overflow/index pages.
     const cache = store(path, 1024 * 1024)
     const db = Reflect.get(cache, 'database') as DatabaseSync
     db.exec('PRAGMA max_page_count=320')
+    const output = 'x'.repeat(5500)
     for (let index = 0; index < 400; index++) {
       const entryKey = index.toString(16).padStart(32, '0')
-      expect(
-        cache.execute({ kind: 'put', scope, key: entryKey, payload, output: 'x'.repeat(5500) })
-          .status,
-      ).toBe('ready')
-      expect(cache.execute({ kind: 'get', scope, key: entryKey, payload }).output).toHaveLength(
-        5500,
+      expect(cache.execute({ kind: 'put', scope, key: entryKey, payload, output }).status).toBe(
+        'ready',
       )
+      expect(cache.execute({ kind: 'get', scope, key: entryKey, payload }).output).toBe(output)
     }
     expect(cache.execute({ kind: 'get', scope, key: '0'.repeat(32), payload }).output).toBeNull()
     expect(Number(db.prepare('PRAGMA page_count').get()?.page_count)).toBeLessThanOrEqual(320)
@@ -429,8 +428,8 @@ describe('isolated SQLite translation persistence', () => {
         key: (399).toString(16).padStart(32, '0'),
         payload,
       }).output,
-    ).toHaveLength(5500)
-  })
+    ).toBe(output)
+  }, 30000)
   it('coalesces repeated hits into one durable LRU update without extending TTL', async () => {
     const { path } = await location()
     let now = Date.now()

@@ -465,6 +465,7 @@ describe('application packed semantic receiver', () => {
     }
   })
 
+  // Full optional-prose reclamation took 8.2 s on the instrumented Intel CI runner.
   it.each(['forged words', 'cancelled retry'] as const)(
     'withholds acknowledgement for %s after reclaiming optional prose',
     (outcome) => {
@@ -503,8 +504,9 @@ describe('application packed semantic receiver', () => {
             expect(() => finishPackedSteps(work)).toThrow(/Invalid packed/)
           else {
             for (let step = 0; context.receiver.stats.cache.words; step++) {
-              expect(step).toBeLessThan(100000)
-              expect(work.next().done).toBe(false)
+              if (step >= 100000) throw new Error('Optional prose cache was not reclaimed')
+              if (work.next().done !== false)
+                throw new Error('Receipt completed before reclaiming optional prose')
             }
             expect(context.receiver.cancel(request.ticket)).toBe(true)
             expect(work.next().done).toBe(true)
@@ -526,6 +528,7 @@ describe('application packed semantic receiver', () => {
         context.close()
       }
     },
+    30_000,
   )
 
   it('withholds acceptance when mandatory validation exceeds its logical node limit', () => {

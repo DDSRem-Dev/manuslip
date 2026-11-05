@@ -508,6 +508,7 @@ describe('validated packed input for existing preview preparation', () => {
     },
   )
   // Validate all 15,000 blocks before testing native-copy admission, including under coverage.
+  // Intel CI needed 21.4s for both full validation passes; keep this deadline local.
   it('rejects native output capacity before copying, even when complete validation fits', () => {
     const context = fixture('p\n\n'.repeat(15000)),
       budget = { ...limits, retained: 8 * MiB }
@@ -537,7 +538,7 @@ describe('validated packed input for existing preview preparation', () => {
     } finally {
       context.owner.dispose()
     }
-  }, 15_000)
+  }, 30_000)
   it('copies queued paths, options and limits and rejects a foreign source object', () => {
     const context = fixture(widgetText),
       before = context.owner.stats

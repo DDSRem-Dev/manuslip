@@ -184,6 +184,7 @@ it('keeps occurrence-specific secrets, footnotes and raw fragments across all re
 
 // Each syntax builds one shared capture/plan, then compares both translation states
 // across all three complete 1 MiB layouts. Keep this whole-document deadline local.
+// Intel CI took 136.8s for this complete check; do not split away either translation state.
 it.each(['commonmark', 'manuslip'] as const)(
   'renders partial and full translations of the complete 1 MiB nested packed document in %s without a native root copy',
   (syntax) => {
@@ -194,5 +195,5 @@ it.each(['commonmark', 'manuslip'] as const)(
       [false, true],
     )
   },
-  120000,
+  180_000,
 )
