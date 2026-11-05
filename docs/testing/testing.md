@@ -12,7 +12,9 @@ Run commands from the repository root.
 | Desktop workflows | `test/e2e/` | `npm run build:app`, then `npm run test:e2e` |
 | Real Pandoc desktop exports | `test/e2e/pandoc*.spec.ts` | `npm run build:app`, then `npm run test:pandoc:e2e` |
 | Packaged workflows | `test/e2e/` | `npm run build`, then `npm run test:packaged` |
+| Packaged runtime hardening | `test/packaging/hardened-smoke.mjs` | `npm run verify:package`, then `node test/packaging/hardened-smoke.mjs` |
 | Performance and resource gates | `test/benchmark/` | `npm run test:performance` |
+| Main-process source performance gates | `test/benchmark/search.spec.ts`, `test/benchmark/workspace.spec.ts` | `npm run test:performance:main` |
 
 `npm run check` covers lint, repository layout/local links, lockfile policy, runtime boundaries,
 dependency patch guards, formatting and types. `npm test` runs the common Vitest projects,
@@ -95,12 +97,21 @@ correctness tests alone does not establish these hardware-dependent budgets.
 Keep automated performance checks tied to explicit assertions. Use DevTools for exploratory
 profiles; keep measurement-only specs and historical benchmark baselines out of test suites.
 
+`npm run test:performance:main` runs Node source benchmarks without a packaged executable.
+It checks dense Unicode search result conversion and fragmented record framing against a
+16 ms p95 budget each, and rescanning/sorting a 5,000-file workspace against a 50 ms p95
+budget. Fixture setup is excluded from measurements. Reports include
+CPU, platform and Node versions. These checks complement the packaged desktop gates;
+run them serially without competing builds or tests. Search unit tests also enforce linear
+byte-copy, delimiter-scan and UTF-8 decoding budgets independently of hardware speed.
+
 ## Outputs and CI
 
 | Output | Ignored location |
 | --- | --- |
 | E2E failures, traces and exports | `test/e2e/result/` |
 | Benchmark runs and reports | `test/benchmark/result/<run-id>/` |
+| Main-process source benchmark reports | `test/benchmark/result/main/<run-id>/` |
 | Installer/release output | `test/packaging/result/` |
 | Workspace-volume unit fixtures | `apps/desktop/test/unit/result/` |
 | Native process fixtures | `apps/desktop/test/integration/result/` |

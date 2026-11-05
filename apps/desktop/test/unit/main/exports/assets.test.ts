@@ -52,6 +52,19 @@ it('requires current remote permission even for an export-cached image', async (
   })
   expect(fetch).toHaveBeenCalledTimes(1)
 })
+it('reports oversized remote images as resource limits before caching or embedding them', async () => {
+  const large = Buffer.from(pixel)
+  large.writeUInt32BE(8193, 16)
+  const { assets, images } = harness(
+    true,
+    vi.fn(async () => ({ bytes: large, mime: 'image/png' })),
+  )
+  images.permission(1, 'doc', true)
+  await expect(assets.resolve('https://example.com/large.png')).rejects.toMatchObject({
+    code: 'export-limit',
+  })
+  expect(images.bytes).toBe(0)
+})
 it('rechecks ownership and cancellation before returning cached data', async () => {
   const { assets, describe, controller } = harness()
   const data = `data:image/png;base64,${pixel.toString('base64')}`

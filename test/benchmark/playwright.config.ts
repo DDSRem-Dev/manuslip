@@ -4,6 +4,7 @@ import { defineConfig } from '@playwright/test'
 // Hardware-dependent gates are an explicit packaged run, separate from correctness E2E.
 export default defineConfig({
   testDir: '.',
+  testIgnore: ['search.spec.ts', 'workspace.spec.ts'],
   timeout: 300_000,
   workers: 1,
   fullyParallel: false,

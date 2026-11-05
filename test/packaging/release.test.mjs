@@ -18,6 +18,12 @@ test('ordinary and release plans stay unsigned and without a feed unless explici
   assert.equal(metadata.build.publish, null)
   assert.equal(metadata.build.win.signExecutable, false)
   assert.equal(metadata.build.mac.identity, null)
+  assert.equal(metadata.build.electronFuses.runAsNode, false)
+  assert.equal(metadata.build.electronFuses.enableNodeOptionsEnvironmentVariable, false)
+  assert.equal(metadata.build.electronFuses.enableNodeCliInspectArguments, false)
+  assert.equal(metadata.build.electronFuses.enableEmbeddedAsarIntegrityValidation, true)
+  assert.equal(metadata.build.electronFuses.onlyLoadAppFromAsar, true)
+  assert.equal(metadata.build.electronFuses.grantFileProtocolExtraPrivileges, false)
   const before = structuredClone(metadata.build)
   for (const [platform, arch] of [
     ['win32', 'x64'],
@@ -60,6 +66,8 @@ test('signed profiles enable required signing and macOS notarization without emb
       assert.equal(Object.hasOwn(plan.config.mac, 'identity'), false)
       assert.equal(plan.config.mac.notarize, true)
       assert.equal(plan.config.mac.hardenedRuntime, true)
+      assert.equal(plan.config.dmg.sign, true)
+      assert.equal(plan.config.dmg.writeUpdateInfo, false)
     }
     for (const secret of Object.values(secrets))
       assert.equal(JSON.stringify(plan).includes(secret), false)

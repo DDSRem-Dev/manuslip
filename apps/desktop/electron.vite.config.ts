@@ -17,6 +17,7 @@ export default defineConfig({
       },
     ],
     build: {
+      license: { fileName: 'THIRD-PARTY-NOTICES.txt' },
       externalizeDeps: { exclude: ['@manuslip/renderer', '@manuslip/core', '@manuslip/translate'] },
       rollupOptions: {
         input: {
@@ -73,6 +74,7 @@ export default defineConfig({
       },
     ],
     build: {
+      license: { fileName: 'THIRD-PARTY-NOTICES.txt' },
       externalizeDeps: { exclude: ['@manuslip/renderer', '@manuslip/translate', '@manuslip/core'] },
       rollupOptions: { output: { format: 'cjs', entryFileNames: 'index.cjs' } },
     },
@@ -80,6 +82,7 @@ export default defineConfig({
   renderer: {
     publicDir: resolve('resources'),
     build: {
+      license: { fileName: 'THIRD-PARTY-NOTICES.txt' },
       rollupOptions: {
         input: {
           index: resolve('src/renderer/index.html'),

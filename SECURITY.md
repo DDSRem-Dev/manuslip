@@ -1,10 +1,13 @@
 # Security Policy
 
-Manuslip is local-first, but it still handles untrusted input every day: Markdown and raw HTML from other people, images, links, and responses from third-party translation providers. It also writes to your filesystem, shells out to optional tools, and stores API keys. Security reports are welcome, and this page explains what is in scope and how to send one.
+Manuslip processes untrusted Markdown, HTML, images, links and translation responses.
+It also reads and writes local files, invokes optional tools and stores provider credentials.
+This policy explains supported versions, vulnerability reporting and the application's
+security boundaries.
 
 ## Supported versions
 
-Manuslip has not reached 1.0. Until versioned releases exist, fixes land on the tip of `main` and in the newest published prerelease only.
+Before version 1.0, security fixes target `main` and the latest published prerelease.
 
 | Version | Supported |
 | --- | --- |
@@ -12,15 +15,12 @@ Manuslip has not reached 1.0. Until versioned releases exist, fixes land on the 
 | Latest published prerelease | Yes |
 | Older builds and older prereleases | No |
 
-This table will be replaced with a versioned support matrix once regular releases start.
-
 ## Reporting a vulnerability
 
 Use GitHub private vulnerability reporting. Open the repository's Security tab and choose "Report a vulnerability". Please don't open a public issue, pull request, or discussion for a security problem.
 
-If private advisories are unavailable for any reason, email security@manuslip.example instead.
-
-<!-- TODO: replace security@manuslip.example with the project's real security contact before publishing. -->
+If private reporting is unavailable, open an issue asking maintainers to enable it.
+Do not include vulnerability details or proof-of-concept files in that public issue.
 
 A useful report includes:
 
@@ -42,7 +42,7 @@ These are best-effort commitments from a volunteer project, not contractual serv
 
 ## Scope
 
-The following attack surfaces are in scope. Each line explains why it matters for this product.
+Reports may involve any of these attack surfaces:
 
 - Markdown and HTML rendering: DOMPurify configuration, the strict Content Security Policy, raw HTML passthrough, link and autolink generation, and `data:` URIs. A gap here turns any opened document into script execution inside the app.
 - Diagram and math rendering: Mermaid, MathJax, and the legacy `sequence` and `flowchart` blocks. Fenced blocks are untrusted input that reaches a renderer, so script injection through them counts.
@@ -59,6 +59,30 @@ Out of scope:
 - Dependency vulnerabilities with no reachable code path in Manuslip. Send those upstream to the dependency maintainers, and open a normal issue if Manuslip needs to bump the version.
 - Social engineering of maintainers or contributors.
 - Denial of service caused by opening an intentionally huge local file.
+
+## Packaged runtime and release integrity
+
+The editor loads at `manuslip-app://editor/index.html`. Its protocol handler serves only
+the entry document and built script/style/icon/font assets, rejects other methods and
+paths, and supplies CSP, MIME and no-sniff headers with each response. Document files
+never become application-origin resources. Production builds disable Electron's Node
+launch mode, Node environment options, CLI inspector and extra `file://` privileges,
+and load application code only from ASAR. Windows/macOS also enable embedded ASAR
+integrity validation; Electron does not implement that validation on Linux.
+
+CI reads fuses from packaged binaries and smoke tests an unchanged executable with
+Node environment injection attempts. Playwright's main-process automation uses a
+temporary copy with only its inspector fuse re-enabled; that copy is never a release
+asset. The original executable and installer remain untouched.
+
+Version-tag releases require matching workspace versions, a tag commit on `main`,
+the full CI suite, verified runtime fuses, signed Windows packages, notarized macOS
+packages, and complete artifacts for all four supported targets. SHA-256 checksums,
+dependency SBOMs and GitHub build attestations accompany the candidate.
+The final job verifies hashes and provenance before creating a draft release.
+Repository administrators must configure the protected environments and signing secrets
+described in the [distribution guide](docs/development/distribution.md). This repository
+does not configure those account settings or supply certificates.
 
 ## Implemented workspace file access
 
@@ -108,7 +132,7 @@ Source, SVG, node and element limits are defined in
 source and offer manual Retry. Packaged tests deliberately freeze the host and verify that
 typing, saving and another window remain responsive, then recover through Retry.
 
-## Implemented clipboard and local images
+## Implemented clipboard and image loading
 
 HTML paste uses a bounded, terminable Node worker running Turndown/GFM's local DOM
 parser. It removes active HTML and constrains generated links; the resulting Markdown
@@ -123,6 +147,14 @@ file://, absolute paths, drive paths, UNC paths, alternate data streams and loca
 excluded. Protocol requests repeat grant/path checks. Save As resets the local scope;
 closing a document/window revokes capabilities. These checks retain the filesystem
 check/use limitations described above.
+
+Remote images require permission for the current document. Native HTTPS requests send no
+browser credentials, validate DNS addresses and redirects, and enforce byte, queue,
+concurrency and timeout limits. Revocation cancels pending work and removes cached assets.
+Local and remote reads use the same raster validation before preview or export. Each image
+cache counts compressed bytes and estimated decoded RGBA memory toward its budget.
+See the [image validator](apps/desktop/src/main/assets/image.ts) and
+[asset limits](apps/desktop/src/shared/asset-contracts.ts) for the enforced checks.
 
 Image paste reads only the native clipboard's PNG representation, retains one bounded
 capture for at most 60 seconds, and exclusively creates a UUID filename in the document's

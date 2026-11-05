@@ -40,6 +40,7 @@ retried with `npm install`; unknown dependency contents require reviewing the pa
 | `npm run build` | Build assets and unsigned native installers |
 | `npm run test:packaged` | Run workflows against the unpacked application |
 | `npm run test:performance` | Run hardware-dependent packaged performance gates |
+| `npm run test:performance:main` | Run search/workspace source performance gates without packaging |
 | `npm run clean` | Remove build output and generated test results |
 
 See [testing](docs/testing/testing.md) for focused runs, fixtures and output locations,

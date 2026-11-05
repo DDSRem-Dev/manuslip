@@ -78,6 +78,30 @@ describe('main workspace grants and state', () => {
     const chapter = await workspaces.list(1, page.nodes[0]?.id || '', 0)
     expect(chapter.nodes[0]?.name).toBe('世界.txt')
   })
+  it('keeps directories first, sorts numbered names naturally and preserves IDs after refresh', async () => {
+    await Promise.all(['part-10', 'part-2', 'part-1'].map((name) => mkdir(join(root, name))))
+    await Promise.all(
+      ['chapter-10.md', 'chapter-2.md', 'chapter-1.md'].map((name) =>
+        writeFile(join(root, name), ''),
+      ),
+    )
+    const catalog = new WorkspaceCatalog(await grantRoot(root))
+    try {
+      const page = await catalog.list(catalog.root.id, 0)
+      expect(page.nodes.map((node) => node.name)).toEqual([
+        'part-1',
+        'part-2',
+        'part-10',
+        'chapter-1.md',
+        'chapter-2.md',
+        'chapter-10.md',
+      ])
+      catalog.invalidate()
+      expect((await catalog.list(catalog.root.id, 0)).nodes).toEqual(page.nodes)
+    } finally {
+      catalog.dispose()
+    }
+  })
   describe('directory scan boundary', () => {
     beforeEach(async () => {
       // Creating 5,002 physical files is fixture setup, not catalog latency. Allow

@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process'
 import type { SearchRequest } from '../../shared/search-contracts'
 import { searchLimits } from '../../shared/search-contracts'
 import { FileOperationError } from '../files/errors'
+import { SearchRecordStream } from './stream'
 
 export function searchArguments(request: SearchRequest): string[] {
   const args = [
@@ -57,27 +58,35 @@ export async function runSearchProcess(
       stdio: ['ignore', 'pipe', 'pipe'],
       env: { ...process.env, RIPGREP_CONFIG_PATH: '' },
     })
-    let pending = Buffer.alloc(0),
-      bytes = 0,
+    const records = new SearchRecordStream(request.mode === 'filename' ? 0 : 10)
+    let bytes = 0,
       truncated = false,
       killed = false,
       failed = false
+    let failure: FileOperationError | undefined
     const stop = (): void => {
+      if (killed) return
       killed = true
-      child.kill()
+      records.clear()
+      child.kill('SIGKILL')
     }
     const truncate = (): void => {
+      if (killed) return
       truncated = true
       stop()
     }
     const timer = setTimeout(truncate, searchLimits.deadline)
+    const fail = (): void => {
+      failed = true
+      stop()
+    }
     const consume = (record: Buffer): boolean => {
       try {
-        return accept(record)
+        const keep = accept(record)
+        return keep && !killed
       } catch {
-        failed = true
-        stop()
-        return true
+        fail()
+        return false
       }
     }
     signal.addEventListener('abort', stop, { once: true })
@@ -88,34 +97,26 @@ export async function runSearchProcess(
         truncate()
         return
       }
-      pending = Buffer.concat([pending, chunk])
-      const delimiter = request.mode === 'filename' ? 0 : 10
-      let end = pending.indexOf(delimiter)
-      while (end !== -1) {
-        if (end > searchLimits.record || !consume(pending.subarray(0, end))) {
-          truncate()
-          return
-        }
-        if (killed) return
-        pending = pending.subarray(end + 1)
-        end = pending.indexOf(delimiter)
-      }
-      if (pending.length > searchLimits.record) truncate()
+      if (!records.push(chunk, consume) && !killed) truncate()
     })
+    child.stdout.on('error', fail)
     // Error output is deliberately not retained or exposed as it may contain private paths.
     child.stderr.on('data', () => {
       failed = true
     })
+    child.stderr.on('error', fail)
     child.on('error', () => {
-      clearTimeout(timer)
-      signal.removeEventListener('abort', stop)
-      reject(new FileOperationError('search-binary'))
+      failure = new FileOperationError('search-binary')
+      stop()
     })
     child.on('close', (code) => {
+      if (!killed && !records.finish(consume) && !killed) truncated = true
+      records.clear()
       clearTimeout(timer)
       signal.removeEventListener('abort', stop)
-      if (!killed && pending.length && !consume(pending)) truncated = true
-      resolve({ truncated, failed: failed || (!killed && code !== 0 && code !== 1) })
+      if (failure) reject(failure)
+      else resolve({ truncated, failed: failed || (!killed && code !== 0 && code !== 1) })
     })
+    if (signal.aborted) stop()
   })
 }

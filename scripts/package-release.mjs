@@ -1,8 +1,11 @@
-import { spawn } from 'node:child_process'
-import { createHash } from 'node:crypto'
-import { access, mkdir, mkdtemp, readdir, readFile, writeFile } from 'node:fs/promises'
+import { execFile, spawn } from 'node:child_process'
+import { access, appendFile, mkdir, mkdtemp, readdir, readFile, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { promisify } from 'node:util'
+import { notarize } from '@electron/notarize'
+import { listReleaseArtifacts, writeChecksums } from './release-artifacts.mjs'
+import { verifyPackage, verifySignatures } from './verify-package.mjs'
 
 /** A separate, explicit release profile. Ordinary builds never inherit its options. */
 export function createReleasePlan(
@@ -18,6 +21,8 @@ export function createReleasePlan(
   if (signed && platform === 'linux')
     throw new Error('--signed configures Windows/macOS code signing; Linux artifacts use checksums')
   const config = structuredClone(base)
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: electron-builder expands these macros.
+  config.artifactName = 'Manuslip-${version}-${os}-${arch}.${ext}'
   config.publish = null
   config.forceCodeSigning = signed
   config.win.signExecutable = signed
@@ -30,7 +35,8 @@ export function createReleasePlan(
     delete config.mac.identity
     config.mac.notarize = true
     config.mac.hardenedRuntime = true
-    config.dmg = { ...config.dmg, sign: true }
+    // Stapling modifies the DMG after builder exits, so a pre-stapling blockmap is invalid.
+    config.dmg = { ...config.dmg, sign: true, writeUpdateInfo: false }
     requiredEnvironment.push('CSC_LINK', 'CSC_KEY_PASSWORD', 'Apple notarization credentials')
   }
   if (updates) {
@@ -93,6 +99,29 @@ export function validateSigningEnvironment(plan, env) {
   }
 }
 
+async function notarizeDiskImages(directory, env) {
+  let credentials
+  if (env.APPLE_API_KEY && env.APPLE_API_KEY_ID && env.APPLE_API_ISSUER)
+    credentials = {
+      appleApiKey: env.APPLE_API_KEY,
+      appleApiKeyId: env.APPLE_API_KEY_ID,
+      appleApiIssuer: env.APPLE_API_ISSUER,
+    }
+  else if (env.APPLE_ID && env.APPLE_APP_SPECIFIC_PASSWORD && env.APPLE_TEAM_ID)
+    credentials = {
+      appleId: env.APPLE_ID,
+      appleIdPassword: env.APPLE_APP_SPECIFIC_PASSWORD,
+      teamId: env.APPLE_TEAM_ID,
+    }
+  else credentials = { keychain: env.APPLE_KEYCHAIN, keychainProfile: env.APPLE_KEYCHAIN_PROFILE }
+  const images = (await readdir(directory, { withFileTypes: true })).filter(
+    (entry) => entry.isFile() && entry.name.endsWith('.dmg'),
+  )
+  if (!images.length) throw new Error('Signed macOS release is missing its disk image')
+  for (const image of images)
+    await notarize({ appPath: join(directory, image.name), ...credentials })
+}
+
 async function main() {
   const args = process.argv.slice(2)
   if (
@@ -141,7 +170,7 @@ async function main() {
     'never',
   ]
   const startedAt = new Date().toISOString()
-  const exitCode = await new Promise((resolveBuild, reject) => {
+  let exitCode = await new Promise((resolveBuild, reject) => {
     const child = spawn(process.execPath, builderArgs, {
       cwd: desktop,
       env: { ...process.env, CSC_IDENTITY_AUTO_DISCOVERY: plan.signed ? 'true' : 'false' },
@@ -152,24 +181,46 @@ async function main() {
     child.once('error', reject)
     child.once('close', (code) => resolveBuild(code ?? 1))
   })
-  const artifacts = []
+  let artifacts = []
+  let hardening, signature, verificationError
   if (exitCode === 0) {
-    for (const entry of await readdir(output, { withFileTypes: true })) {
-      if (!entry.isFile() || entry.name.startsWith('.uuid') || entry.name.startsWith('builder-'))
-        continue
-      const body = await readFile(join(output, entry.name))
-      artifacts.push({
-        name: entry.name,
-        bytes: body.length,
-        sha256: createHash('sha256').update(body).digest('hex'),
-      })
+    try {
+      hardening = await verifyPackage(output)
+      if (plan.signed && plan.platform === 'darwin') await notarizeDiskImages(output, process.env)
+      const os = { win32: 'win', darwin: 'mac', linux: 'linux' }[process.platform]
+      const { stdout } = await promisify(execFile)(
+        process.execPath,
+        [
+          npmCli(),
+          'sbom',
+          '--include=dev',
+          '--include=optional',
+          '--include=peer',
+          '--sbom-format=cyclonedx',
+        ],
+        { cwd: root, maxBuffer: 16 * 1024 * 1024, timeout: 60000 },
+      )
+      JSON.parse(stdout)
+      await writeFile(
+        join(output, `Manuslip-${metadata.version}-${os}-${process.arch}.cdx.json`),
+        stdout,
+        { flag: 'wx' },
+      )
+      artifacts = await listReleaseArtifacts(output)
+      if (plan.signed)
+        signature = await verifySignatures(
+          output,
+          artifacts
+            .filter((row) => /\.(?:exe|dmg)$/.test(row.name))
+            .map((row) => join(output, row.name)),
+        )
+      await writeChecksums(output, artifacts)
+    } catch (error) {
+      exitCode = 1
+      verificationError =
+        error instanceof Error ? error.message.slice(0, 4000) : 'Release verification failed'
+      console.error(verificationError)
     }
-    artifacts.sort((a, b) => a.name.localeCompare(b.name))
-    await writeFile(
-      join(output, 'SHA256SUMS'),
-      artifacts.map((row) => `${row.sha256}  ${row.name}\n`).join(''),
-      { flag: 'wx' },
-    )
   }
   const report = {
     startedAt,
@@ -183,12 +234,27 @@ async function main() {
     signedRequested: plan.signed,
     updateMetadataRequested: plan.updates,
     publish: 'never',
+    hardening,
+    signature,
+    verificationError,
     artifacts,
   }
   const reportPath = join(directory, 'report.json')
   await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, { flag: 'wx' })
   console.log(`Release package evidence: ${reportPath}`)
+  if (exitCode === 0 && process.env.GITHUB_OUTPUT)
+    await appendFile(
+      process.env.GITHUB_OUTPUT,
+      `directory=${directory}\noutput=${output}\nreport=${reportPath}\n`,
+    )
   process.exitCode = exitCode
+}
+
+function npmCli() {
+  // npm_execpath is the active pinned npm CLI when invoked through npm run.
+  if (!process.env.npm_execpath)
+    throw new Error('Invoke release packaging through npm run package:release')
+  return process.env.npm_execpath
 }
 
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {

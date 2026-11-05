@@ -11,33 +11,39 @@
 Tabs retain selection, scroll and undo. Save preserves encoding, BOM and line endings;
 conflicts and recovered drafts require a version choice before replacement.
 
-Open a folder for Files and Outline. `Ctrl/Cmd+P` finds filenames;
-`Ctrl/Cmd+Shift+F` opens workspace search. **Saved file contents** searches disk text,
-excluding unsaved edits and untitled documents. The footer count opens statistics
-and file details. **Preferences** (`Ctrl/Cmd+,`) controls theme, language, editor, translation
-and plugins. See [Markdown support](commonmark.md) for syntax and content permissions.
+Open a folder to browse **Files**; use **Outline** to navigate the active document's headings.
+`Ctrl/Cmd+P` finds filenames, and `Ctrl/Cmd+Shift+F` opens workspace search.
+**Saved file contents** searches text on disk, excluding unsaved edits and untitled documents.
 
-Configure an OpenAI-compatible, Ollama or DeepL provider, select a target language (Simplified
-Chinese by default) and click **Translate**. Opening Translated preview automatically displays
-a fully cached translation, including after switching tabs or restarting, without contacting
-the provider. New translations wait for **Translate**; saved blocks are reused automatically.
-Saved translations expire after 30 days. Expired blocks remain in the original language until
-you choose **Translate** again. Upgrading from the previous cache format rebuilds the saved
-translation cache.
-When no translated copy is available, the preview renders the original Markdown, including
-before translation is configured. Outline headings jump within the visible preview and keep
-the selected reading mode.
-Requests run concurrently, and results appear in document order. The translation toolbar stays
-visible while scrolling, with Cancel and Retry failed controls. Reading options offers
-translation-only, side-by-side and interlinear layouts. Source changes mark the copy stale;
-refresh explicitly. Code, math and destinations remain protected.
+Click the footer count for statistics and file details. Open **Preferences** (`Ctrl/Cmd+,`)
+to configure theme, language, editing, translation and plugins. See
+[Markdown support](commonmark.md) for syntax and content permissions.
+
+### Translated reading
+
+Configure an OpenAI-compatible, Ollama or DeepL provider, choose a target language
+(Simplified Chinese by default), then click **Translate**. Requests run concurrently,
+and results appear in document order. The translation toolbar stays visible while scrolling,
+with **Cancel** and **Retry failed** controls.
+
+Opening Translated preview reuses a fully cached translation without contacting the provider,
+including after switching tabs or restarting. If no translated copy is available, it displays
+the original Markdown. Click **Translate** to request new translations; saved blocks are reused.
+Cached translations expire after 30 days, and expired blocks display the original language
+until you translate again. Upgrading from the previous cache format rebuilds the saved cache.
+
+**Reading options** offers translation-only, side-by-side and interlinear layouts.
+Outline headings navigate the visible preview while preserving the selected reading mode.
+Source edits mark the reading copy stale; refresh it when ready. Code, math and link
+destinations stay unchanged during translation.
 
 ## Tables and appearance
 
-Click a Live table cell or press F2 to edit; double-click preserves native selection.
-Enter/Shift+Enter and up/down move rows; Alt+left/right moves columns. For structure, place
-the caret in a table and choose **Document actions → Edit table**. Apply is one undoable
-edit; Cancel discards the draft. Unsupported structures remain editable in Source.
+Click a table cell in Live Preview or press `F2` to edit; double-click preserves native selection.
+`Enter` / `Shift+Enter` and the up/down arrows move between rows; `Alt+Left/Right` moves between
+columns. To change the table's structure, place the caret in it and choose
+**Document actions → Edit table**. **Apply** creates one undoable edit; **Cancel** discards
+the draft. Unsupported structures remain editable in Source.
 
 **Document actions → Document appearance** sets fonts, size, spacing and width. Named files
 retain appearance; Save As inherits it. Reset defaults removes overrides without changing

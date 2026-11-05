@@ -50,6 +50,14 @@
       "!**/.uuid*"
     ],
     "asar": true,
+    "electronFuses": {
+      "runAsNode": false,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "enableEmbeddedAsarIntegrityValidation": true,
+      "onlyLoadAppFromAsar": true,
+      "grantFileProtocolExtraPrivileges": false
+    },
     "afterPack": "build/linux-launcher.cjs",
     "asarUnpack": [
       "node_modules/@vscode/ripgrep-*/bin/**"

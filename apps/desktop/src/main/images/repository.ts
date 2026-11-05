@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto'
+import { rasterInfo } from '../assets/image'
+import { FileOperationError } from '../files/errors'
 import { fetchRemoteImage, type ImageData, imageLimits } from './network'
 
 interface Permission {
@@ -7,6 +9,7 @@ interface Permission {
   enabled: boolean
 }
 interface Asset extends ImageData {
+  weight: number
   key: string
   id: string
   documentId: string
@@ -52,7 +55,7 @@ export class ImageRepository {
     })
     for (const [key, asset] of this.assets)
       if (asset.documentId === id) {
-        this.used -= asset.bytes.length
+        this.used -= asset.weight
         this.urls.delete(asset.key)
         this.assets.delete(key)
       }
@@ -156,32 +159,36 @@ export class ImageRepository {
       const result = await this.fetchImage(request.url, request.controller.signal)
       if (!this.current(request) || request.controller.signal.aborted)
         throw new Error('image-permission')
-      if (result.bytes.length > imageLimits.bytes) throw new Error('image-limit')
+      const { mime, weight } = rasterInfo(result.bytes)
       if (request.receive) {
-        request.receive(result)
+        request.receive({ bytes: result.bytes, mime })
         return
       }
-      while (this.used + result.bytes.length > imageLimits.total) {
+      while (this.used + weight > imageLimits.total) {
         const oldest = this.assets.entries().next().value
         if (!oldest) break
         this.assets.delete(oldest[0])
         this.urls.delete(oldest[1].key)
-        this.used -= oldest[1].bytes.length
+        this.used -= oldest[1].weight
       }
       const id = randomUUID()
       const key = JSON.stringify([request.owner, request.documentId, request.epoch, request.url])
       this.assets.set(id, {
         ...result,
+        mime,
+        weight,
         key,
         id,
         owner: request.owner,
         documentId: request.documentId,
       })
       this.urls.set(key, id)
-      this.used += result.bytes.length
+      this.used += weight
       request.resolve(`manuslip-asset://image/${id}`)
-    } catch {
-      request.reject(new Error('image-load'))
+    } catch (error) {
+      request.reject(
+        request.receive && error instanceof FileOperationError ? error : new Error('image-load'),
+      )
     } finally {
       clearTimeout(timer)
       request.release?.()
@@ -197,6 +204,7 @@ export class ImageRepository {
     this.assets.set(id, asset)
     return { bytes: asset.bytes, mime: asset.mime }
   }
+  /** Compressed bytes plus estimated RGBA decode memory for cached images. */
   get bytes(): number {
     return this.used
   }

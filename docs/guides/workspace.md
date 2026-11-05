@@ -1,58 +1,61 @@
 # Workspace guidance
 
-Give local Markdown a readable editing surface and a separate translated reading copy.
-Prioritize text integrity, uninterrupted input, legibility and discoverable commands.
-[Desktop controls](desktop.md) define usage; [foundations](foundations.md) define appearance.
-[ADRs](../adr/index.md) govern architectural changes.
+Design the workspace around local Markdown source and a separate translated reading copy.
+Preserve text, keep typing responsive and make commands easy to find.
+Use the [desktop guide](desktop.md) for controls, [visual foundations](foundations.md)
+for appearance and [ADRs](../adr/index.md) for architectural decisions.
 
 ## Editing
 
 - Preserve source, selection, scroll context and undo across views and appearance changes.
-  Complete pending input before captures or replacements; respect composition.
+  Respect input-method composition and complete pending input before capturing or replacing text.
   [ADR 002](../adr/002-implementation-plan.md) defines ownership.
-- Align rendered and editable prose. A rendered block opens a source session until Escape
-  or the caret leaves. Keep unchanged blocks rendered during semantic updates.
-- Make selections follow characters and source line breaks, revealing relevant syntax
-  without filling line tails. Preserve native double-click selection and caret placement.
-- Keep math/diagram previews beside editable source and wide content in accessible scroll
-  regions. Unsupported or failed rendering retains Source access and recovery.
+- Align rendered and editable prose. Editing a Live Preview block reveals its source until
+  Escape or the caret leaves. Keep unchanged blocks rendered during semantic updates.
+- Make selections follow characters and source line breaks. Reveal relevant syntax without
+  extending highlights into empty line space. Preserve native double-click selection and caret placement.
+- Keep math and diagram previews beside editable source. Put wide content in scroll regions
+  with keyboard access. Unsupported content and rendering failures must retain Source access and recovery.
 - Keep cell editing direct and structural table changes explicit. A rejected Apply retains
   its draft; unchanged Apply adds no undo event. See [ADR 007](../adr/007-visual-tables.md).
 
 ## Navigation and commands
 
-Use one toolbar: workspace, file/edit commands, tabs, document surfaces, Save, Document
-actions and Preferences. Keep Save and the active surface visible; group secondary tasks
-in disclosures. Explain unavailable actions beside their prerequisites.
+Use one toolbar for workspace navigation, file and edit commands, tabs, view selection,
+Save, Document actions and Preferences. Keep Save and the active view visible. Group
+secondary commands in menus and explain what is needed to enable unavailable actions.
 
-Start with navigation closed. Files describes the selected folder; Outline describes the
-active document. Preserve expanded folders, loaded pages and keyboard location on refresh.
-Keep Close folder reachable when the tree is collapsed.
+Start with navigation closed. **Files** shows the selected folder; **Outline** shows the
+active document's headings. Preserve expanded folders, loaded pages and keyboard position
+on refresh. Keep **Close folder** reachable when the tree is collapsed.
 
-Label filename navigation separately from saved-content search. Identify result files and
-locations; distinguish empty, unmatched, incomplete and failed results. Opening results
-preserves other drafts. Tabs separate selection from closing and expose unsaved changes;
-full paths belong in document details. Only display counts for the current revision.
+Label filename navigation separately from searches of saved file contents. Identify each
+result's file and location, and distinguish empty folders, no matches, incomplete searches
+and failures. Opening a result must preserve other drafts.
+
+Keep tab selection and closing separate, and show unsaved changes. Put full paths in
+document details and display statistics only for the current revision.
 
 ## Reading and settings
 
-Keep original/translation pairing clear and stack bilingual pairs at narrow widths.
-Place provider readiness, target language and recovery beside their actions:
+Keep each translation paired with its original and stack bilingual pairs at narrow widths.
+Place provider setup, target language and recovery controls beside the actions they support:
 
 | State | Guidance |
 | --- | --- |
 | Missing configuration | Name the missing requirement and open its setting. |
 | Working | Show progress and Cancel; keep writing available. |
 | Partial or failed | Preserve completed work and source fallback; offer Retry failed. |
-| Source changed | Mark the copy stale; require explicit refresh. |
+| Source changed | Mark the reading copy stale and offer an explicit refresh. |
 
 Preserve preference drafts across sections. Separate application settings, document
 appearance and permissions. Document CSS must leave Source, Reset and controls usable
 under [ADR 008](../adr/008-document-appearance.md).
 
 For [export](desktop.md#export-and-presentation), [plugins](plugins.md) and [sync](sync.md),
-show the input, destination, effect and recovery before publication. Keep diagnostics out
-of product copy. Denial, cancellation and offline operation need useful next actions.
+show the input, destination and effect before applying changes, and explain how to recover.
+Keep technical diagnostics out of product copy. Provide useful next actions after permission
+denial, cancellation or an offline failure.
 
 ## Input and accessibility
 
@@ -65,13 +68,8 @@ Check both interface languages, Chinese input, mixed RTL/LTR text, long paths, f
 reduced motion, 320px width and 200% zoom. Keep narrow commands reachable.
 Focus/typewriter modes remain retired under [ADR 005](../adr/005-writing-modes.md).
 
-## Reference principles
+## Design reference
 
-These adaptations guide Manuslip; they do not prescribe additional features:
-
-| Reference | Principle |
-| --- | --- |
-| [Typora](https://support.typora.io/Quick-Start/) — commercial | Readable inline editing and expandable document details. |
-| [MarkText](https://github.com/marktext/marktext/blob/develop/packages/website/content/docs/end-user/BASICS.md) — open source | Immediate source access and discoverable contextual commands. |
-| [Zettlr](https://docs.zettlr.com/en/sidebar/) — open source | Separate file navigation from document context. |
-| [ghostwriter](https://ghostwriter.kde.org/) — open source | Quiet statistics and outline navigation for long documents. |
+[Typora's quick start](https://support.typora.io/Quick-Start/) is the reference for readable
+inline editing and expandable document details. Apply those principles within Manuslip's
+requirements for preserving source and supporting accessible interaction.

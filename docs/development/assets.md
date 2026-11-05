@@ -16,6 +16,14 @@ assets. Generation uses the pinned electron-builder icon converter, whose first 
 download its checksum-verified toolset. The artwork follows the repository's MIT license.
 The window icon is copied into `out/main`; installers use the platform assets in `build/`.
 
+## Bundled dependency notices
+
+Vite generates `THIRD-PARTY-NOTICES.txt` in `out/main`, `out/preload` and `out/renderer`
+from the installed packages contributing code to each bundle. These files include full
+upstream license text, including Mermaid's MIT copyright and permission notice even though
+Mermaid is a development dependency. Ordinary and release packages include these notices
+through the `out/**` packaging rule. Rebuild application assets after dependency updates.
+
 ## Fonts
 
 The [font manifest](../../apps/desktop/resources/fonts/manifest.json) describes the offline

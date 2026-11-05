@@ -222,7 +222,8 @@ test('reading copies and HTML exports retain table alignment on screen and in pr
     await expect.poll(() => readFile(output, 'utf8').catch(() => '')).toContain('<table>')
     const artifactPromise = application.waitForEvent('window')
     await application.evaluate(async ({ BrowserWindow }, path) => {
-      const window = new BrowserWindow({ show: false })
+      // Paint the independent export renderer before taking its print screenshot.
+      const window = new BrowserWindow({ show: true })
       await window.loadFile(path)
     }, output)
     const artifact = await artifactPromise

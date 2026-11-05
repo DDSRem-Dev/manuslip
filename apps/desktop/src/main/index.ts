@@ -1,5 +1,4 @@
 import { join, resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
 import {
   app,
   BrowserWindow,
@@ -24,6 +23,7 @@ import { type DocumentCommand, fileChannels } from '../shared/file-contracts'
 import { parseAssetUrl } from '../shared/image-contracts'
 import { incomingChannels } from '../shared/incoming-contracts'
 import { workspaceChannels } from '../shared/workspace-contracts'
+import { appEntry, registerAppProtocol } from './app-protocol'
 import { registerAssetHandlers } from './assets/ipc'
 import { LocalAssets } from './assets/repository'
 import { ClipboardConverter } from './clipboard/converter'
@@ -91,6 +91,10 @@ let pandocTools: PandocTools | undefined
 let plugins: Plugins | undefined
 let sync: SyncService | undefined
 protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'manuslip-app',
+    privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true },
+  },
   { scheme: 'manuslip-plugin', privileges: { standard: true, secure: true } },
   { scheme: 'manuslip-asset', privileges: { standard: true, secure: true } },
   {
@@ -225,8 +229,7 @@ function handle<T>(channel: string, operation: (input: unknown) => Promise<T> | 
 
 async function createWindow(): Promise<void> {
   const developmentUrl = !app.isPackaged ? process.env.ELECTRON_RENDERER_URL : undefined
-  rendererUrl =
-    developmentUrl || pathToFileURL(join(import.meta.dirname, '../renderer/index.html')).href
+  rendererUrl = developmentUrl || appEntry
   const workArea = screen.getPrimaryDisplay().workAreaSize
   window = new BrowserWindow({
     width: Math.min(1360, workArea.width),
@@ -254,6 +257,7 @@ async function createWindow(): Promise<void> {
     () => Boolean(settings.get().spellcheck) && spellcheckAvailable,
   )
   window.webContents.on('will-navigate', (event) => event.preventDefault())
+  window.webContents.on('will-frame-navigate', (event) => event.preventDefault())
   window.webContents.on('will-attach-webview', (event) => event.preventDefault())
   window.once('ready-to-show', () => window?.show())
   const owner = window.webContents.id
@@ -294,6 +298,7 @@ if (primaryInstance)
   app
     .whenReady()
     .then(async () => {
+      registerAppProtocol(protocol, join(import.meta.dirname, '../renderer'))
       settings = new SettingsRepository(join(app.getPath('userData'), 'preferences.json'))
       await settings.load()
       const dictionaries = join(app.getAppPath(), 'vendor', 'dictionaries')

@@ -20,6 +20,8 @@ interface Listing {
   truncated: boolean
   skippedLinks: boolean
 }
+const nameOrder = new Intl.Collator(undefined, { numeric: true })
+
 export class WorkspaceCatalog {
   readonly root: WorkspaceRoot
   private readonly nodes = new Map<string, Node>()
@@ -115,11 +117,7 @@ export class WorkspaceCatalog {
     if (this.disposed || !this.nodes.has(parent.id))
       throw new FileOperationError('workspace-session')
     candidates.sort((a, b) =>
-      a.kind === b.kind
-        ? a.name.localeCompare(b.name, undefined, { numeric: true })
-        : a.kind === 'directory'
-          ? -1
-          : 1,
+      a.kind === b.kind ? nameOrder.compare(a.name, b.name) : a.kind === 'directory' ? -1 : 1,
     )
     const previous = this.children.get(parent.id) || new Map<string, Node>()
     const kinds = new Map(candidates.map((candidate) => [candidate.name, candidate.kind]))

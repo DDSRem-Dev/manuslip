@@ -118,6 +118,24 @@ it('pages native search results, excludes ignored files and opens a Unicode matc
   expect(files.diagnostics).toEqual({ sessions: 1, files: 1, watchers: 1 })
 })
 
+it('opens native matches at exact source offsets around in-line BOM characters', async () => {
+  const line = '\uFEFF😀 needle\uFEFF needle'
+  const path = join(root, 'unicode.md')
+  await writeFile(path, `# Heading\r\n${line}\r\n`)
+  const { request, page } = await query('needle')
+  expect(page).toMatchObject({ total: 2, truncated: false, skipped: 0 })
+  const anchors = []
+  for (const entry of page.entries) {
+    const opened = await search.open(1, request.id, entry.id)
+    expect(opened.file.text).toBe(`# Heading\n${line}\n`)
+    anchors.push(opened.anchor)
+  }
+  expect(anchors).toEqual([
+    { line: 2, from: 4, to: 10, text: line },
+    { line: 2, from: 12, to: 18, text: line },
+  ])
+})
+
 it('restores named tabs in order while keeping a newer checkpoint separate from the saved file', async () => {
   const firstPath = join(root, 'first.md'),
     secondPath = join(root, 'second.md')

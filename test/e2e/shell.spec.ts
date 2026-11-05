@@ -310,7 +310,7 @@ test('secure shell launches, stays offline, and restores preferences', async () 
       const contents = BrowserWindow.getAllWindows()[0]?.webContents
       if (!contents) throw new Error('No primary window')
       const blocked = new Promise<boolean>((done) =>
-        contents.once('will-navigate', (event) => done(event.defaultPrevented)),
+        contents.once('will-frame-navigate', (event) => done(event.defaultPrevented)),
       )
       await contents.executeJavaScript('location.href = "https://example.com"')
       return await blocked

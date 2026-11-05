@@ -118,14 +118,17 @@ Navigation admits HTTPS and document fragments; parsing never grants access by i
 
 ## Images
 
-Images keep proportions and fit document width. Local paths resolve relative to the saved
-file through authorized reads. Remote images require both **Load remote images** and the
-current document's permission.
+Images preserve their proportions and fit the document width. Local paths resolve relative
+to the saved file through authorized reads. Remote images require **Load remote images**
+permission for the current document.
+
+Local and remote image files must be PNG, JPEG, GIF or WebP. Their format, dimensions and
+estimated memory use are checked before display; unsupported or oversized images show an error.
 
 With sanitized HTML enabled, `<img>` retains numeric `width`/`height` and safe inline
 `width`, `height` and `zoom`, including `style="zoom:50%;"`. Other inline CSS is discarded.
-Sizing carries through reading/export. Loading or blocked images show alt text and status;
-failures offer Retry. Successful reads still wait for decoding.
+Sizing carries through reading and export. Loading or blocked images show alt text and status;
+failures offer **Retry**. Images appear after decoding finishes.
 
 Use the [conventions sample](../../test/e2e/fixtures/markdown/markdown-conventions.md) for syntax
 and the [testing guide](../testing/testing.md) for conformance coverage.

@@ -1,0 +1,206 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing version tag on main; also select this tag under Use workflow from"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate release tag
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      version: ${{ steps.tag.outputs.version }}
+      sha: ${{ steps.tag.outputs.sha }}
+      prerelease: ${{ steps.tag.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .nvmrc
+      - id: tag
+        run: node scripts/release-tag.mjs
+        env:
+          MANUSLIP_RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+
+  test:
+    name: Release validation
+    needs: validate
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ needs.validate.outputs.sha }}
+
+  package:
+    name: Package (${{ matrix.platform }}, ${{ matrix.arch }})
+    needs: [validate, test]
+    runs-on: ${{ matrix.os }}
+    environment: release-signing
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: win32
+            arch: x64
+          - os: ubuntu-22.04
+            platform: linux
+            arch: x64
+          - os: macos-15-intel
+            platform: darwin
+            arch: x64
+          - os: macos-15
+            platform: darwin
+            arch: arm64
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.validate.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Verify architecture and dependency policy
+        env:
+          EXPECTED_ARCH: ${{ matrix.arch }}
+        run: |
+          node -e "if (process.arch !== process.env.EXPECTED_ARCH) process.exit(1)"
+          npm run check:lockfile
+          npm run audit:dependencies
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build:app
+      - name: Sign and package Windows
+        if: runner.os == 'Windows'
+        id: windows
+        run: npm run package:release -- --signed
+        env:
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+      - name: Sign, notarize and package macOS
+        if: runner.os == 'macOS'
+        id: mac
+        run: npm run package:release -- --signed
+        env:
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      - name: Package Linux
+        if: runner.os == 'Linux'
+        id: linux
+        run: npm run package:release
+      - name: Locate verified package
+        id: package
+        shell: bash
+        env:
+          PACKAGE_DIRECTORY: ${{ steps.windows.outputs.directory || steps.mac.outputs.directory || steps.linux.outputs.directory }}
+          PACKAGE_OUTPUT: ${{ steps.windows.outputs.output || steps.mac.outputs.output || steps.linux.outputs.output }}
+        run: |
+          test -n "$PACKAGE_DIRECTORY"
+          test -n "$PACKAGE_OUTPUT"
+          printf 'directory=%s\noutput=%s\n' "$PACKAGE_DIRECTORY" "$PACKAGE_OUTPUT" >> "$GITHUB_OUTPUT"
+      - name: Smoke test original package and packaged security flows (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a npm run test:packaged -- test/e2e/shell.spec.ts test/e2e/files.spec.ts test/e2e/preview-security.spec.ts test/e2e/plugins-security.spec.ts
+        env:
+          MANUSLIP_PACKAGE_DIRECTORY: ${{ steps.package.outputs.output }}
+      - name: Smoke test original package and packaged security flows
+        if: runner.os != 'Linux'
+        run: npm run test:packaged -- test/e2e/shell.spec.ts test/e2e/files.spec.ts test/e2e/preview-security.spec.ts test/e2e/plugins-security.spec.ts
+        env:
+          MANUSLIP_PACKAGE_DIRECTORY: ${{ steps.package.outputs.output }}
+      - name: Attest installers and SBOM
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-checksums: ${{ steps.package.outputs.output }}/SHA256SUMS
+      - name: Upload verified release candidate
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: release-${{ matrix.platform }}-${{ matrix.arch }}
+          path: |
+            ${{ steps.package.outputs.directory }}/report.json
+            ${{ steps.package.outputs.output }}/SHA256SUMS
+            ${{ steps.package.outputs.output }}/*.exe
+            ${{ steps.package.outputs.output }}/*.dmg
+            ${{ steps.package.outputs.output }}/*.AppImage
+            ${{ steps.package.outputs.output }}/*.blockmap
+            ${{ steps.package.outputs.output }}/*.cdx.json
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
+  draft:
+    name: Assemble draft release
+    needs: [validate, package]
+    runs-on: ubuntu-22.04
+    environment: release
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      attestations: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.validate.outputs.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .nvmrc
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          pattern: release-*
+          path: test/packaging/result/downloads
+      - name: Validate tag and every artifact again
+        run: |
+          node scripts/release-tag.mjs
+          node scripts/release-artifacts.mjs
+        env:
+          MANUSLIP_RELEASE_TAG: ${{ needs.validate.outputs.tag }}
+          MANUSLIP_RELEASE_VERSION: ${{ needs.validate.outputs.version }}
+      - name: Verify provenance and create draft
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.validate.outputs.tag }}
+          RELEASE_SHA: ${{ needs.validate.outputs.sha }}
+          RELEASE_PRERELEASE: ${{ needs.validate.outputs.prerelease }}
+        run: |
+          set -euo pipefail
+          for asset in test/packaging/result/staged/*; do
+            if [ "$(basename "$asset")" = SHA256SUMS ]; then continue; fi
+            gh attestation verify "$asset" --repo "$GH_REPO" --signer-workflow "$GH_REPO/.github/workflows/release.yml" --source-ref "refs/tags/$RELEASE_TAG" --source-digest "$RELEASE_SHA" --deny-self-hosted-runners
+          done
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo 'A release already exists for this tag; review it instead of replacing assets.' >&2
+            exit 1
+          fi
+          flags=()
+          if [ "$RELEASE_PRERELEASE" = true ]; then flags+=(--prerelease); fi
+          gh release create "$RELEASE_TAG" test/packaging/result/staged/* --verify-tag --draft --title "$RELEASE_TAG" --generate-notes "${flags[@]}"
