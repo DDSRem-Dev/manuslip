@@ -166,8 +166,11 @@ validates the lockfile before `npm ci`, then runs `npm run check`, `npm run test
 Each verify job also runs the missing/invalid Pandoc UI workflow without installing Pandoc.
 The CI unit command adds `--maxWorkers=2 --reporter=dot`: fewer simultaneous dense
 fixtures leave CPU/memory headroom, and failed corpus cases do not expand every passing
-example in the log. Each verify job has a 25-minute ceiling covering installation, all
-suites, build and desktop smoke; individual correctness tests remain separately bounded.
+example in the log. Verify jobs have a 25-minute ceiling covering installation, all
+suites, build and desktop smoke; shared Intel macOS runners have 45 minutes. Full-size
+packed-reading capacity fixtures reuse their parsed input for the native oracle and
+have case-local 60-second completion deadlines. Individual correctness tests remain
+separately bounded; these deadlines are not performance budgets.
 
 Real Pandoc conversions and the full packaged desktop E2E suite run through separate
 manual workflows. In GitHub Actions, select [Pandoc](../../.github/workflows/pandoc.yml) or

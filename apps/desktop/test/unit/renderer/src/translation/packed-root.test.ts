@@ -153,14 +153,15 @@ it.each(['manuslip', 'commonmark'] as const)(
     expect(op.payload.byteLength).toBe(0)
   },
 )
-it('preserves every pinned CommonMark example through worker source validation and decoding', () => {
-  for (const example of examples) {
+it.each(examples)(
+  'preserves CommonMark $example: $section through worker source validation and decoding',
+  (example) => {
     const decoded = decodeReadingRoot(operation(example.markdown, 'commonmark'))
     expect(JSON.stringify(decoded.root), `CommonMark ${example.example}`).toBe(
       JSON.stringify(parseMarkdown(example.markdown, 'commonmark').root),
     )
-  }
-})
+  },
+)
 for (const failure of [
   'hash',
   'source',
@@ -263,14 +264,17 @@ it('produces the same provider units and final reading copy from packed and nati
   expect(normalize(copies[1])).toContain('你好')
   expect(JSON.stringify(native.root)).toBe(JSON.stringify(parseMarkdown(source).root))
 })
+// Full-size capacity fixtures include independent native rendering, with case-local
+// completion deadlines for shared Intel runners rather than performance assertions.
 it('prepares and renders a complete packed root whose native AST message exceeds the existing cap', async () => {
   const text = `Prose ${'`PRIVATE` '.repeat(180)}\n\n`.repeat(200)
-  const root = parseMarkdown(text).root,
+  const document = parseMarkdown(text),
+    root = document.root,
     processor = new ReadingProcessor()
   const native = { kind: 'prepare' as const, root, source: text, settings }
   expect(messageSize(native)).toBeGreaterThan(readingLimits.message)
   await expect(processor.execute(native)).rejects.toThrow('translation-view-limit')
-  const prepared = await processor.execute(operation(text))
+  const prepared = await processor.execute(operation(text, 'manuslip', document))
   if (prepared.kind !== 'prepared') throw new Error('Not prepared')
   expect(prepared.units).toHaveLength(200)
   expect(new Set(prepared.units.map((unit) => unit.payload)).size).toBe(1)
@@ -280,12 +284,13 @@ it('prepares and renders a complete packed root whose native AST message exceeds
   expect(rendered.projection.html.match(/PRIVATE/g)).toHaveLength(36000)
   expect(rendered.projection.html).toContain('Prose')
   processor.clear()
-}, 20_000)
+}, 60_000)
 it('prepares and renders every protected occurrence when repeated descriptor JSON exceeds the cap', async () => {
   const text = `Prose ${'`PRIVATE` '.repeat(220)}\n\n`.repeat(240)
-  const root = parseMarkdown(text).root,
+  const document = parseMarkdown(text),
+    root = document.root,
     processor = new ReadingProcessor()
-  const prepared = await processor.execute(operation(text))
+  const prepared = await processor.execute(operation(text, 'manuslip', document))
   if (prepared.kind !== 'prepared') throw new Error('Not prepared')
   expect((messageSize(prepared.units) + messageSize(prepared.blocks)) * 2).toBeGreaterThan(
     readingLimits.descriptors,
@@ -312,11 +317,12 @@ it('prepares and renders every protected occurrence when repeated descriptor JSO
     JSON.stringify(value).replaceAll(/[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}/g, 'ID')
   expect(normalize(rendered.projection)).toBe(normalize(native))
   processor.clear()
-}, 20_000)
+}, 60_000)
 it('releases prepare-only reservations before rendering without retaining returned unit records', async () => {
   const text = `Prose ${'`PRIVATE` '.repeat(240)}\n\n`.repeat(260),
+    document = parseMarkdown(text),
     processor = new ReadingProcessor()
-  const prepared = await processor.execute(operation(text))
+  const prepared = await processor.execute(operation(text, 'manuslip', document))
   if (prepared.kind !== 'prepared') throw new Error('Not prepared')
   expect(prepared.units).toHaveLength(260)
   expect(Reflect.has(processor, 'units')).toBe(false)
@@ -338,7 +344,7 @@ it('releases prepare-only reservations before rendering without retaining return
   if (rendered.kind !== 'rendered') throw new Error('Not rendered')
   expect(rendered.projection.html.match(/PRIVATE/g)).toHaveLength(62400)
   const { renderReading } = await import('@manuslip/renderer/reading')
-  const root = parseMarkdown(text).root
+  const root = document.root
   const oracle = renderReading(root, root, options, {
     layout: 'replace',
     blocks: prepared.blocks,
@@ -361,7 +367,7 @@ it('releases prepare-only reservations before rendering without retaining return
   expect(processor.stats.blockStoreBytes).toBe(0)
   expect(processor.stats.retainedBytes).toBe(0)
   expect(() => plan.units).toThrow('released')
-}, 20_000)
+}, 60_000)
 it('uses caller-mapped blocks directly and preserves independent fallback snapshots in every layout', async () => {
   const text = '# Hello\n\nHello `PRIVATE` and note[^n].\n\n[^n]: Hello footnote.',
     processor = new ReadingProcessor(),

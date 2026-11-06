@@ -44,7 +44,8 @@ jobs:
     name: Verify (${{ matrix.os }})
     if: github.event_name != 'schedule'
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 25
+    # Full correctness fixtures can take over 20 minutes on shared Intel macOS hosts.
+    timeout-minutes: ${{ matrix.os == 'macos-15-intel' && 45 || 25 }}
     strategy:
       fail-fast: false
       matrix:
