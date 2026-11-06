@@ -1,5 +1,14 @@
 import { spawn } from 'node:child_process'
-import { access, appendFile, mkdir, mkdtemp, readdir, readFile, writeFile } from 'node:fs/promises'
+import {
+  access,
+  appendFile,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+} from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { notarize } from '@electron/notarize'
@@ -193,6 +202,12 @@ async function main() {
             .map((row) => join(output, row.name)),
         )
       await writeChecksums(output, artifacts)
+      for (const diagnostic of [
+        config,
+        join(output, 'builder-debug.yml'),
+        join(output, 'builder-effective-config.yaml'),
+      ])
+        await rm(diagnostic, { force: true })
     } catch (error) {
       exitCode = 1
       verificationError =

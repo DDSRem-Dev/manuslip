@@ -78,8 +78,9 @@ npm run package:release -- --signed --plan
 ```
 
 Remove `--plan` to execute the selected profile. Each execution creates a fresh
-`test/packaging/result/releases/candidate-*/` directory containing the builder configuration,
-an internal `report.json` for publishing checks and `artifacts/`. A successful build
+`test/packaging/result/releases/candidate-*/` directory containing an internal `report.json`
+for publishing checks and `artifacts/`. Successful builds remove temporary builder
+configuration and debug files. A successful build
 writes `artifacts/SHA256SUMS` with the SHA-256 of every installer/archive/update metadata
 file. Keep the manifest
 with the artifacts for review. Failure evidence remains in the same directory.
