@@ -73,8 +73,11 @@ export async function collectReleaseArtifacts(source, destination, version) {
     assert.equal(report.hardening.fuses.GrantFileProtocolExtraPrivileges, false)
     assert.equal(report.hardening.fuses.EnableEmbeddedAsarIntegrityValidation, platform !== 'linux')
     const prefix = `Manuslip-${version}-${os}-${arch}`
-    const required = [`${prefix}.${extension}`, `${prefix}.cdx.json`]
-    const allowed = new Set([...required, `${prefix}.${extension}.blockmap`])
+    // AppImage uses the GNU architecture name; the SBOM uses Node's architecture name.
+    const installerArch = platform === 'linux' ? 'x86_64' : arch
+    const installer = `Manuslip-${version}-${os}-${installerArch}.${extension}`
+    const required = [installer, `${prefix}.cdx.json`]
+    const allowed = new Set([...required, `${installer}.blockmap`])
     const seen = new Set()
     for (const row of report.artifacts) {
       assert.deepEqual(
@@ -84,7 +87,7 @@ export async function collectReleaseArtifacts(source, destination, version) {
       )
       assert.ok(
         allowed.has(row.name) && !seen.has(row.name),
-        'Unexpected or duplicate release asset',
+        `Unexpected or duplicate release asset: ${row.name}`,
       )
       assert.equal(basename(row.name), row.name)
       seen.add(row.name)

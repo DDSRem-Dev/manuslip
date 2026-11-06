@@ -83,7 +83,8 @@ Remove `--plan` to execute the selected profile. Each execution creates a fresh
 with the SHA-256 of every installer/archive/update metadata file. Keep the manifest
 with the artifacts for review. Failure evidence remains in the same directory.
 Release filenames include version, OS and architecture so matrix artifacts cannot
-overwrite one another. A successful candidate also includes a CycloneDX dependency
+overwrite one another. Linux AppImages use the GNU `x86_64` architecture suffix;
+their SBOMs use Node's `x64` suffix. A successful candidate also includes a CycloneDX dependency
 SBOM covering runtime and build dependencies (including bundled Mermaid), and a binary
 fuse report; signed profiles verify the native signatures
 and macOS notarization ticket before producing successful release evidence.

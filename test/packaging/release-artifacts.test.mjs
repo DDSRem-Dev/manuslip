@@ -93,9 +93,9 @@ async function fixture(run, signed = false) {
   const source = join(root, 'downloads')
   const destination = join(root, 'staged')
   try {
-    for (const [platform, os, arch, extension] of [
+    for (const [platform, os, arch, extension, installerArch = arch] of [
       ['win32', 'win', 'x64', 'exe'],
-      ['linux', 'linux', 'x64', 'AppImage'],
+      ['linux', 'linux', 'x64', 'AppImage', 'x86_64'],
       ['darwin', 'mac', 'x64', 'dmg'],
       ['darwin', 'mac', 'arm64', 'dmg'],
     ]) {
@@ -103,7 +103,10 @@ async function fixture(run, signed = false) {
       const output = join(directory, 'artifacts')
       await mkdir(output, { recursive: true })
       const prefix = `Manuslip-1.2.3-${os}-${arch}`
-      await writeFile(join(output, `${prefix}.${extension}`), 'verified installer bytes')
+      await writeFile(
+        join(output, `Manuslip-1.2.3-${os}-${installerArch}.${extension}`),
+        'verified installer bytes',
+      )
       await writeFile(join(output, `${prefix}.cdx.json`), '{"bomFormat":"CycloneDX"}')
       const artifacts = await listReleaseArtifacts(output)
       await writeChecksums(output, artifacts)
@@ -150,7 +153,26 @@ test('collects complete unsigned and signed matrices with combined checksum mani
         await readFile(join(destination, 'Manuslip-1.2.3-win-x64.exe'), 'utf8'),
         'verified installer bytes',
       )
+      assert.equal(
+        await readFile(join(destination, 'Manuslip-1.2.3-linux-x86_64.AppImage'), 'utf8'),
+        'verified installer bytes',
+      )
     }, signed)
+})
+
+test('rejects AppImage names with an unexpected architecture', async () => {
+  for (const arch of ['x64', 'aarch64'])
+    await fixture(async ({ source, destination }) => {
+      const path = join(source, 'release-linux-x64/report.json')
+      const report = JSON.parse(await readFile(path, 'utf8'))
+      const installer = report.artifacts.find((row) => row.name.endsWith('.AppImage'))
+      installer.name = `Manuslip-1.2.3-linux-${arch}.AppImage`
+      await writeFile(path, JSON.stringify(report))
+      await assert.rejects(
+        collectReleaseArtifacts(source, destination, '1.2.3'),
+        /Unexpected or duplicate release asset/,
+      )
+    })
 })
 
 test('refuses tampered, unverified, incomplete and path-injected release candidates', async () => {
