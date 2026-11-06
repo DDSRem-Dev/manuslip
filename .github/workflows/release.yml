@@ -124,6 +124,16 @@ jobs:
           if-no-files-found: error
           retention-days: 14
           compression-level: 0
+      - name: Retain packaging failure evidence
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: packaging-failure-${{ matrix.platform }}-${{ matrix.arch }}
+          path: |
+            test/e2e/result/
+            test/packaging/result/releases/candidate-*/report.json
+          if-no-files-found: ignore
+          retention-days: 7
 
   publish:
     name: Publish release

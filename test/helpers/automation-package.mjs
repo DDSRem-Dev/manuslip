@@ -14,7 +14,8 @@ export async function automationPackage(executable) {
   await mkdir(outputs, { recursive: true })
   const destination = await mkdtemp(join(outputs, 'automation-'))
   const target = join(destination, mac ? basename(sourceRoot) : 'app')
-  await cp(sourceRoot, target, { recursive: true, dereference: false })
+  // Framework links must stay relative to the copy, including the binary whose fuses we edit.
+  await cp(sourceRoot, target, { recursive: true, dereference: false, verbatimSymlinks: true })
   const binary = mac
     ? target
     : join(target, process.platform === 'linux' ? 'manuslip-bin' : basename(source))
