@@ -383,13 +383,12 @@ describe('exact packed document word counts', () => {
       context.owner.dispose()
     }
   })
-  it.each(['commonmark', 'manuslip'] as const)(
-    'validates every pinned CommonMark document including exact counts in %s',
-    (syntax) => {
-      for (const example of examples)
-        validate(example.markdown, parseMarkdown(example.markdown, syntax))
-    },
-  )
+  describe.each(['commonmark', 'manuslip'] as const)('complete %s document counts', (syntax) => {
+    it.each(examples)(
+      'validates pinned CommonMark $example including exact counts',
+      ({ markdown }) => validate(markdown, parseMarkdown(markdown, syntax)),
+    )
+  })
   it.each([
     '',
     '\ufeff',

@@ -87,10 +87,10 @@ function fixture(
   return { source, owner, capture, baseline, delta, document }
 }
 describe('whole-string word validation with immutable subtree text reuse', () => {
-  it.each(['commonmark', 'manuslip'] as const)(
+  describe.each(['commonmark', 'manuslip'] as const)(
     'validates every CommonMark example with reuse in %s',
     (syntax) => {
-      for (const example of examples) {
+      it.each(examples)('CommonMark $example: $section', (example) => {
         const context = fixture(example.markdown, syntax)
         try {
           const next = context.delta({})
@@ -119,7 +119,7 @@ describe('whole-string word validation with immutable subtree text reuse', () =>
         } finally {
           context.owner.dispose()
         }
-      }
+      })
     },
   )
   it('preserves empty leaves, empty subtrees and multilingual text in one complete Intl call', () => {

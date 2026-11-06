@@ -104,14 +104,14 @@ function contextSummary(node: Nodes) {
 afterEach(() => vi.restoreAllMocks())
 
 describe('independently admitted caches from one complete immutable document validation', () => {
-  it.each(['commonmark', 'manuslip'] as const)(
+  describe.each(['commonmark', 'manuslip'] as const)(
     'preserves complete CommonMark output and cached native prose in %s',
     (syntax) => {
-      const descriptionSpy = vi.spyOn(descriptions, 'packedDescriptionSteps')
-      const wordSpy = vi.spyOn(words, 'validatePackedWords')
-      const composedWordSpy = vi.spyOn(words, 'packedWordSteps')
-      const projectionSpy = vi.spyOn(projectionValidation, 'packedProjectionOutputSteps')
-      for (const example of examples) {
+      it.each(examples)('CommonMark $example: $section', (example) => {
+        const descriptionSpy = vi.spyOn(descriptions, 'packedDescriptionSteps')
+        const wordSpy = vi.spyOn(words, 'validatePackedWords')
+        const composedWordSpy = vi.spyOn(words, 'packedWordSteps')
+        const projectionSpy = vi.spyOn(projectionValidation, 'packedProjectionOutputSteps')
         const context = fixture(example.markdown, syntax)
         descriptionSpy.mockClear()
         wordSpy.mockClear()
@@ -203,7 +203,7 @@ describe('independently admitted caches from one complete immutable document val
         } finally {
           context.owner.dispose()
         }
-      }
+      })
     },
   )
 

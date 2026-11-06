@@ -34,7 +34,7 @@ async function acl(path: string, protect = false): Promise<string> {
       ],
       {
         windowsHide: true,
-        timeout: 5000,
+        timeout: 15000,
         env: {
           ...process.env,
           PSModulePath: join(
@@ -63,6 +63,7 @@ it.skipIf(process.platform !== 'win32')(
       await rm(directory, { recursive: true, force: true, maxRetries: 3 })
     }
   },
+  45000,
 )
 
 it.skipIf(process.platform !== 'win32')(
@@ -83,4 +84,5 @@ it.skipIf(process.platform !== 'win32')(
       await rm(directory, { recursive: true, force: true, maxRetries: 3 })
     }
   },
+  45000,
 )

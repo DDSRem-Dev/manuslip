@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -23,7 +23,7 @@ describe('main-owned file sessions', () => {
   let files: FileSessions
   let dialogs: FileDialogs
   beforeEach(async () => {
-    directory = await mkdtemp(join(tmpdir(), 'manuslip-sessions-'))
+    directory = await realpath(await mkdtemp(join(tmpdir(), 'manuslip-sessions-')))
     path = join(directory, 'test.md')
     files = new FileSessions(vi.fn())
     dialogs = { open: async () => path, save: async () => path, overwrite: async () => true }

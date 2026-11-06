@@ -45,12 +45,13 @@ it('bounds copying and delimiter scans by input size for fragmented records', ()
   const concat = vi.spyOn(Buffer, 'concat')
   const copy = vi.spyOn(Buffer.prototype, 'copy')
   const indexOf = vi.spyOn(Buffer.prototype, 'indexOf')
+  let finished = false,
+    copied = 0,
+    scanned = 0
   try {
     for (let offset = 0; offset < size; offset += chunk.length) stream.push(chunk, accept)
-    expect(stream.finish(accept)).toBe(true)
-    expect(accept).toHaveBeenCalledOnce()
-    expect(accept.mock.calls[0]?.[0]).toEqual(Buffer.alloc(size, 65))
-    const copied =
+    finished = stream.finish(accept)
+    copied =
       concat.mock.calls.reduce(
         (sum, [parts]) => sum + parts.reduce((n, part) => n + part.length, 0),
         0,
@@ -59,17 +60,20 @@ it('bounds copying and delimiter scans by input size for fragmented records', ()
         (sum, result) => sum + (result.type === 'return' ? result.value : 0),
         0,
       )
-    const scanned = indexOf.mock.contexts.reduce(
+    scanned = indexOf.mock.contexts.reduce(
       (sum, buffer, index) => sum + buffer.length - Number(indexOf.mock.calls[index]?.[1] ?? 0),
       0,
     )
-    expect(copied).toBeLessThanOrEqual(size * 4)
-    expect(scanned).toBeLessThanOrEqual(size * 2)
   } finally {
     concat.mockRestore()
     copy.mockRestore()
     indexOf.mockRestore()
   }
+  expect(finished).toBe(true)
+  expect(accept).toHaveBeenCalledOnce()
+  expect(accept.mock.calls[0]?.[0].equals(Buffer.alloc(size, 65))).toBe(true)
+  expect(copied).toBeLessThanOrEqual(size * 4)
+  expect(scanned).toBeLessThanOrEqual(size * 2)
 })
 
 it.each([false, true])('accepts exactly the record budget with a delimiter=%s', (delimited) => {

@@ -1,4 +1,4 @@
-import { expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { sourceHash } from '../../../core/src/contracts'
 import { packValue } from '../../../core/src/packing'
 import { inspectPackedNativeStream } from '../../../core/src/packing-native-stream'
@@ -164,12 +164,13 @@ function check(
   }
 }
 
-it.each(['commonmark', 'manuslip'] as const)(
-  'reads packed blocks directly and matches whole-root translation/reading for all CommonMark in %s',
+describe.each(['commonmark', 'manuslip'] as const)(
+  'reads packed blocks directly and matches whole-root translation/reading in %s',
   (syntax) => {
-    for (const example of examples) check(example.markdown, syntax)
+    it.each(examples)('CommonMark $example: $section', ({ markdown }) => {
+      check(markdown, syntax)
+    })
   },
-  30000,
 )
 it('keeps occurrence-specific secrets, footnotes and raw fragments across all reading layouts', () => {
   check(
@@ -181,6 +182,9 @@ it('keeps occurrence-specific secrets, footnotes and raw fragments across all re
   )
 })
 
+// Each syntax builds one shared capture/plan, then compares both translation states
+// across all three complete 1 MiB layouts. Keep this whole-document deadline local.
+// Intel CI took 136.8s for this complete check; do not split away either translation state.
 it.each(['commonmark', 'manuslip'] as const)(
   'renders partial and full translations of the complete 1 MiB nested packed document in %s without a native root copy',
   (syntax) => {
@@ -191,5 +195,5 @@ it.each(['commonmark', 'manuslip'] as const)(
       [false, true],
     )
   },
-  60000,
+  180_000,
 )

@@ -68,21 +68,20 @@ const cases = [
   '*中文* **العربية** ~~😀 e\u0301~~ _עברית_',
   '*a  \r\nb* ~~c\t \r\nd~~ final  ',
   '*a\r\nb* **c\rd** ~~e\nf~~',
-  `${'*'.repeat(8193)}a${'*'.repeat(8193)}`,
 ]
-for (const gfm of [false, true])
-  it.each(
-    cases.map((source) => ({
-      source,
-      label: source.length > 100 ? `long paired delimiter run (${source.length} units)` : source,
-    })),
-  )(
-    `preserves complete native inline events (GFM ${gfm}) for $label`,
-    ({ source }) => compare(source, gfm),
-    // Long paired runs also exercise the quadratic ordinary native baseline.
-    // Allow instrumentation overhead for this complete-fidelity oracle comparison.
-    120_000,
+const longPairedDelimiterRun = `${'*'.repeat(8193)}a${'*'.repeat(8193)}`
+for (const gfm of [false, true]) {
+  it.each(cases)(`preserves complete native inline events (GFM ${gfm}) for %j`, (source) =>
+    compare(source, gfm),
   )
+  it(
+    `preserves complete native inline events (GFM ${gfm}) for long paired delimiter run (${longPairedDelimiterRun.length} units)`,
+    () => compare(longPairedDelimiterRun, gfm),
+    // This full-fidelity comparison includes the independent quadratic native resolver.
+    // Ordinary cases and production performance assertions retain their existing budgets.
+    180_000,
+  )
+}
 
 it.each([false, true])('preserves native single-tilde configuration %s', (single) => {
   compare('~one~ ~~two~~ ~*nested*~ ~~**nested**~~', true, single)

@@ -487,6 +487,7 @@ describe('independently owned packed application preview', () => {
       foreign.owner.dispose()
     }
   })
+  // The complete 4,000-block old model must remain live throughout capacity admission.
   it('rejects aggregate model capacity after complete input admission and keeps the old model usable', () => {
     const context = fixture()
     try {
@@ -523,5 +524,5 @@ describe('independently owned packed application preview', () => {
     } finally {
       context.owner.dispose()
     }
-  })
+  }, 15_000)
 })

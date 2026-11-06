@@ -50,6 +50,8 @@ function fixture(blocks = 4000) {
 }
 
 describe('persistent baseline admission with bounded construction scratch', () => {
+  // These dense fixtures must retain more than 2 MiB of metadata; their complete
+  // construction/cancellation paths need a local deadline, not smaller documents.
   it.each(['document', 'projection', 'words'])(
     'keeps every %s cache byte retained when metadata exceeds staging',
     (kind) => {
@@ -57,14 +59,17 @@ describe('persistent baseline admission with bounded construction scratch', () =
       const before = context.owner.stats
       const work = context.create(kind)
       let maximumStaging = 0
+      let maximumRetained = 0
       try {
         while (true) {
           const step = work.next()
-          maximumStaging = Math.max(maximumStaging, context.owner.stats.readerStagingBytes)
-          expect(context.owner.stats.retainedBytes).toBeLessThanOrEqual(session.retained)
+          const stats = context.owner.stats
+          maximumStaging = Math.max(maximumStaging, stats.readerStagingBytes)
+          maximumRetained = Math.max(maximumRetained, stats.retainedBytes)
           if (!step.done) continue
           const baseline = step.value
           if (!baseline) throw new Error('Missing dense baseline')
+          expect(maximumRetained).toBeLessThanOrEqual(session.retained)
           expect(context.owner.stats.retainedBytes - before.retainedBytes).toBeGreaterThan(
             limits.staging,
           )
@@ -98,6 +103,7 @@ describe('persistent baseline admission with bounded construction scratch', () =
       }
       expect(context.owner.stats.retainedBytes).toBe(0)
     },
+    30000,
   )
   it.each(['document', 'projection', 'words'])(
     'releases admitted %s maps when construction is cancelled',
@@ -107,10 +113,19 @@ describe('persistent baseline admission with bounded construction scratch', () =
       const work = context.create(kind)
       try {
         let steps = 0
-        while (context.owner.stats.retainedBytes - before.retainedBytes <= limits.staging) {
-          expect(steps++).toBeLessThan(300000)
-          expect(work.next().done).toBe(false)
+        let completed = false
+        while (
+          context.owner.stats.retainedBytes - before.retainedBytes <= limits.staging &&
+          steps < 300000
+        ) {
+          steps++
+          completed = work.next().done === true
+          if (completed) break
         }
+        expect(completed).toBe(false)
+        expect(context.owner.stats.retainedBytes - before.retainedBytes).toBeGreaterThan(
+          limits.staging,
+        )
         work.return()
         expect(work.next().done).toBe(true)
         expect(context.owner.stats).toEqual(before)
@@ -123,5 +138,6 @@ describe('persistent baseline admission with bounded construction scratch', () =
         context.owner.dispose()
       }
     },
+    30000,
   )
 })

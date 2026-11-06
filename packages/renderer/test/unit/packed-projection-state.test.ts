@@ -113,25 +113,35 @@ function verify(text: string, syntax: 'commonmark' | 'manuslip', render: RenderO
 }
 
 describe('capture-owned packed projection state', () => {
-  it.each(['commonmark', 'manuslip'] as const)(
+  describe.each(['commonmark', 'manuslip'] as const)(
     'matches every CommonMark fixture with %s',
     (syntax) => {
-      for (const example of examples) verify(example.markdown, syntax, options)
+      it.each(examples)('CommonMark $example: $section', (example) => {
+        verify(example.markdown, syntax, options)
+      })
     },
   )
-  it.each([false, true])('preserves global references and widgets with rawHtml=%s', (rawHtml) => {
-    for (const text of [
-      '',
-      '\ufeff# title\r\n\r\n[r]: /url\r\n',
-      '[r]: /first\n\n[r]: /second\n\n[r][r]\n',
-      'first[^a]\n\nagain[^a] and [^b]\n\n[^a]: with [^c]\n\n[^b]: with [^c]\n\n[^c]: with [^a]\n',
-      'text[^a] [r][r]\n\n[^a]: note\n\n    > [r]: /inside\n    >\n    > ![picture][r]\n\n[r]: /outside\n',
-      '[^unused]: unused $math$ ![a](local.png)\n\ntext only\n',
-      'x[^a]\n\n[^a]: <b>note</b> $math$\n\n    ~~~MeRmAiD\n    graph TD; A-->B\n    ~~~\n',
-      '[Straße]: /url\n\n[a][STRASSE]\n\n[^界😀\ud800]: note\n\nx[^界😀\ud800]\n',
-    ])
-      verify(text, 'manuslip', { ...options, rawHtml })
-  })
+  const cases = [
+    '',
+    '\ufeff# title\r\n\r\n[r]: /url\r\n',
+    '[r]: /first\n\n[r]: /second\n\n[r][r]\n',
+    'first[^a]\n\nagain[^a] and [^b]\n\n[^a]: with [^c]\n\n[^b]: with [^c]\n\n[^c]: with [^a]\n',
+    'text[^a] [r][r]\n\n[^a]: note\n\n    > [r]: /inside\n    >\n    > ![picture][r]\n\n[r]: /outside\n',
+    '[^unused]: unused $math$ ![a](local.png)\n\ntext only\n',
+    'x[^a]\n\n[^a]: <b>note</b> $math$\n\n    ~~~MeRmAiD\n    graph TD; A-->B\n    ~~~\n',
+    '[Straße]: /url\n\n[a][STRASSE]\n\n[^界😀\ud800]: note\n\nx[^界😀\ud800]\n',
+  ]
+  describe.each([false, true])(
+    'preserves global references and widgets with rawHtml=%s',
+    (rawHtml) => {
+      it.each(cases.map((text, index) => ({ text, example: index + 1 })))(
+        'extension case $example',
+        ({ text }) => {
+          verify(text, 'manuslip', { ...options, rawHtml })
+        },
+      )
+    },
+  )
   it('counts nested definitions and note calls without charging prose as persistent state', () => {
     const source = (body: string) =>
       `x[^ß] [r][r]\n\ny[^ß]\n\n[r]: /url\n\n[^ß]: ${body} [^b]\n\n    > [s]: /nested\n\n[^b]: end\n`

@@ -133,18 +133,25 @@ test('rejects unsupported lockfile formats instead of skipping validation', asyn
   await assert.rejects(checkLockfile(root), /Expected an npm v3 lockfile/)
 })
 
-test('CLI succeeds for valid inputs and exits nonzero for an unsafe lockfile without dependencies', async (context) => {
-  const { root, lockfile, save } = await fixture(context)
+test('CLI validates direct and directory-aliased entrypoints without dependencies', async (context) => {
+  const { root, directory, lockfile, save } = await fixture(context)
   await mkdir(join(root, 'scripts'))
   const cli = join(root, 'scripts/check-lockfile.mjs')
   await copyFile(script, cli)
-  const run = () =>
-    spawnSync(process.execPath, [cli], { cwd: root, encoding: 'utf8', windowsHide: true })
-  const valid = run()
-  assert.equal(valid.status, 0, valid.stderr)
+  const alias = join(directory, 'project-alias')
+  await symlink(root, alias, process.platform === 'win32' ? 'junction' : 'dir')
+  const entrypoints = [cli, join(alias, 'scripts/check-lockfile.mjs')]
+  const run = (entrypoint) =>
+    spawnSync(process.execPath, [entrypoint], { cwd: root, encoding: 'utf8', windowsHide: true })
+  for (const entrypoint of entrypoints) {
+    const valid = run(entrypoint)
+    assert.equal(valid.status, 0, valid.stderr)
+  }
   lockfile.packages['node_modules/example'].resolved = 'file:../../outside'
   await save()
-  const invalid = run()
-  assert.equal(invalid.status, 1, invalid.stderr)
-  assert.match(invalid.stderr, /resolved must use HTTPS on an approved registry/)
+  for (const entrypoint of entrypoints) {
+    const invalid = run(entrypoint)
+    assert.equal(invalid.status, 1, invalid.stderr)
+    assert.match(invalid.stderr, /resolved must use HTTPS on an approved registry/)
+  }
 })

@@ -677,6 +677,7 @@ describe('verified packed projection reuse', () => {
       context.owner.dispose()
     }
   })
+  // Keep all 4,000 blocks and the admitted baseline live while testing the smaller cache budget.
   it('rejects insufficient persistent cache admission without leaving a partial baseline', () => {
     const context = fixture('p\n\n'.repeat(4000))
     const before = context.owner.stats
@@ -694,7 +695,7 @@ describe('verified packed projection reuse', () => {
     } finally {
       context.owner.dispose()
     }
-  })
+  }, 15_000)
   it.each(['HTML', 'descriptions', 'word count'])(
     'withholds receiver ACK for forged reused %s and accepts a retry',
     (forgedField) => {
@@ -833,10 +834,10 @@ describe('verified packed projection reuse', () => {
       expect(receiver.stats.retainedBytes).toBe(0)
     },
   )
-  it.each(['commonmark', 'manuslip'] as const)(
+  describe.each(['commonmark', 'manuslip'] as const)(
     'validates shared-record revisions for every CommonMark example in %s',
     (syntax) => {
-      for (const example of examples) {
+      it.each(examples)('CommonMark $example: $section', (example) => {
         const context = fixture(example.markdown, syntax)
         try {
           const next = context.delta([], [])
@@ -858,7 +859,7 @@ describe('verified packed projection reuse', () => {
         } finally {
           context.owner.dispose()
         }
-      }
+      })
     },
   )
   it.each([false, true])(

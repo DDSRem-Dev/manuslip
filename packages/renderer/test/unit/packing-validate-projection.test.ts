@@ -84,10 +84,12 @@ function validate(text: string, value = snapshot(text), render = options) {
 }
 
 describe('packed projection and serializer layout field validation', () => {
-  it.each(['commonmark', 'manuslip'] as const)(
+  describe.each(['commonmark', 'manuslip'] as const)(
     'matches every pinned CommonMark render in %s',
     (syntax) => {
-      for (const example of examples) validate(example.markdown, snapshot(example.markdown, syntax))
+      it.each(examples)('CommonMark $example: $section', (example) => {
+        validate(example.markdown, snapshot(example.markdown, syntax))
+      })
     },
   )
   const extensions = [

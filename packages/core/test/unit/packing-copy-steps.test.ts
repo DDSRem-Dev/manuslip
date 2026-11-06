@@ -3,6 +3,8 @@ import { packValue } from '../../src/packing'
 import { PackedArena } from '../../src/packing-arena'
 import { replaceChildSteps, spliceSteps } from '../../src/packing-copy-steps'
 import {
+  elements,
+  fields,
   offsetNode,
   type PackedNode,
   type PackedSegment,
@@ -19,19 +21,18 @@ function node(value: unknown): PackedNode {
   return { arena, id: arena.root }
 }
 function materialize(node: PackedNode): unknown {
-  const read = (view: PackedView): unknown => {
-    switch (view.kind()) {
-      case 'scalar':
-        return view.scalar()
-      case 'position':
-        return view.position()
-      case 'object':
-        return Object.fromEntries(view.keys().map((key) => [key, read(view.at([key]))]))
-      case 'array':
-        return [...view.elements()].map(read)
-    }
+  const view = new PackedView(node)
+  switch (view.kind()) {
+    case 'scalar':
+      return view.scalar()
+    case 'position':
+      return view.position()
+    case 'object':
+      // Enumerate once; per-key path lookups rescan copied fields and make this oracle quadratic.
+      return Object.fromEntries(fields(node).map(([key, value]) => [key, materialize(value)]))
+    case 'array':
+      return [...elements(node)].map(materialize)
   }
-  return read(new PackedView(node))
 }
 function finish(work: PackedWork<PackedNode>): { node: PackedNode; pauses: number } {
   let pauses = 0

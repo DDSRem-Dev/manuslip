@@ -843,17 +843,21 @@ it.each(['before', 'suspended', 'complete', 'throw'] as const)(
   },
 )
 
-it('keeps existing source and descriptor limits and closes after a partial-input failure', () => {
+it('keeps the existing source limit', () => {
   expect(() => markdownBlockSteps('x'.repeat(semanticLimits.previewBytes + 1))).toThrow(
     'size limit',
   )
+})
+
+it('keeps the existing descriptor limit and closes after a partial-input failure', () => {
   const stream = markdownBlockSteps('p\n\n'.repeat(semanticLimits.blocks + 1))
   expect(() => {
     while (!stream.next().done) {}
   }).toThrow('block limit')
   expect(stream.next()).toEqual({ done: true, value: undefined })
   stream.return()
-})
+  // Parse and compile the real 50,001-block fixture; ordinary stream tests keep their default.
+}, 60_000)
 
 it('rejects unregistered transforms before executing a block transform', () => {
   const transform = vi.fn(() => {})

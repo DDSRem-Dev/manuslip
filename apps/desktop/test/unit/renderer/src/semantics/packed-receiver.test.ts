@@ -383,6 +383,7 @@ describe('application packed semantic receiver', () => {
     expect(receiver.stats.retainedBytes).toBe(0)
   })
 
+  // Building 20,000 real blocks crosses the admission boundary; this is not a latency gate.
   it('returns capacity resync for an unadmitted incoming payload and retains the old consumer', () => {
     const context = fixture(2 * MiB)
     try {
@@ -415,7 +416,7 @@ describe('application packed semantic receiver', () => {
     } finally {
       context.close()
     }
-  })
+  }, 30000)
 
   it('reclaims optional prose cache under consumer pressure and accepts the same delta', () => {
     const context = fixture()
@@ -464,6 +465,7 @@ describe('application packed semantic receiver', () => {
     }
   })
 
+  // Full optional-prose reclamation took 8.2 s on the instrumented Intel CI runner.
   it.each(['forged words', 'cancelled retry'] as const)(
     'withholds acknowledgement for %s after reclaiming optional prose',
     (outcome) => {
@@ -502,8 +504,9 @@ describe('application packed semantic receiver', () => {
             expect(() => finishPackedSteps(work)).toThrow(/Invalid packed/)
           else {
             for (let step = 0; context.receiver.stats.cache.words; step++) {
-              expect(step).toBeLessThan(100000)
-              expect(work.next().done).toBe(false)
+              if (step >= 100000) throw new Error('Optional prose cache was not reclaimed')
+              if (work.next().done !== false)
+                throw new Error('Receipt completed before reclaiming optional prose')
             }
             expect(context.receiver.cancel(request.ticket)).toBe(true)
             expect(work.next().done).toBe(true)
@@ -525,6 +528,7 @@ describe('application packed semantic receiver', () => {
         context.close()
       }
     },
+    30_000,
   )
 
   it('withholds acceptance when mandatory validation exceeds its logical node limit', () => {

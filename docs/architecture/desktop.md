@@ -29,6 +29,13 @@ renderer runtime imports. Main owns native dialogs, file sessions, credentials, 
 permissions and atomic writes. See the [security policy](../../SECURITY.md) for each boundary.
 The preload dependency boundary is maintained in [ADR 004](../adr/004-preload-contract-dependencies.md).
 
+Atomic writes reserve a UUID-named temporary sibling without copying the destination
+basename, so long filenames do not inflate temporary paths beyond filesystem/native-tool
+limits. Replacement still preserves metadata, rechecks the destination fingerprint and
+removes temporary files on failure.
+The Windows ACL-copy process has a 15-second deadline including cold PowerShell/module
+startup; timeout or a differing security descriptor still rejects replacement.
+
 Parsing, translation preparation, replacement matching and export preparation use disposable
 workers. Mermaid and printing use separate sandboxed Electron processes and sessions.
 Every owner must release workers, listeners, readers, timers and reservations on completion,

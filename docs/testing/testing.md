@@ -37,11 +37,27 @@ report asynchronous handler failures to the owning test. Tests use isolated prof
 temporary files. Set `MANUSLIP_PACKAGED_EXECUTABLE` to select another executable for desktop workflows.
 Headless Linux Electron tests need Xvfb.
 
+Canonicalize temporary workspace/session roots with `realpath` after `mkdtemp`, before
+deriving child paths or authorization grants. macOS temporary roots can pass through
+`/var` symlinks; Windows temporary roots can use 8.3 aliases. Production grants require
+canonical paths, so fixtures must use the same path identity rather than weakening
+authorization checks.
+The lockfile CLI regression also invokes the script through an aliased directory and
+requires unsafe inputs to exit nonzero. Its entrypoint uses Node 24's `import.meta.main`;
+comparing the raw argument path with the canonical module URL can silently skip validation.
+
 Keep the complete CommonMark corpus and size-dependent admission/boundary fixtures.
 For expensive immutable inputs, share parsing and preparation across translation states
 or layouts, compare every complete output against the independent native oracle, and
 check resource cleanup between runs. Segmented fixtures can use small shared backing
 arrays to avoid repeatedly scanning a large prefix just to decode test results.
+Report independent CommonMark examples as separate parameterized cases rather than putting
+the entire corpus under one default test deadline. Keep stateful seeded sequences intact.
+Use native byte/array comparisons for large exact outputs and enumerate packed object
+fields once, avoiding matcher overhead and repeated linear field lookups.
+Whole-document and admission-boundary cases retain their complete fixtures and use
+documented case-local deadlines; ordinary tests keep the default timeout. These deadlines
+are correctness-test safeguards, not performance budgets.
 
 Real Pandoc tests have their own Vitest project and tagged desktop cases. `npm test`,
 `npm run test:integration` and `npm run test:e2e` exclude them, even when Pandoc is configured.
@@ -148,6 +164,10 @@ CI runs verification on Linux x64, Windows x64 and macOS x64/arm64. Each verify 
 validates the lockfile before `npm ci`, then runs `npm run check`, `npm run test:unit`,
 `npm run test:integration`, `npm run test:packaging` and `npm run build:app`.
 Each verify job also runs the missing/invalid Pandoc UI workflow without installing Pandoc.
+The CI unit command adds `--maxWorkers=2 --reporter=dot`: fewer simultaneous dense
+fixtures leave CPU/memory headroom, and failed corpus cases do not expand every passing
+example in the log. Each verify job has a 25-minute ceiling covering installation, all
+suites, build and desktop smoke; individual correctness tests remain separately bounded.
 
 Real Pandoc conversions and the full packaged desktop E2E suite run through separate
 manual workflows. In GitHub Actions, select [Pandoc](../../.github/workflows/pandoc.yml) or

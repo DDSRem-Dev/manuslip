@@ -141,29 +141,33 @@ it('renders successive reading copies without native root or protected-binding c
     engine.clear()
   }
 })
+// Complete escaped-HTML overflow took 6.1 s on the instrumented Intel CI runner.
 it('rejects complete projection overflow and can retry using the same untouched semantic plan', async () => {
   const source = Array.from({ length: 24 }, (_, i) => `Hello paragraph ${i}.`).join('\n\n')
   const root = parseMarkdown(source).root,
     original = JSON.stringify(root),
     engine = new ReadingProcessor()
-  const prepared = await engine.execute({ kind: 'prepare', root, source, settings })
-  if (prepared.kind !== 'prepared') throw new Error('Not prepared')
-  const large = '&'.repeat(240 * 1024)
-  const values = prepared.units.map((unit, index) => ({
-    key: unit.key ?? '',
-    output: `${large}${index}`,
-  }))
-  await expect(engine.execute({ kind: 'render', options, outputs: values })).rejects.toThrow(
-    'translation-view-limit',
-  )
-  expect(JSON.stringify(root)).toBe(original)
-  const retry = await engine.execute({
-    kind: 'render',
-    options,
-    outputs: values.map((unit) => ({ ...unit, output: 'Recovered.' })),
-  })
-  if (retry.kind !== 'rendered') throw new Error('Not rendered')
-  expect(retry.projection.html.match(/Recovered\./g)).toHaveLength(24)
-  expect(JSON.stringify(root)).toBe(original)
-  engine.clear()
-})
+  try {
+    const prepared = await engine.execute({ kind: 'prepare', root, source, settings })
+    if (prepared.kind !== 'prepared') throw new Error('Not prepared')
+    const large = '&'.repeat(240 * 1024)
+    const values = prepared.units.map((unit, index) => ({
+      key: unit.key ?? '',
+      output: `${large}${index}`,
+    }))
+    await expect(engine.execute({ kind: 'render', options, outputs: values })).rejects.toThrow(
+      'translation-view-limit',
+    )
+    expect(JSON.stringify(root)).toBe(original)
+    const retry = await engine.execute({
+      kind: 'render',
+      options,
+      outputs: values.map((unit) => ({ ...unit, output: 'Recovered.' })),
+    })
+    if (retry.kind !== 'rendered') throw new Error('Not rendered')
+    expect(retry.projection.html.match(/Recovered\./g)).toHaveLength(24)
+    expect(JSON.stringify(root)).toBe(original)
+  } finally {
+    engine.clear()
+  }
+}, 30_000)

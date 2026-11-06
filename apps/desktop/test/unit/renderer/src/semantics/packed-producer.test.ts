@@ -85,19 +85,21 @@ function fixture(retained = limits.retained, render = options) {
     const ticket = receiver.begin(sequence, source)
     return { input, source, ticket, work: producer.prepare(input, structuredClone(ticket)) }
   }
-  const publish = (text: string, revision = 0) => {
+  const publish = (text: string, revision = 0, decode = true) => {
     const started = begin(text, revision)
     const message = finishPackedSteps(started.work)
     if (!message) throw new Error('Missing offer')
     expect(producer.stats.current?.revision).not.toBe(revision)
-    let decoded = unpackValue(message.payload, {
-      bytes: limits.bytes,
-      retained: 64 * MiB,
-      staging: limits.staging,
-    }).value
+    let decoded = decode
+      ? unpackValue(message.payload, {
+          bytes: limits.bytes,
+          retained: 64 * MiB,
+          staging: limits.staging,
+        }).value
+      : undefined
     const received = finishPackedSteps(receiver.receiveSteps(started.ticket, transfer(message)))
     if (received?.kind !== 'accepted') throw new Error('Missing accepted result')
-    if (message.kind === 'delta') decoded = decodeCapture(received.capture)
+    if (decode && message.kind === 'delta') decoded = decodeCapture(received.capture)
     producer.acknowledge(structuredClone(received.acknowledgement))
     expect(producer.stats.current).toEqual(started.source.identity)
     received.capture.release()
@@ -130,15 +132,19 @@ function finishUnderPressure<T>(
   held: ReturnType<PackedSemanticProducer['retain']>,
 ) {
   const evictions = producer.stats.cacheEvictions
+  let peakRetainedBytes = 0
   try {
     while (true) {
       const next = work.next()
-      expect(producer.stats.retainedBytes).toBeLessThanOrEqual(limits.retained)
+      const stats = producer.stats
+      peakRetainedBytes = Math.max(peakRetainedBytes, stats.retainedBytes)
       // The temporary consumer ends after the crowded cache has actually been evicted,
       // before the replacement allocates its admitted full construction workspace.
-      if (producer.stats.cacheEvictions > evictions && producer.stats.phase === 'parse')
-        held.release()
-      if (next.done) return next.value
+      if (stats.cacheEvictions > evictions && stats.phase === 'parse') held.release()
+      if (next.done) {
+        expect(peakRetainedBytes).toBeLessThanOrEqual(limits.retained)
+        return next.value
+      }
     }
   } finally {
     held.release()
@@ -603,9 +609,9 @@ describe('application packed semantic producer', () => {
     const context = fixture()
     try {
       const initial = `# Heading\n\n${'A paragraph.\n\n'.repeat(1000)}`
-      context.publish(initial)
+      context.publish(initial, 0, false)
       const text = initial.replace('Heading', 'Heading extended')
-      expect(context.publish(text, 1).message.kind).toBe('delta')
+      expect(context.publish(text, 1, false).message.kind).toBe('delta')
       expect(context.producer.stats.holds).toBe(3)
       const previous = context.producer.capture()
       const held = pressure(context.producer, 896 * 1024)
@@ -635,15 +641,15 @@ describe('application packed semantic producer', () => {
     } finally {
       context.close()
     }
-  })
+  }, 15_000)
 
   it('recomputes a full resync after an overlay cannot coexist with its outgoing encoding', () => {
     const context = fixture()
     try {
       const initial = `# Heading\n\n${'A paragraph.\n\n'.repeat(1000)}`
-      context.publish(initial)
+      context.publish(initial, 0, false)
       const text = initial.replace('Heading', 'Heading extended')
-      expect(context.publish(text, 1).message.kind).toBe('delta')
+      expect(context.publish(text, 1, false).message.kind).toBe('delta')
       const held = pressure(context.producer, 768 * 1024)
       context.receiver.evict()
       const started = context.begin(text, 1)
@@ -668,7 +674,7 @@ describe('application packed semantic producer', () => {
     } finally {
       context.close()
     }
-  })
+  }, 15_000)
 
   it('evicts optional current cache when an unsupported complete replacement needs the same capacity', () => {
     const context = fixture()
@@ -705,9 +711,9 @@ describe('application packed semantic producer', () => {
     const context = fixture()
     try {
       const initial = `# Heading\n\n${'A paragraph.\n\n'.repeat(1000)}`
-      context.publish(initial)
+      context.publish(initial, 0, false)
       const text = initial.replace('Heading', 'Heading extended')
-      expect(context.publish(text, 1).message.kind).toBe('delta')
+      expect(context.publish(text, 1, false).message.kind).toBe('delta')
       const old = context.producer.capture()
       const held = pressure(context.producer, 768 * 1024)
       context.receiver.evict()
@@ -738,7 +744,7 @@ describe('application packed semantic producer', () => {
     } finally {
       context.close()
     }
-  })
+  }, 15_000)
   it.each(commonmark)(
     'preserves complete roots, metadata, projections and layout for CommonMark $example',
     ({ markdown }) => {
