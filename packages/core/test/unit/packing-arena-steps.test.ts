@@ -48,8 +48,9 @@ function equal(
 }
 
 describe('revocable cooperative packed arena indexing', () => {
-  it('matches every CommonMark document and preserves exact storage weights for ordinary keys', () => {
-    for (const example of examples) {
+  it.each(examples)(
+    'matches CommonMark $example: $section and preserves exact storage weights',
+    (example) => {
       const payload = packValue(parseMarkdown(example.markdown), limits.bytes)
       const expected = PackedArena.open(payload.slice(0), limits)
       const actual = finish(PackedArena.openSteps(payload, limits))
@@ -57,8 +58,8 @@ describe('revocable cooperative packed arena indexing', () => {
       expect(actual.retainedBytes).toBe(expected.retainedBytes)
       expect(actual.stagingBytes).toBe(expected.stagingBytes)
       expect(Object.isFrozen(actual)).toBe(true)
-    }
-  })
+    },
+  )
 
   it('seals queued ownership and copies limits before any advance', () => {
     const payload = packValue({ text: 'sealed' }, limits.bytes)

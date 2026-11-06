@@ -858,10 +858,10 @@ describe('source-bound packed document reuse', () => {
       context.owner.dispose()
     }
   })
-  it.each(['commonmark', 'manuslip'] as const)(
-    'validates shared revisions of all CommonMark examples in %s',
+  describe.each(['commonmark', 'manuslip'] as const)(
+    'validates shared revisions of CommonMark examples in %s',
     (syntax) => {
-      for (const example of examples) {
+      it.each(examples)('CommonMark $example: $section', (example) => {
         const context = fixture(example.markdown, syntax)
         try {
           const prefixes = metadataPrefixes(context.document)
@@ -898,7 +898,7 @@ describe('source-bound packed document reuse', () => {
         } finally {
           context.owner.dispose()
         }
-      }
+      })
     },
   )
   it.each(['LF', 'CRLF', 'BOM LF', 'BOM CRLF'])(
