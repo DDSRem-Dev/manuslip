@@ -133,20 +133,29 @@ workflow from**, so GitHub's provenance identity binds to the release tag. The t
 must be a semantic version matching the root,
 desktop and every workspace package, and its commit must belong to `origin/main`.
 It checks out the validated commit for all jobs, reuses CI for dependency and source
-verification, then builds on Windows x64, Linux x64 and macOS x64/arm64. Run the manual
-Pandoc and Packaged desktop workflows separately before release; the release workflow
-does not invoke them. Release candidates still undergo native signature verification
-and packaged security smoke tests before attestation.
+verification, then builds unsigned installers on Windows x64, Linux x64 and macOS
+x64/arm64. Signing certificates and Apple notarization credentials are not required.
+These installers can show Windows SmartScreen or macOS Gatekeeper prompts or be
+blocked by operating-system policy. Checksums and GitHub build attestations verify
+artifact integrity and provenance; they do not provide native publisher trust.
+Run the manual Pandoc and Packaged desktop workflows separately before release;
+the release workflow does not invoke them. Release candidates undergo binary
+hardening verification and packaged security smoke tests before attestation.
 
-Before using it, configure these GitHub environments. Required reviewers and deployment
-branch/tag restrictions are repository settings; creating a workflow file does not
-enable them. Restrict release tags with a ruleset and require reviewed changes to `main`,
-especially workflows, packaging scripts, lockfiles and Electron security code.
+The publishing job uses the `release` GitHub environment. Required reviewers and
+deployment branch/tag restrictions are repository settings; creating a workflow file
+does not enable them. Restrict release tags with a ruleset and require reviewed
+changes to `main`, especially workflows, packaging scripts, lockfiles and Electron
+security code.
 
 | Environment | Configuration |
 | --- | --- |
-| `release-signing` | Allow only reviewed `v*` tags, require a release maintainer, and store the secrets below. |
 | `release` | Allow only release tags and require a release maintainer before publication. |
+
+Native signing remains available through the separate `--signed` packaging profile.
+If enabling it in the release workflow, supply the following environment secrets
+only to the native Windows/macOS packaging steps and require verified signatures
+before publication:
 
 | Environment secret | Purpose |
 | --- | --- |
@@ -154,30 +163,31 @@ especially workflows, packaging scripts, lockfiles and Electron security code.
 | `MAC_CSC_LINK`, `MAC_CSC_KEY_PASSWORD` | macOS Developer ID Application certificate and password. |
 | `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID` | macOS notarization credentials. |
 
-Secrets are supplied only to their native packaging step. Missing credentials fail
-the Windows/macOS candidate; there is no unsigned fallback. Linux artifacts use
-checksums and build provenance. PR jobs have read-only repository access and receive
-no signing credentials. Actions are pinned to reviewed commit hashes; Dependabot
-maintains the references. Daily dependency auditing and CodeQL provide ongoing checks.
+An explicitly signed build fails if its credentials or signature verification are
+missing; it never falls back to unsigned output. The current workflow explicitly
+builds unsigned packages on every platform and supplies no signing credentials.
+PR jobs have read-only repository access. Actions are pinned to reviewed commit
+hashes; Dependabot maintains the references. Daily dependency auditing and CodeQL provide ongoing checks.
 Enable GitHub secret scanning, push protection and private vulnerability reporting
 in repository settings where the account supports them.
 
-Signed macOS candidates notarize and staple both the app and the signed DMG. The DMG
-blockmap is disabled because stapling changes its bytes after packaging. Checksums
-and provenance cover the final stapled disk image.
+The optional signed macOS profile notarizes and staples both the app and the signed
+DMG. The DMG blockmap is disabled because stapling changes its bytes after packaging.
+Checksums and provenance cover the final stapled disk image.
 
-After native signature checks and packaged security flows pass, the workflow attests
+After binary hardening checks and packaged security flows pass, the workflow attests
 each installer, blockmap and SBOM through GitHub OIDC. The publishing job requires the
-complete matrix, recomputes every checksum, rejects unsigned/modified/duplicate assets,
-and verifies attestations against this repository, release workflow, tag and source
-commit. After all checks pass, it uploads the verified assets and publishes the GitHub
-Release automatically. Tags with prerelease versions are marked as prereleases. An
-existing release for the tag causes the run to fail without replacing its assets.
+complete matrix, recomputes every checksum, rejects modified/duplicate assets and any
+requested signature that was not verified, and verifies attestations against this
+repository, release workflow, tag and source commit. After all checks pass, it uploads
+the verified assets and publishes the GitHub Release automatically. Tags with
+prerelease versions are marked as prereleases. An existing release for the tag causes
+the run to fail without replacing its assets.
 Automatic updating remains unavailable in the application.
 
 Artifact attestations require a supported GitHub plan (public repositories are supported
-on current Free/Pro/Team plans). Signing, notarization, hosted runners and attestations
-must pass on their actual services; local checks do not establish those results.
+on current Free/Pro/Team plans). Hosted runners and attestations must pass on their
+actual services; local checks do not establish those results.
 
 Recipients can verify a downloaded installer with:
 
@@ -185,4 +195,5 @@ Recipients can verify a downloaded installer with:
 gh attestation verify Manuslip-0.1.0-win-x64.exe --repo Nazumeki/manuslip --signer-workflow Nazumeki/manuslip/.github/workflows/release.yml
 ```
 
-Also check the native platform signature and compare the download against `SHA256SUMS`.
+Compare the download against `SHA256SUMS`. The current automated release does not
+include a trusted native platform signature or Apple notarization ticket.

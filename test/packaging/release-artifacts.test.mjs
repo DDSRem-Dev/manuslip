@@ -88,7 +88,7 @@ test('binds releases to the selected tag, checkout and reviewed main history', a
   }
 })
 
-async function fixture(run) {
+async function fixture(run, signed = false) {
   const root = await mkdtemp(join(tmpdir(), 'manuslip-release-artifacts-'))
   const source = join(root, 'downloads')
   const destination = join(root, 'staged')
@@ -115,8 +115,8 @@ async function fixture(run) {
           arch,
           version: '1.2.3',
           publish: 'never',
-          signedRequested: platform !== 'linux',
-          signature: platform === 'linux' ? undefined : { verified: true },
+          signedRequested: signed && platform !== 'linux',
+          signature: signed && platform !== 'linux' ? { verified: true } : undefined,
           hardening: {
             fuses: {
               RunAsNode: false,
@@ -137,25 +137,28 @@ async function fixture(run) {
   }
 }
 
-test('collects the complete signed matrix and writes a combined checksum manifest', async () => {
-  await fixture(async ({ source, destination }) => {
-    const artifacts = await collectReleaseArtifacts(source, destination, '1.2.3')
-    assert.equal(artifacts.length, 8)
-    assert.equal(
-      (await readFile(join(destination, 'SHA256SUMS'), 'utf8')).trim().split('\n').length,
-      8,
-    )
-    assert.equal(
-      await readFile(join(destination, 'Manuslip-1.2.3-win-x64.exe'), 'utf8'),
-      'verified installer bytes',
-    )
-  })
+test('collects complete unsigned and signed matrices with combined checksum manifests', async () => {
+  for (const signed of [false, true])
+    await fixture(async ({ source, destination }) => {
+      const artifacts = await collectReleaseArtifacts(source, destination, '1.2.3')
+      assert.equal(artifacts.length, 8)
+      assert.equal(
+        (await readFile(join(destination, 'SHA256SUMS'), 'utf8')).trim().split('\n').length,
+        8,
+      )
+      assert.equal(
+        await readFile(join(destination, 'Manuslip-1.2.3-win-x64.exe'), 'utf8'),
+        'verified installer bytes',
+      )
+    }, signed)
 })
 
-test('refuses tampered, unsigned, incomplete and path-injected release candidates', async () => {
+test('refuses tampered, unverified, incomplete and path-injected release candidates', async () => {
   for (const change of [
     'tampered',
-    'unsigned',
+    'unverified-signature',
+    'missing-signature',
+    'missing-signing-policy',
     'missing',
     'path',
     'metadata-path',
@@ -172,7 +175,12 @@ test('refuses tampered, unsigned, incomplete and path-injected release candidate
           join(directory, 'artifacts/Manuslip-1.2.3-win-x64.exe'),
           'attacker replacement',
         )
-      if (change === 'unsigned') report.signature.verified = false
+      if (change === 'unverified-signature') {
+        report.signedRequested = true
+        report.signature = { verified: false }
+      }
+      if (change === 'missing-signature') report.signedRequested = true
+      if (change === 'missing-signing-policy') delete report.signedRequested
       if (change === 'missing') await rm(join(source, 'release-darwin-arm64'), { recursive: true })
       if (change === 'path') report.artifacts[0].name = '../../escape.exe'
       if (change === 'metadata-path') report.artifacts[0].path = '../../escape.exe'

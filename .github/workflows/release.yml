@@ -53,7 +53,6 @@ jobs:
     name: Package (${{ matrix.platform }}, ${{ matrix.arch }})
     needs: [validate, test]
     runs-on: ${{ matrix.os }}
-    environment: release-signing
     timeout-minutes: 45
     permissions:
       contents: read
@@ -93,37 +92,9 @@ jobs:
           npm run audit:dependencies
       - run: npm ci --no-audit --no-fund
       - run: npm run build:app
-      - name: Sign and package Windows
-        if: runner.os == 'Windows'
-        id: windows
-        run: npm run package:release -- --signed
-        env:
-          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
-          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
-      - name: Sign, notarize and package macOS
-        if: runner.os == 'macOS'
-        id: mac
-        run: npm run package:release -- --signed
-        env:
-          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-      - name: Package Linux
-        if: runner.os == 'Linux'
-        id: linux
-        run: npm run package:release
-      - name: Locate verified package
+      - name: Package unsigned installers
         id: package
-        shell: bash
-        env:
-          PACKAGE_DIRECTORY: ${{ steps.windows.outputs.directory || steps.mac.outputs.directory || steps.linux.outputs.directory }}
-          PACKAGE_OUTPUT: ${{ steps.windows.outputs.output || steps.mac.outputs.output || steps.linux.outputs.output }}
-        run: |
-          test -n "$PACKAGE_DIRECTORY"
-          test -n "$PACKAGE_OUTPUT"
-          printf 'directory=%s\noutput=%s\n' "$PACKAGE_DIRECTORY" "$PACKAGE_OUTPUT" >> "$GITHUB_OUTPUT"
+        run: npm run package:release
       - name: Smoke test original package and packaged security flows (Linux)
         if: runner.os == 'Linux'
         run: xvfb-run -a npm run test:packaged -- test/e2e/shell.spec.ts test/e2e/files.spec.ts test/e2e/preview-security.spec.ts test/e2e/plugins-security.spec.ts

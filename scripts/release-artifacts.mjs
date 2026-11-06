@@ -39,7 +39,7 @@ export async function writeChecksums(directory, artifacts) {
   )
 }
 
-/** Reject incomplete, unsigned, renamed or modified platform artifacts before any release write. */
+/** Reject incomplete, renamed or modified artifacts and unverified requested signatures. */
 export async function collectReleaseArtifacts(source, destination, version) {
   assert.match(version, /^\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$/)
   const matrix = [
@@ -62,12 +62,8 @@ export async function collectReleaseArtifacts(source, destination, version) {
     assert.equal(report.arch, arch)
     assert.equal(report.version, version)
     assert.equal(report.publish, 'never')
-    assert.equal(
-      report.signedRequested,
-      platform !== 'linux',
-      'Public Windows/macOS artifacts must be signed',
-    )
-    if (platform !== 'linux')
+    assert.equal(typeof report.signedRequested, 'boolean', 'Missing release signing policy')
+    if (report.signedRequested)
       assert.equal(report.signature?.verified, true, 'Native signatures were not verified')
     assert.ok(report.hardening?.fuses)
     assert.equal(report.hardening.fuses.RunAsNode, false)
