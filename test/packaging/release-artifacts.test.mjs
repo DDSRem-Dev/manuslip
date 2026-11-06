@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -102,12 +102,10 @@ async function fixture(run, signed = false) {
       const directory = join(source, `release-${platform}-${arch}`)
       const output = join(directory, 'artifacts')
       await mkdir(output, { recursive: true })
-      const prefix = `Manuslip-1.2.3-${os}-${arch}`
       await writeFile(
         join(output, `Manuslip-1.2.3-${os}-${installerArch}.${extension}`),
         'verified installer bytes',
       )
-      await writeFile(join(output, `${prefix}.cdx.json`), '{"bomFormat":"CycloneDX"}')
       const artifacts = await listReleaseArtifacts(output)
       await writeChecksums(output, artifacts)
       await writeFile(
@@ -144,10 +142,10 @@ test('collects complete unsigned and signed matrices with combined checksum mani
   for (const signed of [false, true])
     await fixture(async ({ source, destination }) => {
       const artifacts = await collectReleaseArtifacts(source, destination, '1.2.3')
-      assert.equal(artifacts.length, 8)
+      assert.equal(artifacts.length, 4)
       assert.equal(
         (await readFile(join(destination, 'SHA256SUMS'), 'utf8')).trim().split('\n').length,
-        8,
+        4,
       )
       assert.equal(
         await readFile(join(destination, 'Manuslip-1.2.3-win-x64.exe'), 'utf8'),
@@ -157,6 +155,13 @@ test('collects complete unsigned and signed matrices with combined checksum mani
         await readFile(join(destination, 'Manuslip-1.2.3-linux-x86_64.AppImage'), 'utf8'),
         'verified installer bytes',
       )
+      assert.deepEqual((await readdir(destination)).sort(), [
+        'Manuslip-1.2.3-linux-x86_64.AppImage',
+        'Manuslip-1.2.3-mac-arm64.dmg',
+        'Manuslip-1.2.3-mac-x64.dmg',
+        'Manuslip-1.2.3-win-x64.exe',
+        'SHA256SUMS',
+      ])
     }, signed)
 })
 
@@ -187,6 +192,9 @@ test('refuses tampered, unverified, incomplete and path-injected release candida
     'duplicate',
     'inspection',
     'checksum',
+    'sbom',
+    'blockmap',
+    'log',
   ])
     await fixture(async ({ source, destination }) => {
       const directory = join(source, 'release-win32-x64')
@@ -209,8 +217,25 @@ test('refuses tampered, unverified, incomplete and path-injected release candida
       if (change === 'duplicate') report.artifacts.push(report.artifacts[0])
       if (change === 'inspection') report.hardening.fuses.EnableNodeCliInspectArguments = true
       if (change === 'checksum') await writeFile(join(directory, 'artifacts/SHA256SUMS'), '')
+      const extra = {
+        sbom: 'Manuslip-1.2.3-win-x64.cdx.json',
+        blockmap: 'Manuslip-1.2.3-win-x64.exe.blockmap',
+        log: 'build.log',
+      }[change]
+      if (extra) {
+        const output = join(directory, 'artifacts')
+        await writeFile(join(output, extra), 'unnecessary release attachment')
+        report.artifacts = await listReleaseArtifacts(output)
+        await writeFile(
+          join(output, 'SHA256SUMS'),
+          report.artifacts.map((row) => `${row.sha256}  ${row.name}\n`).join(''),
+        )
+      }
       await writeFile(path, JSON.stringify(report))
-      await assert.rejects(collectReleaseArtifacts(source, destination, '1.2.3'))
+      await assert.rejects(
+        collectReleaseArtifacts(source, destination, '1.2.3'),
+        extra ? /Unexpected or duplicate release asset/ : undefined,
+      )
       await assert.rejects(readFile(join(destination, 'Manuslip-1.2.3-win-x64.exe')))
     })
 })

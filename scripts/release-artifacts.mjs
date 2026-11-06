@@ -72,12 +72,9 @@ export async function collectReleaseArtifacts(source, destination, version) {
     assert.equal(report.hardening.fuses.OnlyLoadAppFromAsar, true)
     assert.equal(report.hardening.fuses.GrantFileProtocolExtraPrivileges, false)
     assert.equal(report.hardening.fuses.EnableEmbeddedAsarIntegrityValidation, platform !== 'linux')
-    const prefix = `Manuslip-${version}-${os}-${arch}`
-    // AppImage uses the GNU architecture name; the SBOM uses Node's architecture name.
+    // AppImage uses the GNU architecture name.
     const installerArch = platform === 'linux' ? 'x86_64' : arch
     const installer = `Manuslip-${version}-${os}-${installerArch}.${extension}`
-    const required = [installer, `${prefix}.cdx.json`]
-    const allowed = new Set([...required, `${installer}.blockmap`])
     const seen = new Set()
     for (const row of report.artifacts) {
       assert.deepEqual(
@@ -86,7 +83,7 @@ export async function collectReleaseArtifacts(source, destination, version) {
         'Invalid asset metadata',
       )
       assert.ok(
-        allowed.has(row.name) && !seen.has(row.name),
+        row.name === installer && !seen.has(row.name),
         `Unexpected or duplicate release asset: ${row.name}`,
       )
       assert.equal(basename(row.name), row.name)
@@ -101,10 +98,7 @@ export async function collectReleaseArtifacts(source, destination, version) {
       assert.equal(await artifactHash(path), row.sha256, `Artifact checksum differs: ${row.name}`)
       accepted.push({ name: row.name, bytes: row.bytes, sha256: row.sha256, path })
     }
-    assert.ok(
-      required.every((name) => seen.has(name)),
-      'Missing installer or SBOM',
-    )
+    assert.ok(seen.has(installer), 'Missing installer')
     const checksum = report.artifacts.map((row) => `${row.sha256}  ${row.name}\n`).join('')
     assert.equal(await readFile(join(directory, 'artifacts/SHA256SUMS'), 'utf8'), checksum)
   }

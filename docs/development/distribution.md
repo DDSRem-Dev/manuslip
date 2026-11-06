@@ -78,16 +78,17 @@ npm run package:release -- --signed --plan
 ```
 
 Remove `--plan` to execute the selected profile. Each execution creates a fresh
-`test/packaging/result/releases/candidate-*/` directory containing `plan.json`, `builder.json`,
-`report.json` and `artifacts/`. A successful build writes `artifacts/SHA256SUMS`
-with the SHA-256 of every installer/archive/update metadata file. Keep the manifest
+`test/packaging/result/releases/candidate-*/` directory containing the builder configuration,
+an internal `report.json` for publishing checks and `artifacts/`. A successful build
+writes `artifacts/SHA256SUMS` with the SHA-256 of every installer/archive/update metadata
+file. Keep the manifest
 with the artifacts for review. Failure evidence remains in the same directory.
 Release filenames include version, OS and architecture so matrix artifacts cannot
-overwrite one another. Linux AppImages use the GNU `x86_64` architecture suffix;
-their SBOMs use Node's `x64` suffix. A successful candidate also includes a CycloneDX dependency
-SBOM covering runtime and build dependencies (including bundled Mermaid), and a binary
-fuse report; signed profiles verify the native signatures
-and macOS notarization ticket before producing successful release evidence.
+overwrite one another. Linux AppImages use the GNU `x86_64` architecture suffix.
+The default profile produces installers and checksums, with no dependency SBOM or
+update blockmaps. The internal report records binary fuse verification; signed profiles
+verify the native signatures and macOS notarization ticket before producing successful
+release evidence.
 The command always passes `--publish never`; it accepts no publishing or cross-host
 arguments and does not upload anything. Use each platform's native CI/host.
 
@@ -177,12 +178,14 @@ DMG. The DMG blockmap is disabled because stapling changes its bytes after packa
 Checksums and provenance cover the final stapled disk image.
 
 After binary hardening checks and packaged security flows pass, the workflow attests
-each installer, blockmap and SBOM through GitHub OIDC. The publishing job requires the
-complete matrix, recomputes every checksum, rejects modified/duplicate assets and any
+each installer through GitHub OIDC. The publishing job requires the complete matrix,
+recomputes every checksum, rejects modified/duplicate assets and any
 requested signature that was not verified, and verifies attestations against this
 repository, release workflow, tag and source commit. After all checks pass, it uploads
-the verified assets and publishes the GitHub Release automatically. Tags with
-prerelease versions are marked as prereleases. An existing release for the tag causes
+only the four verified installers and their combined `SHA256SUMS` manifest to the
+GitHub Release. Reports stay internal to the workflow; no JSON, blockmap or diagnostic
+log attachments are published. Tags with prerelease versions are marked as prereleases.
+An existing release for the tag causes
 the run to fail without replacing its assets.
 Automatic updating remains unavailable in the application.
 

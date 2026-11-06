@@ -105,7 +105,7 @@ jobs:
         run: npm run test:packaged -- test/e2e/shell.spec.ts test/e2e/files.spec.ts test/e2e/preview-security.spec.ts test/e2e/plugins-security.spec.ts
         env:
           MANUSLIP_PACKAGE_DIRECTORY: ${{ steps.package.outputs.output }}
-      - name: Attest installers and SBOM
+      - name: Attest installers
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
         with:
           subject-checksums: ${{ steps.package.outputs.output }}/SHA256SUMS
@@ -119,21 +119,9 @@ jobs:
             ${{ steps.package.outputs.output }}/*.exe
             ${{ steps.package.outputs.output }}/*.dmg
             ${{ steps.package.outputs.output }}/*.AppImage
-            ${{ steps.package.outputs.output }}/*.blockmap
-            ${{ steps.package.outputs.output }}/*.cdx.json
           if-no-files-found: error
           retention-days: 14
           compression-level: 0
-      - name: Retain packaging failure evidence
-        if: failure()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
-        with:
-          name: packaging-failure-${{ matrix.platform }}-${{ matrix.arch }}
-          path: |
-            test/e2e/result/
-            test/packaging/result/releases/candidate-*/report.json
-          if-no-files-found: ignore
-          retention-days: 7
 
   publish:
     name: Publish release
@@ -184,4 +172,4 @@ jobs:
           fi
           flags=()
           if [ "$RELEASE_PRERELEASE" = true ]; then flags+=(--prerelease); fi
-          gh release create "$RELEASE_TAG" test/packaging/result/staged/* --verify-tag --title "$RELEASE_TAG" --generate-notes "${flags[@]}"
+          gh release create "$RELEASE_TAG" test/packaging/result/staged/*.exe test/packaging/result/staged/*.dmg test/packaging/result/staged/*.AppImage test/packaging/result/staged/SHA256SUMS --verify-tag --title "$RELEASE_TAG" --generate-notes "${flags[@]}"

@@ -42,6 +42,8 @@ test('ordinary and release plans stay unsigned and without a feed unless explici
     assert.equal(plan.config.win.signExecutable, false)
     assert.equal(plan.config.mac.identity, null)
     assert.equal(plan.config.mac.notarize, false)
+    assert.equal(plan.config.nsis.differentialPackage, false)
+    assert.equal(plan.config.dmg.writeUpdateInfo, false)
     assert.equal(plan.updatesRuntimeIncluded, false)
     await validateConfiguration(plan.config, { debugLogger: null })
   }
@@ -123,6 +125,8 @@ test('update metadata uses an explicit HTTPS channel and includes the macOS upda
     assert.equal(plan.publish, 'never')
     assert.equal(plan.config.generateUpdatesFilesForAllChannels, false)
     assert.equal(plan.config.detectUpdateChannel, false)
+    assert.equal(plan.config.nsis.differentialPackage, true)
+    assert.equal(plan.config.dmg.writeUpdateInfo, true)
     if (platform === 'darwin') assert.deepEqual(plan.config.mac.target, ['dmg', 'zip'])
     await validateConfiguration(plan.config, { debugLogger: null })
   }

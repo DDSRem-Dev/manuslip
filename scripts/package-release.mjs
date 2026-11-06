@@ -1,8 +1,7 @@
-import { execFile, spawn } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import { access, appendFile, mkdir, mkdtemp, readdir, readFile, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { promisify } from 'node:util'
 import { notarize } from '@electron/notarize'
 import { listReleaseArtifacts, writeChecksums } from './release-artifacts.mjs'
 import { verifyPackage, verifySignatures } from './verify-package.mjs'
@@ -28,6 +27,8 @@ export function createReleasePlan(
   config.win.signExecutable = signed
   config.mac.identity = null
   config.mac.notarize = false
+  config.nsis = { ...config.nsis, differentialPackage: updates }
+  config.dmg = { ...config.dmg, writeUpdateInfo: updates }
   const requiredEnvironment = []
   if (signed && platform === 'win32') {
     requiredEnvironment.push('WIN_CSC_LINK or CSC_LINK', 'WIN_CSC_KEY_PASSWORD or CSC_KEY_PASSWORD')
@@ -155,10 +156,6 @@ async function main() {
   plan.config.directories.output = output
   const config = join(directory, 'builder.json')
   await writeFile(config, `${JSON.stringify(plan.config, null, 2)}\n`, { flag: 'wx', mode: 0o600 })
-  await writeFile(join(directory, 'plan.json'), `${JSON.stringify(plan, null, 2)}\n`, {
-    flag: 'wx',
-    mode: 0o600,
-  })
   const platform = { win32: '--win', darwin: '--mac', linux: '--linux' }[process.platform]
   const builderArgs = [
     join(root, 'node_modules/electron-builder/cli.js'),
@@ -187,25 +184,6 @@ async function main() {
     try {
       hardening = await verifyPackage(output)
       if (plan.signed && plan.platform === 'darwin') await notarizeDiskImages(output, process.env)
-      const os = { win32: 'win', darwin: 'mac', linux: 'linux' }[process.platform]
-      const { stdout } = await promisify(execFile)(
-        process.execPath,
-        [
-          npmCli(),
-          'sbom',
-          '--include=dev',
-          '--include=optional',
-          '--include=peer',
-          '--sbom-format=cyclonedx',
-        ],
-        { cwd: root, maxBuffer: 16 * 1024 * 1024, timeout: 60000 },
-      )
-      JSON.parse(stdout)
-      await writeFile(
-        join(output, `Manuslip-${metadata.version}-${os}-${process.arch}.cdx.json`),
-        stdout,
-        { flag: 'wx' },
-      )
       artifacts = await listReleaseArtifacts(output)
       if (plan.signed)
         signature = await verifySignatures(
@@ -243,18 +221,8 @@ async function main() {
   await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, { flag: 'wx' })
   console.log(`Release package evidence: ${reportPath}`)
   if (exitCode === 0 && process.env.GITHUB_OUTPUT)
-    await appendFile(
-      process.env.GITHUB_OUTPUT,
-      `directory=${directory}\noutput=${output}\nreport=${reportPath}\n`,
-    )
+    await appendFile(process.env.GITHUB_OUTPUT, `directory=${directory}\noutput=${output}\n`)
   process.exitCode = exitCode
-}
-
-function npmCli() {
-  // npm_execpath is the active pinned npm CLI when invoked through npm run.
-  if (!process.env.npm_execpath)
-    throw new Error('Invoke release packaging through npm run package:release')
-  return process.env.npm_execpath
 }
 
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
